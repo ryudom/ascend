@@ -198,6 +198,14 @@ function MorningScene({ sceneIdx=0, paraPage=0 }){
   );
 }
 
+function SplashLogo({ size=200 }){
+  const [failed,setFailed] = useState(false);
+  if(failed) return <Emblem size={Math.round(size*0.52)}/>;
+  return <img src="/ascend-logo-transparent.png" alt="Ascend"
+    onError={()=>setFailed(true)}
+    style={{width:size+"px",height:size+"px",objectFit:"contain"}}/>;
+}
+
 function RidgelineScene({ h=190 }){
   return (
     <svg width="100%" height={h} viewBox="0 0 400 190" preserveAspectRatio="xMidYMid slice" style={{display:"block"}}>
@@ -2781,7 +2789,7 @@ export default function AscendApp(){
             <span style={{fontSize:"8px",color:"#fff",fontFamily:"monospace",letterSpacing:"0.05em"}}>DEV</span>
           </button>
           <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"40px 30px",textAlign:"center"}}>
-            <Emblem size={104}/>
+            <SplashLogo size={200}/>
             <div style={{...dsp("30px",C.gold,500,"0.28em"),marginTop:"22px"}}>ASCEND</div>
             <div style={{...body("15px",C.muted),marginTop:"16px",lineHeight:"1.7",fontStyle:"italic"}}>Presence. Embodiment.<br/>Participation.</div>
             <button onClick={()=>setOnboarding("chapter1")} style={{marginTop:"48px",padding:"13px 44px",background:"linear-gradient(rgba(163,192,137,0.16),rgba(163,192,137,0.06))",border:`0.5px solid ${C.sageB}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.sageB,400,"0.22em")}}>BEGIN THE CLIMB</button>
