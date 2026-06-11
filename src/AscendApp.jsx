@@ -2747,9 +2747,9 @@ export default function AscendApp(){
   const NAV=[{id:"character",l:"Character"},{id:"quest",l:"Quest"},{id:"map",l:"Map"},{id:"library",l:"Library"}];
 
   const phoneStyle = {
-    width: "min(390px, 100%)",
-    maxWidth: "390px",
-    height: "700px",
+    width: "100%",
+    maxWidth: "430px",
+    height: "100dvh",
     margin: "0 auto",
     position: "relative",
     background: `linear-gradient(${C.bg},${C.bg2})`,
@@ -2758,11 +2758,9 @@ export default function AscendApp(){
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
-    borderRadius: "40px",
-    boxShadow: "0 0 0 8px #1a1a1a, 0 0 0 10px #2a2a2a, 0 30px 80px rgba(0,0,0,0.7)",
   };
 
-  const outerWrap = {minHeight:"100vh",background:"#080c08",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px 0"};
+  const outerWrap = {width:"100%",height:"100dvh",background:C.bg,overflow:"hidden"};
 
   FONT_SCALE = fontScale; // apply at render time so all body()/dsp() calls reflect current scale
 
