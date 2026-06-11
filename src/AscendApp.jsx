@@ -201,7 +201,7 @@ function MorningScene({ sceneIdx=0, paraPage=0 }){
 function SplashLogo({ size=200 }){
   const [failed,setFailed] = useState(false);
   if(failed) return <Emblem size={Math.round(size*0.52)}/>;
-  return <img src="/ascend-logo-transparent.png" alt="Ascend"
+  return <img src="/ascend-logo.webp" alt="Ascend"
     onError={()=>setFailed(true)}
     style={{width:size+"px",height:size+"px",objectFit:"contain"}}/>;
 }
