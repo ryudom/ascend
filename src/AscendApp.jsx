@@ -2443,7 +2443,13 @@ function loadPersisted(){
     return raw ? JSON.parse(raw) : {};
   } catch { return {}; }
 }
-async function loadFromArtifactStorage(){ return null; }
+async function loadFromArtifactStorage(){
+  if(typeof window==="undefined" || !window.storage?.get) return null;
+  try {
+    const r = await window.storage.get(STORAGE_KEY);
+    return r?.value ? JSON.parse(r.value) : null;
+  } catch { return null; }
+}
 function writeStorage(json){
   const d = checkStorage();
   if(d.ls){ try { localStorage.setItem(STORAGE_KEY, json); } catch {} }
@@ -2923,6 +2929,7 @@ export default function AscendApp(){
   return (
     <div style={outerWrap}>
       <style>{`
+        body{margin:0;padding:0;background:#0d1410;}
         ::-webkit-scrollbar { width: 0 !important; height: 0 !important; background: transparent !important; }
         * { scrollbar-width: none !important; -ms-overflow-style: none !important; }
       `}</style>
