@@ -565,6 +565,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
   const [adding,setAdding]     = useState(false);  // show new-type input inside dropdown
   const [newType,setNewType]   = useState("");
   const [awarenessLanding,setAwarenessLanding] = useState(null); // head|chest|belly|ground
+  const [feelOpen,setFeelOpen] = useState(false);
   const [activeActIds,setActiveActIds] = useState([]);
   const [actDrop,setActDrop]   = useState(false);
   const [creatingAct,setCreatingAct] = useState(false);
@@ -777,7 +778,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
           <div style={{textAlign:"left",marginBottom:"22px"}}>
             <div style={{...dsp("9px",C.muted,400,"0.18em"),marginBottom:"11px"}}>WHERE DID AWARENESS LAND?</div>
             <div style={{display:"flex",gap:"7px"}}>
-              {[{k:"ground",label:"Ground",stat:"str"},{k:"belly",label:"Belly",stat:"wil"},{k:"chest",label:"Chest",stat:"hrt"},{k:"head",label:"Head",stat:"wis"}].map(({k,label,stat})=>{
+              {[{k:"belly",label:"Belly",stat:"wil"},{k:"chest",label:"Chest",stat:"hrt"},{k:"head",label:"Head",stat:"wis"}].map(({k,label,stat})=>{
                 const sc=STAT_COLORS[stat]||C.sageB;
                 const on=awarenessLanding===k;
                 return (
@@ -788,14 +789,17 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 );
               })}
             </div>
-            {awarenessLanding && <div style={{...body("10px",C.dim),fontStyle:"italic",marginTop:"7px",textAlign:"center"}}>25% redirected from other stats to {awarenessLanding==="ground"?"Root":awarenessLanding==="belly"?"Will":awarenessLanding==="chest"?"Openness":"Clarity"}</div>}
+            {awarenessLanding && <div style={{...body("10px",C.dim),fontStyle:"italic",marginTop:"7px",textAlign:"center"}}>25% redirected from other stats to {awarenessLanding==="belly"?"Presence":awarenessLanding==="chest"?"Heart":"Wisdom"}</div>}
           </div>
 
-          <div style={{textAlign:"left",marginBottom:"22px"}}>
-            <div style={{...dsp("9px",C.muted,400,"0.18em"),marginBottom:"11px"}}>HOW DO YOU FEEL?</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:"6px"}}>
+          <div style={{marginBottom:"18px"}}>
+            <button onClick={()=>setFeelOpen(o=>!o)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",cursor:"pointer",padding:"0 0 8px"}}>
+              <span style={{...dsp("9px",C.muted,400,"0.18em")}}>HOW DO YOU FEEL?{tags.length?` · ${tags[0]}`:""}</span>
+              <span style={{color:C.muted,fontSize:"9px",display:"inline-block",transform:feelOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform .2s"}}>▼</span>
+            </button>
+            {feelOpen && <div style={{display:"flex",flexWrap:"wrap",gap:"6px",paddingBottom:"4px"}}>
               {STATE_TAGS.map(tg=><Pill key={tg} on={tags.includes(tg)} glow onClick={()=>setTags(p=>p.includes(tg)?p.filter(x=>x!==tg):[...p,tg])}>{tg}</Pill>)}
-            </div>
+            </div>}
           </div>
 
           <div style={{textAlign:"left",marginBottom:"16px"}}>
@@ -1226,15 +1230,13 @@ function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacit
 }
 
 const ACT1_CHAPTERS=[
-  {n:1,title:"The Current",sub:"Recognition",state:"active"},
-  {n:2,title:"The Doorway",sub:"Where attention goes, energy flows",state:"locked"},
-  {n:3,title:"The Foundations of Mastery",sub:"Sit · Stand · Walk",state:"locked"},
-  {n:4,title:"Placed",sub:"The outer map is the inner map",state:"locked"},
-  {n:5,title:"The Living World",sub:"You are made of the same substance",state:"locked"},
-  {n:6,title:"What Is Growing",sub:"See what has been accumulating",state:"locked"},
-  {n:7,title:"The Three Fires",sub:"Centers of being",state:"locked"},
-  {n:4,title:"The Living World",sub:"Nature & motion",state:"locked"},
-  {n:5,title:"Making Contact",sub:"Find the others",state:"locked"},
+  {n:1,title:"The Current",                sub:"Recognition",                        state:"active"},
+  {n:2,title:"The Doorway",               sub:"Where attention goes, energy flows",  state:"locked"},
+  {n:3,title:"The Three Forms",           sub:"The hidden foundations",              state:"locked"},
+  {n:4,title:"The First Ground",          sub:"A place in the world",               state:"locked"},
+  {n:5,title:"The Living World",          sub:"The oldest teacher",                 state:"locked"},
+  {n:6,title:"Cultivating the Capacities",sub:"The invisible harvest",              state:"locked"},
+  {n:7,title:"The Three Fires",           sub:"Centers of being",                   state:"locked"},
 ];
 const DRIFT_SCENES=[
   {label:"i · the current",body:[
@@ -1294,59 +1296,122 @@ const DRIFT_PRACTICES=[
 
 
 const MASTERY_SCENES=[
-  {label:"i · the three positions",body:[
-    "Every human body, in every moment, is doing one of three things. Sitting. Standing. Walking.",
-    "Not techniques. Not poses. The forms of a life.",
-    "Mastery begins here — in what you already do — done fully.",
+  {label:"i · the hidden foundations",body:[
+    "Most people search for mastery in complexity. New techniques. New systems. New information.",
+    "But mastery rarely begins with what is complicated. It begins with what is fundamental.",
+    "Every human life unfolds through three forms: sitting, standing, and walking. You have spent thousands of hours in each of them already.",
+    "The question is not whether you know these forms. The question is whether you inhabit them consciously.",
   ]},
   {label:"ii · sitting — stillness and clarity",body:[
-    "When the body becomes completely still, something becomes visible. The sediment of thought settles. What remains is clarity.",
-    "The Sit does not ask you to empty the mind. It asks you to be so present in the body that the mind has nowhere better to be.",
+    "When the body becomes still, something hidden begins to appear. Thoughts continue moving. Emotions continue moving. Restlessness reveals itself.",
+    "Then, gradually, the sediment begins to settle. The Sit is not an escape from life. It is an encounter with it.",
+    "The practitioner learns that peace is not something created. It is something uncovered when the unnecessary movement falls away. Clarity emerges.",
   ]},
-  {label:"iii · standing — alignment and root",body:[
-    "The tree reaches upward because it is rooted. The deeper the roots, the higher the branches — and the more wind it can bear.",
-    "The Stand asks you to be the tree. Crown rising. Weight dropping. The vertical axis is will made visible.",
+  {label:"iii · standing — root and power",body:[
+    "A tree does not resist the wind by becoming rigid. It survives because it is rooted. The deeper the roots, the greater the strength above.",
+    "Standing is the art of discovering this principle in your own body. Crown rising. Weight dropping. Breath settling. The body becomes a bridge between earth and sky.",
+    "Over time, standing reveals a different kind of strength. Not force. Not tension. Power without struggle. The current still moves around you, but no longer carries you so easily.",
   ]},
   {label:"iv · walking — stillness in motion",body:[
-    "The Walk is the practitioner entering the world. The most difficult form — because the world is full of things that scatter.",
-    "But it begins simply. One step taken with full awareness. The quality of practice carried into motion rather than left at the door.",
-    "Stillness in motion is not moving slowly. It is moving from the same place you stand when you are still.",
+    "Anyone can feel peaceful in a quiet room. The true test begins when life starts moving again.",
+    "Walking is the practitioner entering the world. The same awareness discovered in stillness is carried into motion. Step by step. Breath by breath.",
+    "The world offers endless opportunities to become distracted. Walking becomes the art of remaining present anyway. A life lived from the same place you stand when everything else moves.",
+  ]},
+  {label:"v · the first mastery",body:[
+    "These forms appear simple because they are familiar. But they are the foundations beneath every higher practice.",
+    "To sit well is to learn stillness. To stand well is to learn power. To walk well is to learn integration.",
+    "Master these three forms and every other practice rests upon solid ground.",
   ]},
 ];
 
 const PLACED_SCENES=[
-  {label:"i · every practice has a location",body:[
-    "You do not practice in theory. You practice here — in this body, in this place.",
-    "There are locations where it is easier to return. Where the body remembers. Place holds something the mind cannot.",
-    "You are not just training your body. You are training a place.",
+  {label:"i · a place in the world",body:[
+    "Practice does not happen in theory. It happens somewhere. In a room. Beneath a tree. Beside a river. On a porch. On a mountain trail.",
+    "Every return leaves a trace. The body remembers places more deeply than the mind realizes.",
+    "There are locations where awareness settles more quickly, where the noise grows quieter, where the doorway feels closer. These places become part of the path.",
   ]},
-  {label:"ii · the mark",body:[
-    "To mark a place on your map is not ceremony. It is claiming ground.",
-    "The inner map and the outer map are the same map. The practitioner who inhabits both has twice as much ground to stand on.",
+  {label:"ii · claiming ground",body:[
+    "To practice repeatedly in a place is to cultivate more than yourself. The place begins to change as well.",
+    "Attention gathers there. Memory gathers there. Meaning gathers there. What was once an ordinary location becomes a point of return.",
+    "A small island of presence in the current.",
+  ]},
+  {label:"iii · the inner and outer map",body:[
+    "Most people move through the world without truly inhabiting it. They know where things are, but not where they are.",
+    "The practitioner begins to reverse this. Each place of practice becomes a marker on two maps at once — one map of the world, one map of the self.",
+    "Over time they become impossible to separate. The ground beneath your feet becomes part of who you are.",
   ]},
 ];
 
 const LIVING_WORLD_SCENES=[
-  {label:"i · the same substance",body:[
-    "The body is not a container for practice. It is made of the same substance as everything outside the window.",
-    "The living world is the oldest teacher — and it has been practicing far longer than you have.",
-    "To practice outside is to remember what you are made of.",
+  {label:"i · the oldest teacher",body:[
+    "Long before there were books, there were forests. Long before there were philosophies, there were mountains. Long before there were teachers, there was the wind moving through the trees.",
+    "The living world has been practicing far longer than any human tradition. It has much to teach those willing to listen.",
+  ]},
+  {label:"ii · remembering what you are",body:[
+    "Modern life often feels separate from nature. As though the world exists outside us and we observe it from a distance.",
+    "But your body was not assembled in opposition to the earth. It emerged from it. The minerals in your bones, the water in your blood, the breath in your lungs all belong to the same process that shapes rivers, forests, and oceans.",
+    "You are not standing apart from nature. You are one expression of it.",
+  ]},
+  {label:"iii · the slower current",body:[
+    "The current of modern life moves quickly. The living world moves differently. Seasons do not rush. Mountains do not hurry. Trees do not compare themselves to one another.",
+    "The practitioner who spends time in the living world begins to remember another rhythm. A deeper rhythm. One that existed long before the noise.",
+  ]},
+  {label:"iv · participation",body:[
+    "The goal is not to visit nature. The goal is to belong to it. To recognize yourself as part of a living world rather than a spectator standing outside it.",
+    "When this recognition deepens, gratitude follows. And from gratitude comes the desire to care for what sustains you.",
+    "The path widens. Presence becomes participation.",
   ]},
 ];
 
 const GROWING_SCENES=[
-  {label:"i · what has been happening",body:[
-    "You have been sitting. Standing. Walking. Returning to a place. Something has been accumulating.",
-    "The body changes through return — not in dramatic moments, but through the gradual deepening of what is practiced again and again.",
-    "You are ready now to see what you have been growing.",
+  {label:"i · what has been growing",body:[
+    "You have been sitting. Standing. Walking. Returning. Again and again.",
+    "Each practice may seem small on its own. But life is shaped by what is repeated. Something has been growing beneath the surface.",
+  ]},
+  {label:"ii · the invisible harvest",body:[
+    "A seed does not become a tree in a single day. Growth happens quietly. Roots deepen before branches appear.",
+    "The same is true of cultivation. Most of what matters happens long before it becomes obvious. The practitioner learns patience — trusting the process before the results arrive.",
+  ]},
+  {label:"iii · capacities",body:[
+    "Every practice strengthens particular capacities. Some deepen clarity. Some strengthen will. Some increase sensitivity. Some awaken vitality.",
+    "The purpose is not to become someone else. The purpose is to become more fully yourself.",
+  ]},
+  {label:"iv · the shape emerging",body:[
+    "The capacities are not separate. Like roots, trunk, branches, leaves, and fruit, they support one another. Growth in one area strengthens the whole.",
+    "Over time a pattern begins to emerge. Not an ideal. Not a persona. A living expression of who you are becoming.",
+  ]},
+  {label:"v · the cultivation path",body:[
+    "The current pulls attention outward. Cultivation gathers it again.",
+    "The process is simple. Return. Practice. Grow. Repeat. This is how a life changes.",
   ]},
 ];
 
 const THREE_FIRES_SCENES=[
-  {label:"i · the centers of being",body:[
-    "Every tradition that mapped the body found the same thing: there are places where energy gathers.",
-    "Three matter most. The lower body — ground, vitality, will. The chest — openness, connection, voice. The head — clarity, alignment, orientation.",
-    "The path you have entered touches all three.",
+  {label:"i · the ancient discovery",body:[
+    "Across cultures separated by oceans, languages, and centuries, the same discovery appears again and again. Human beings are not animated from a single place.",
+    "There are centers where life gathers. Places where awareness, energy, and intention become concentrated. Many traditions gave them different names. For now, we will call them the Three Fires.",
+  ]},
+  {label:"ii · the lower fire",body:[
+    "The first fire burns in the lower body. It is the fire of vitality, grounding, and will. The fire that allows a tree to root deeply enough to withstand the storm.",
+    "Without it, higher development has no foundation. This fire is cultivated through embodiment — through practice, through learning to stand on your own ground.",
+  ]},
+  {label:"iii · the heart fire",body:[
+    "The second fire burns within the chest. It is the fire of openness, courage, connection, and expression.",
+    "Many people protect this fire because they have been wounded. Yet every meaningful relationship depends upon it. A closed heart may feel safe. But it cannot truly participate in life.",
+  ]},
+  {label:"iv · the upper fire",body:[
+    "The third fire burns in the head. It is the fire of clarity, perception, and wisdom. Its purpose is not endless thinking. Its purpose is orientation.",
+    "To see clearly. To understand. To recognize what is true. When the upper fire burns cleanly, confusion gives way to insight.",
+  ]},
+  {label:"v · tending the fires",body:[
+    "Most people live with one fire overfed and the others neglected. The path seeks balance.",
+    "Grounding without wisdom becomes stagnation. Wisdom without grounding becomes fantasy. Connection without strength becomes fragility.",
+    "The practitioner learns to tend all three.",
+  ]},
+  {label:"vi · the journey ahead",body:[
+    "You have reclaimed attention from the current. You have entered the doorway. You have practiced the forms. You have claimed ground.",
+    "You have remembered the living world. You have begun cultivating your capacities. Now you discover that all of it has been feeding the same thing.",
+    "The fires are lit. The climb continues.",
   ]},
 ];
 
@@ -1421,16 +1486,18 @@ const CHAPTER_REQUIREMENTS = {
     },
   3: { needsRead:true,
       libRequired:["sit_prac","stand_prac","walk_prac"],
-      practice:{ desc:"Read each form in the Library, then practice Sit, Stand, and Walk once each.",
-        check: ss => ["sitting","standing","walking"].every(t=>ss.some(s=>s.typeId===t&&s.xp>0)) } },
+      practice:{ desc:"Read each form in the Library, then practice Sit, Stand, and Walk — at least 5 minutes each.",
+        check: ss => ["sitting","standing","walking"].every(t=>ss.some(s=>s.typeId===t&&(s.elapsed||0)>=300)) } },
   4: { needsRead:true, practice:{ desc:"Anchor a session and pin it to your map.",
       check: (ss,libReadAt,pins) => pins.some(p=>p.id&&!p.id.startsWith("seed")) } },
   5: { needsRead:true, practice:{ desc:"Complete one walking session outside.",
       check: ss => ss.some(s=>s.typeId==="walking"&&s.xp>0) } },
-  6: { needsRead:true, practice:{ desc:"Complete five practice sessions.",
-      check: ss => ss.filter(s=>s.xp>0).length >= 5 } },
-  7: { needsRead:true, practice:{ desc:"Practice all three forms in a single day.",
-      check: ss => ["sitting","standing","walking"].every(t=>ss.some(s=>s.typeId===t&&s.xp>0)) } },
+  6: { needsRead:true, practice:{ desc:"Build each capacity to 30 XP — practice across all forms.",
+      check: (ss,lr,pins,stats) => ["str","vit","wil","hrt","voi","wis","ali"].every(k=>(stats[k]||0)>=30) } },
+  7: { needsRead:true,
+      libRequired:["presence_ctr","heart_ctr","wisdom_ctr"],
+      practice:{ desc:"Read each Center in the Library. Complete one 10-minute session for each — with awareness landing on that center.",
+        check: ss => ["belly","chest","head"].every(center=>ss.some(s=>s.awarenessLanding===center&&(s.elapsed||0)>=600)) } },
 };
 
 const LIBRARY_ENTRIES = [
@@ -1460,7 +1527,7 @@ const LIBRARY_ENTRIES = [
     practice:"Without changing anything, feel one complete breath cycle. The sensation of air entering. The slight pause at the top. The release of the exhale. The stillness before the next begins. Just one cycle, completely felt." },
 
 
-  { id:"placed", unlock:4, section:"Practices", title:"Placed Practice", sub:"The outer map is the inner map", sc:"ali",
+  { id:"placed", unlock:4, section:"Practices", title:"Placed Practice", sub:"A place in the world", sc:"ali",
     body:[
       "To practice in a specific location, repeatedly, is to build something there — not in the walls, but in the practitioner who keeps returning. The body remembers. What is difficult in a new place becomes easier in a familiar one. What was effortful in the beginning becomes natural with return.",
       "Marking your practice locations is not ceremony. It is the beginning of mapping your inner territory onto the outer world. The two maps are more related than they first appear. Where you practice shapes how you practice. And over time, your practice shapes where you feel most yourself.",
@@ -1565,11 +1632,13 @@ const ANCHOR_SUBQUESTS = [
 ];
 
 const CHAPTER_META = [
-  {n:1, title:"The Current",     sub:"Recognition",                    act:"ACT I"},
-  {n:2, title:"The Doorway",   sub:"Where attention goes, energy flows", act:"ACT I"},
-  {n:3, title:"The Inner Ground", sub:"Face what was hidden",         act:"ACT I"},
-  {n:4, title:"The Living World", sub:"Nature & motion",              act:"ACT I"},
-  {n:5, title:"Making Contact",   sub:"Find the others",              act:"ACT I"},
+  {n:1, title:"The Current",                sub:"Recognition",                        act:"ACT I"},
+  {n:2, title:"The Doorway",               sub:"Where attention goes, energy flows",  act:"ACT I"},
+  {n:3, title:"The Three Forms",           sub:"The hidden foundations",              act:"ACT I"},
+  {n:4, title:"The First Ground",          sub:"A place in the world",               act:"ACT I"},
+  {n:5, title:"The Living World",          sub:"The oldest teacher",                 act:"ACT I"},
+  {n:6, title:"Cultivating the Capacities",sub:"The invisible harvest",              act:"ACT II"},
+  {n:7, title:"The Three Fires",           sub:"Centers of being",                   act:"ACT II"},
 ];
 const CHAPTER_SCENES = { 1:DRIFT_SCENES, 2:DOORWAY_SCENES, 3:MASTERY_SCENES, 4:PLACED_SCENES, 5:LIVING_WORLD_SCENES, 6:GROWING_SCENES, 7:THREE_FIRES_SCENES };
 const CHAPTER_QUESTS = {
@@ -1577,7 +1646,7 @@ const CHAPTER_QUESTS = {
   2: { label:"Who are you, really?", desc:"Anchor once. Enter the house of your soul." },
 };
 
-function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=[], chaptersRead=[], onMarkRead, libReadAt={}, pins=[] }){
+function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=[], chaptersRead=[], onMarkRead, libReadAt={}, pins=[], chStats={} }){
   const [view,setView]               = useState("overview");
   const [readingN,setReadingN]       = useState(null);
   const [scene,setScene]             = useState(0);
@@ -1597,7 +1666,7 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
     if(!req || req.autoComplete) return true;
     if(!req.practice) return true;
     if(req.libRequired && !req.libRequired.every(id=>libReadAt[id]!==undefined)) return false;
-    return req.practice.check(sessions, libReadAt, pins);
+    return req.practice.check(sessions, libReadAt, pins, chStats);
   };
   const questComplete = n => {
     const req = CHAPTER_REQUIREMENTS[n];
@@ -1884,136 +1953,21 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
   );
 }
 
-/* ── MAP TAB — uses Leaflet in PWA, falls back to styled map in artifact ── */
-function LocateButton({ onLocate }){
-  const map = window.__leafletMap;
-  return (
-    <button onClick={()=>onLocate(map)} style={{position:"absolute",bottom:"80px",right:"14px",
-      width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",
-      border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",
-      justifyContent:"center",zIndex:1000,backdropFilter:"blur(4px)"}}>
-      <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-        <circle cx="10" cy="10" r="3" fill={C.sageB}/>
-        <circle cx="10" cy="10" r="7" stroke={C.sageB} strokeWidth="1" fill="none"/>
-        <line x1="10" y1="1" x2="10" y2="4" stroke={C.sageB} strokeWidth="1.2"/>
-        <line x1="10" y1="16" x2="10" y2="19" stroke={C.sageB} strokeWidth="1.2"/>
-        <line x1="1" y1="10" x2="4" y2="10" stroke={C.sageB} strokeWidth="1.2"/>
-        <line x1="16" y1="10" x2="19" y2="10" stroke={C.sageB} strokeWidth="1.2"/>
-      </svg>
-    </button>
-  );
-}
-
 function MapTab({ pins }){
-  const [RL, setRL] = useState(null);
-  const [userPos, setUserPos] = useState(null);
-  const [locating, setLocating] = useState(false);
-  const mapRef = useRef(null);
-  const placesCount = pins.filter(p=>p.id&&!p.id.startsWith("seed")).length;
+  const [hoveredPin,setHoveredPin]=useState(null);
+  const [locating,setLocating]=useState(false);
+  const [locatePulse,setLocatePulse]=useState(false);
+  const [userPos,setUserPos]=useState(null);
+
   const geoPins = pins.filter(p=>p.lat!=null&&p.lng!=null);
-
-  useEffect(()=>{
-    import('react-leaflet').then(m=>setRL(m)).catch(()=>{});
-  },[]);
-
-  const handleLocate = (map) => {
-    if(!navigator.geolocation) return;
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(pos=>{
-      const latlng = [pos.coords.latitude, pos.coords.longitude];
-      setUserPos(latlng);
-      setLocating(false);
-      const m = mapRef.current;
-      if(m) m.setView(latlng, 16);
-    }, ()=>setLocating(false), {enableHighAccuracy:true,timeout:8000});
-  };
-
-  const defaultCenter = geoPins.length
-    ? [geoPins.reduce((s,p)=>s+p.lat,0)/geoPins.length, geoPins.reduce((s,p)=>s+p.lng,0)/geoPins.length]
-    : [43.65, -79.38];
-
-  /* ── Leaflet version ── */
-  if(RL){
-    const { MapContainer, TileLayer, CircleMarker, Circle, Popup } = RL;
-    const mapHeight = "calc(100dvh - 64px)";
-    return (
-      <div style={{position:"relative",height:mapHeight}}>
-        <MapContainer
-          center={userPos||defaultCenter}
-          zoom={15}
-          style={{width:"100%",height:"100%",background:C.bg2}}
-          ref={mapRef}
-          zoomControl={false}
-          attributionControl={false}>
-          <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-            attribution="© OpenStreetMap © CARTO"
-          />
-          {/* Distance rings around user */}
-          {userPos && [100,200,300].map(r=>(
-            <Circle key={r} center={userPos} radius={r}
-              pathOptions={{color:"rgba(125,154,106,0.3)",weight:0.8,fill:false}}/>
-          ))}
-          {/* User position dot */}
-          {userPos && (
-            <CircleMarker center={userPos} radius={6}
-              pathOptions={{color:C.sageB,fillColor:C.sageB,fillOpacity:1,weight:2}}>
-            </CircleMarker>
-          )}
-          {/* Pins */}
-          {geoPins.map((p,i)=>(
-            <CircleMarker key={i} center={[p.lat,p.lng]} radius={5}
-              pathOptions={{color:C.sageB,fillColor:C.sageB,fillOpacity:0.7,weight:1.5}}>
-              <Popup>
-                <div style={{background:C.surf,padding:"8px 10px",borderRadius:"6px",minWidth:"100px"}}>
-                  <div style={{...body("12px",C.cream),marginBottom:"2px"}}>{p.tag||"Anchored"}</div>
-                  <div style={{...body("10px",C.muted)}}>{p.date||""}{p.duration?` · ${p.duration} min`:""}</div>
-                </div>
-              </Popup>
-            </CircleMarker>
-          ))}
-        </MapContainer>
-        {/* Locate button */}
-        <button onClick={()=>handleLocate(mapRef.current)}
-          style={{position:"absolute",bottom:"80px",right:"14px",width:"36px",height:"36px",
-            borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,
-            cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
-            zIndex:1000,backdropFilter:"blur(4px)"}}>
-          {locating
-            ? <div style={{width:"12px",height:"12px",borderRadius:"50%",border:`1.5px solid ${C.sageB}`,borderTopColor:"transparent",animation:"spin 0.8s linear infinite"}}/>
-            : <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-                <circle cx="10" cy="10" r="3" fill={C.sageB}/>
-                <circle cx="10" cy="10" r="7" stroke={C.sageB} strokeWidth="1" fill="none"/>
-                <line x1="10" y1="1" x2="10" y2="4" stroke={C.sageB} strokeWidth="1.2"/>
-                <line x1="10" y1="16" x2="10" y2="19" stroke={C.sageB} strokeWidth="1.2"/>
-                <line x1="1" y1="10" x2="4" y2="10" stroke={C.sageB} strokeWidth="1.2"/>
-                <line x1="16" y1="10" x2="19" y2="10" stroke={C.sageB} strokeWidth="1.2"/>
-              </svg>}
-        </button>
-        {/* Bottom panel */}
-        <div style={{position:"absolute",bottom:0,left:0,right:0,
-          background:`linear-gradient(${C.surf2}ee,${C.bg2}f8)`,
-          borderTop:`0.5px solid ${C.bord}`,padding:"12px 18px 16px",
-          zIndex:1000,backdropFilter:"blur(6px)"}}>
-          <div style={{...body("11px",C.dim),fontStyle:"italic",marginBottom:"6px"}}>The world is waiting.</div>
-          <div style={{display:"flex",alignItems:"center",gap:"7px"}}>
-            <div style={{width:"5px",height:"5px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 5px rgba(163,192,137,0.6)`}}/>
-            <span style={{...dsp("9px",C.muted,400,"0.14em")}}>PLACES ANCHORED: {placesCount}</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  /* ── Styled fallback (Leaflet not loaded) ── */
-  const geoPins2 = pins.filter(p=>p.lat!=null&&p.lng!=null);
-  const mapH=530, mapW=350;
+  const mapW=350, mapH=530;
   let renderPins, ringMeters=100, ringPx=52;
+
   if(userPos){
-    const mPerDegLat=111320,mPerDegLng=111320*Math.cos(userPos[0]*Math.PI/180);
-    const withDist=geoPins2.map(p=>({...p,dx:(p.lng-userPos[1])*mPerDegLng,dy:(p.lat-userPos[0])*mPerDegLat}));
+    const mPerDegLat=111320, mPerDegLng=111320*Math.cos(userPos.lat*Math.PI/180);
+    const withDist=geoPins.map(p=>({...p,dx:(p.lng-userPos.lng)*mPerDegLng,dy:(p.lat-userPos.lat)*mPerDegLat}));
     const maxDist=Math.max(120,...withDist.map(p=>Math.hypot(p.dx,p.dy)));
-    const halfPx=Math.min(mapW,mapH)/2,mPerPx=maxDist/(halfPx*0.8);
+    const halfPx=Math.min(mapW,mapH)/2, mPerPx=maxDist/(halfPx*0.8);
     const niceM=[10,20,50,100,200,500,1000,2000,5000,10000].filter(v=>v<=halfPx/2.6*mPerPx*1.2).pop()||100;
     ringMeters=niceM; ringPx=niceM/mPerPx;
     renderPins=pins.map(p=>{
@@ -2021,15 +1975,33 @@ function MapTab({ pins }){
       return{...p,rx:p.x??50,ry:p.y??50};
     });
   } else {
-    const minLat=geoPins2.length?Math.min(...geoPins2.map(p=>p.lat)):0,maxLat=geoPins2.length?Math.max(...geoPins2.map(p=>p.lat)):1;
-    const minLng=geoPins2.length?Math.min(...geoPins2.map(p=>p.lng)):0,maxLng=geoPins2.length?Math.max(...geoPins2.map(p=>p.lng)):1;
+    const minLat=geoPins.length?Math.min(...geoPins.map(p=>p.lat)):0,maxLat=geoPins.length?Math.max(...geoPins.map(p=>p.lat)):1;
+    const minLng=geoPins.length?Math.min(...geoPins.map(p=>p.lng)):0,maxLng=geoPins.length?Math.max(...geoPins.map(p=>p.lng)):1;
     const latSpan=maxLat-minLat||0.0001,lngSpan=maxLng-minLng||0.0001;
     renderPins=pins.map(p=>{
-      if(p.lat!=null&&p.lng!=null)return{...p,rx:geoPins2.length<2?50:15+((p.lng-minLng)/lngSpan)*70,ry:geoPins2.length<2?50:85-((p.lat-minLat)/latSpan)*70};
+      if(p.lat!=null&&p.lng!=null)return{...p,rx:geoPins.length<2?50:15+((p.lng-minLng)/lngSpan)*70,ry:geoPins.length<2?50:85-((p.lat-minLat)/latSpan)*70};
       return{...p,rx:p.x??50,ry:p.y??50};
     });
+    if(geoPins.length>=2){
+      const R=6371,lat=(minLat+maxLat)/2*Math.PI/180,dlng=(maxLng-minLng)*Math.PI/180;
+      const extKm=R*Math.abs(dlng)*Math.cos(lat)/0.70,mPerPx=(extKm*1000)/(mapW*0.70);
+      const niceM=[10,20,50,100,200,500,1000,2000,5000].filter(v=>v<=(mapH/2)/2/mPerPx*0.8).pop()||100;
+      ringMeters=niceM; ringPx=niceM/mPerPx;
+    }
   }
   const rings=[1,2,3].map(n=>({r:ringPx*n,label:ringMeters*n>=1000?`${ringMeters*n/1000} km`:`${ringMeters*n} m`}));
+  const placesCount=pins.filter(p=>p.id&&!p.id.startsWith("seed")).length;
+
+  const handleLocate=()=>{
+    if(!navigator.geolocation){setLocatePulse(true);setTimeout(()=>setLocatePulse(false),1200);return;}
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      pos=>{setUserPos({lat:pos.coords.latitude,lng:pos.coords.longitude});setLocating(false);setLocatePulse(true);setTimeout(()=>setLocatePulse(false),1400);},
+      ()=>{setLocating(false);setLocatePulse(true);setTimeout(()=>setLocatePulse(false),1200);},
+      {enableHighAccuracy:true,timeout:8000}
+    );
+  };
+
   return (
     <div style={{position:"relative",height:"100%"}}>
       <div style={{background:`linear-gradient(160deg,${C.bg2},${C.surf2} 60%,${C.bg2})`,height:`${mapH}px`,position:"relative",overflow:"hidden"}}>
@@ -2039,15 +2011,25 @@ function MapTab({ pins }){
           </div>
         ))}
         <div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",zIndex:2,pointerEvents:"none"}}>
-          <div style={{width:"7px",height:"7px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 8px rgba(163,192,137,0.7)`}}/>
+          {locatePulse&&<div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",width:"40px",height:"40px",borderRadius:"50%",border:`1px solid ${C.sageB}`,opacity:0.4}}/>}
+          <div style={{width:"7px",height:"7px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 ${locatePulse?"16px":"8px"} rgba(163,192,137,${locatePulse?"0.9":"0.7"})`,transition:"box-shadow .3s"}}/>
         </div>
         {renderPins.map((p,i)=>(
-          <div key={i} style={{position:"absolute",left:`${p.rx}%`,top:`${p.ry}%`,transform:"translate(-50%,-50%)",cursor:"pointer",zIndex:1}}>
-            <svg width="13" height="13" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill="rgba(163,192,137,0.12)" stroke={C.sageB} strokeWidth="0.6"/><line x1="7" y1="5" x2="7" y2="9" stroke={C.sageB} strokeWidth="0.7"/><line x1="5" y1="7" x2="9" y2="7" stroke={C.sageB} strokeWidth="0.7"/></svg>
+          <div key={i} onMouseEnter={()=>setHoveredPin(p.id??i)} onMouseLeave={()=>setHoveredPin(null)} onClick={()=>setHoveredPin(v=>v===(p.id??i)?null:(p.id??i))}
+            style={{position:"absolute",left:`${p.rx}%`,top:`${p.ry}%`,transform:"translate(-50%,-50%)",display:"flex",flexDirection:"column",alignItems:"center",gap:"3px",cursor:"pointer",zIndex:hoveredPin===(p.id??i)?5:1}}>
+            <svg width="13" height="13" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill={hoveredPin===(p.id??i)?"rgba(163,192,137,0.22)":"rgba(163,192,137,0.12)"} stroke={C.sageB} strokeWidth="0.6"/><line x1="7" y1="5" x2="7" y2="9" stroke={C.sageB} strokeWidth="0.7"/><line x1="5" y1="7" x2="9" y2="7" stroke={C.sageB} strokeWidth="0.7"/></svg>
+            {hoveredPin===(p.id??i)&&(
+              <div style={{position:"absolute",bottom:"calc(100% + 7px)",left:"50%",transform:"translateX(-50%)",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
+                <div style={{...body("11px",C.cream),marginBottom:"2px"}}>{p.tag||"Anchored"}</div>
+                <div style={{...body("10px",C.muted)}}>{p.date||""}{p.duration?` · ${p.duration} min`:""}</div>
+              </div>
+            )}
+            {p.tag&&hoveredPin!==(p.id??i)&&<div style={{background:"rgba(13,20,15,0.85)",border:`0.5px solid ${C.bord}`,borderRadius:"3px",padding:"1px 5px",...body("8px",C.sage),whiteSpace:"nowrap"}}>{p.tag}</div>}
           </div>
         ))}
-        <button onClick={()=>handleLocate(null)} style={{position:"absolute",bottom:"80px",right:"14px",width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4}}>
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" fill={C.sageB}/><circle cx="10" cy="10" r="7" stroke={C.sageB} strokeWidth="1" fill="none"/><line x1="10" y1="1" x2="10" y2="4" stroke={C.sageB} strokeWidth="1.2"/><line x1="10" y1="16" x2="10" y2="19" stroke={C.sageB} strokeWidth="1.2"/><line x1="1" y1="10" x2="4" y2="10" stroke={C.sageB} strokeWidth="1.2"/><line x1="16" y1="10" x2="19" y2="10" stroke={C.sageB} strokeWidth="1.2"/></svg>
+        <button onClick={handleLocate} style={{position:"absolute",bottom:"80px",right:"14px",width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4,backdropFilter:"blur(4px)"}}>
+          {locating?<div style={{width:"12px",height:"12px",borderRadius:"50%",border:`1.5px solid ${C.sageB}`,borderTopColor:"transparent",animation:"spin 0.8s linear infinite"}}/>
+          :<svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" fill={C.sageB}/><circle cx="10" cy="10" r="7" stroke={C.sageB} strokeWidth="1" fill="none"/><line x1="10" y1="1" x2="10" y2="4" stroke={C.sageB} strokeWidth="1.2"/><line x1="10" y1="16" x2="10" y2="19" stroke={C.sageB} strokeWidth="1.2"/><line x1="1" y1="10" x2="4" y2="10" stroke={C.sageB} strokeWidth="1.2"/><line x1="16" y1="10" x2="19" y2="10" stroke={C.sageB} strokeWidth="1.2"/></svg>}
         </button>
         <div style={{position:"absolute",bottom:0,left:0,right:0,background:`linear-gradient(${C.surf2}ee,${C.bg2}f8)`,borderTop:`0.5px solid ${C.bord}`,padding:"12px 18px 16px",zIndex:3,backdropFilter:"blur(6px)"}}>
           <div style={{...body("11px",C.dim),fontStyle:"italic",marginBottom:"6px"}}>The world is waiting.</div>
@@ -2060,6 +2042,7 @@ function MapTab({ pins }){
     </div>
   );
 }
+
 
 function LibCard({ title, sub, prog, swatch }){
   return (
@@ -2725,7 +2708,7 @@ export default function AscendApp(){
     if(!isA && (elapsedSecs??0) < 10){ setAnch(false); return; }
     const xpE=isA?0:Math.floor((elapsedSecs??0)/10);
     const {sg}=isA?{sg:{}}:rewards(typeId||"sitting",xpE,activeActivities);
-    const AWARENESS_STAT={head:"wis",chest:"hrt",belly:"wil",ground:"str"};
+    const AWARENESS_STAT={head:"wis",chest:"hrt",belly:"wil"};
     if(awarenessLanding&&AWARENESS_STAT[awarenessLanding]){
       const sk=AWARENESS_STAT[awarenessLanding];
       const siphon=Object.keys(sg).filter(k=>k!==sk).reduce((sum,k)=>{
@@ -2981,9 +2964,11 @@ export default function AscendApp(){
   return (
     <div style={outerWrap}>
       <style>{`
-        body{margin:0;padding:0;background:#0d1410;}
+        body{margin:0;padding:0;background:#0d1410;overscroll-behavior:none;}
+        html{overscroll-behavior:none;}
         ::-webkit-scrollbar { width: 0 !important; height: 0 !important; background: transparent !important; }
-        * { scrollbar-width: none !important; -ms-overflow-style: none !important; }
+        * { scrollbar-width: none !important; -ms-overflow-style: none !important; touch-action: pan-y; }
+        input, textarea, select { touch-action: auto; }
       `}</style>
       <div style={phoneStyle}>
         {/* floating DEV indicator */}
@@ -3010,7 +2995,7 @@ export default function AscendApp(){
         {/* content */}
         <div style={{flex:1,overflowY:"auto",paddingBottom:"118px"}}>
           {tab==="character"&&<CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities}/>}
-          {tab==="quest"&&<QuestTab completedChapters={completedChapters} onCompleteChapter={n=>setCompletedChapters(p=>[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins}/>}
+          {tab==="quest"&&<QuestTab completedChapters={completedChapters} onCompleteChapter={n=>setCompletedChapters(p=>[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}}/>}
           {tab==="map"&&<MapTab pins={pins}/>}
           {tab==="library"&&<LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters}/>}
         </div>
