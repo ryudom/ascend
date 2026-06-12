@@ -198,15 +198,6 @@ function MorningScene({ sceneIdx=0, paraPage=0 }){
   );
 }
 
-function SplashLogo({ size=200, onLoad }){
-  const [failed,setFailed] = useState(false);
-  if(failed) return <Emblem size={Math.round(size*0.52)}/>;
-  return <img src="/ascend-logo.webp" alt="Ascend"
-    onError={()=>setFailed(true)}
-    onLoad={onLoad}
-    style={{width:size+"px",height:size+"px",objectFit:"contain"}}/>;
-}
-
 function RidgelineScene({ h=190 }){
   return (
     <svg width="100%" height={h} viewBox="0 0 400 190" preserveAspectRatio="xMidYMid slice" style={{display:"block"}}>
@@ -2452,13 +2443,7 @@ function loadPersisted(){
     return raw ? JSON.parse(raw) : {};
   } catch { return {}; }
 }
-async function loadFromArtifactStorage(){
-  if(typeof window==="undefined" || !window.storage?.get) return null;
-  try {
-    const r = await window.storage.get(STORAGE_KEY);
-    return r?.value ? JSON.parse(r.value) : null;
-  } catch { return null; }
-}
+async function loadFromArtifactStorage(){ return null; }
 function writeStorage(json){
   const d = checkStorage();
   if(d.ls){ try { localStorage.setItem(STORAGE_KEY, json); } catch {} }
@@ -2517,14 +2502,8 @@ export default function AscendApp(){
   const [theme,setTheme]=useState(P.theme ?? "navy");
   const [fontScale,setFontScale]=useState(P.fontScale ?? 1.0);
   const [guidedSession,setGuidedSession]=useState(P.guidedSession ?? true);
-  const [splashImgLoaded,setSplashImgLoaded]=useState(false);
   const [anchorImmediate,setAnchorImmediate]=useState(true);
   applyTheme(theme);
-  // Fade out the HTML loading splash when React mounts
-  useEffect(()=>{
-    const s=document.getElementById("splash");
-    if(s){ s.style.transition="opacity 0.6s"; s.style.opacity="0"; setTimeout(()=>s?.remove(),650); }
-  },[]);
 
   const [importPanel,setImportPanel]=useState(false);
   const [importText,setImportText]=useState("");
@@ -2796,8 +2775,8 @@ export default function AscendApp(){
             <span style={{fontSize:"8px",color:"#fff",fontFamily:"monospace",letterSpacing:"0.05em"}}>DEV</span>
           </button>
           <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"40px 30px",textAlign:"center"}}>
-            <SplashLogo size={270} onLoad={()=>setSplashImgLoaded(true)}/>
-            {!splashImgLoaded && <div style={{...dsp("30px",C.gold,500,"0.28em"),marginTop:"22px"}}>ASCEND</div>}
+            <Emblem size={104}/>
+            <div style={{...dsp("30px",C.gold,500,"0.28em"),marginTop:"22px"}}>ASCEND</div>
             <div style={{...body("15px",C.muted),marginTop:"16px",lineHeight:"1.7",fontStyle:"italic"}}>Presence. Embodiment.<br/>Participation.</div>
             <button onClick={()=>setOnboarding("chapter1")} style={{marginTop:"48px",padding:"13px 44px",background:"linear-gradient(rgba(163,192,137,0.16),rgba(163,192,137,0.06))",border:`0.5px solid ${C.sageB}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.sageB,400,"0.22em")}}>BEGIN THE CLIMB</button>
           </div>
