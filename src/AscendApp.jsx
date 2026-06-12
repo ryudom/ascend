@@ -1253,17 +1253,20 @@ const DRIFT_SCENES=[
   {label:"iii · the deeper crisis",body:[
     "But the greatest danger is not any single catastrophe. It is forgetting who we are.",
     "You can feel it beneath the headlines. The anxiety that never fully leaves. The restlessness that cannot sit still. The loneliness of being connected to everyone while belonging nowhere.",
-    "A generation is growing up fluent in technology but uncertain of identity. Many people can tell you what they consume, what they believe, what they oppose — yet struggle to answer a simpler question: Who am I?",
+    "A generation is growing up fluent in technology but uncertain of identity. Many people can tell you what they consume, what they believe, what they oppose — yet struggle to answer a simpler question:",
+    "Who am I?",
   ]},
   {label:"iv · the turning",body:[
     "Every one of these challenges shares a common root. A species that has drifted from its center.",
     "When attention scatters, clarity fades. When clarity fades, fear takes its place. And from fear come the fragile systems, desperate decisions, and unconscious habits that shape the world.",
-    "The outer world reflects the inner one. Which means the solution begins in the same place. Reclaiming attention. Returning to direct experience. Remembering the true self.",
+    "The outer world reflects the inner one. Which means the solution begins in the same place.",
+    "Reclaiming attention.\nReturning to direct experience.\nRemembering the true self.",
   ]},
   {label:"v · the climb",body:[
     "So the movement changes direction. Down into the body. Into breath. Into presence. Into the living world.",
     "A tree does not reach the sky by abandoning its roots. The deeper it grounds, the higher it can grow. The same is true of us.",
-    "The path begins with a simple act that has become strangely rare: bringing attention home. This is the climb.",
+    "The path begins with a simple act that has become strangely rare: bringing attention home.",
+    "This is the climb.",
   ]},
 ];
 const DOORWAY_SCENES=[
@@ -1278,13 +1281,15 @@ const DOORWAY_SCENES=[
   ]},
   {label:"iii · the three conditions",body:[
     "The door does not open by force. It opens when three conditions are met.",
-    "Alignment — the body upright, the channel clear. Release — unnecessary holding let go. Breath — the current you follow down.",
+    "Alignment — the body upright, the channel clear.",
+    "Release — unnecessary holding let go.",
+    "Breath — the current you follow down.",
     "When all three are present, awareness lands. The dormant power stirs.",
   ]},
   {label:"iv · the return",body:[
     "This practice does not end. It deepens.",
-    "What changes, over time, is not that it becomes easy. It is that you stop needing it to be.",
-    "The Anchor is your doorway. Begin there. Begin now.",
+    "What was hidden becomes revealed. The mysteries slowly unravel. The truth is not always easy to accept — but those who persevere find that the reward is eternal.",
+    "The Anchor is your doorway. Begin here. Begin now.",
   ]},
 ];
 const DRIFT_PRACTICES=[
