@@ -16,6 +16,9 @@ function applyTheme(key){
     goldFt:`rgba(${ACCENTS.goldRGB},0.08)`,
     glow:`rgba(${ACCENTS.glowRGB},0.45)`,
   });
+  // Update status bar color on mobile
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute('content', t.bg);
 }
 applyTheme("forest");
 const W = a => `rgba(230,225,210,${a})`;
@@ -196,6 +199,15 @@ function MorningScene({ sceneIdx=0, paraPage=0 }){
       ))}
     </svg>
   );
+}
+
+function SplashLogo({ size=200, onLoad }){
+  const [failed,setFailed] = useState(false);
+  if(failed) return <Emblem size={Math.round(size*0.52)}/>;
+  return <img src="/ascend-logo.webp" alt="Ascend"
+    onError={()=>setFailed(true)}
+    onLoad={onLoad}
+    style={{width:size+"px",height:size+"px",objectFit:"contain"}}/>;
 }
 
 function RidgelineScene({ h=190 }){
@@ -1872,143 +1884,179 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
   );
 }
 
+/* ── MAP TAB — uses Leaflet in PWA, falls back to styled map in artifact ── */
+function LocateButton({ onLocate }){
+  const map = window.__leafletMap;
+  return (
+    <button onClick={()=>onLocate(map)} style={{position:"absolute",bottom:"80px",right:"14px",
+      width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",
+      border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",
+      justifyContent:"center",zIndex:1000,backdropFilter:"blur(4px)"}}>
+      <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+        <circle cx="10" cy="10" r="3" fill={C.sageB}/>
+        <circle cx="10" cy="10" r="7" stroke={C.sageB} strokeWidth="1" fill="none"/>
+        <line x1="10" y1="1" x2="10" y2="4" stroke={C.sageB} strokeWidth="1.2"/>
+        <line x1="10" y1="16" x2="10" y2="19" stroke={C.sageB} strokeWidth="1.2"/>
+        <line x1="1" y1="10" x2="4" y2="10" stroke={C.sageB} strokeWidth="1.2"/>
+        <line x1="16" y1="10" x2="19" y2="10" stroke={C.sageB} strokeWidth="1.2"/>
+      </svg>
+    </button>
+  );
+}
+
 function MapTab({ pins }){
-  const [hoveredPin,setHoveredPin]=useState(null);
-  const [locating,setLocating]=useState(false);
-  const [locatePulse,setLocatePulse]=useState(false);
-  const [userPos,setUserPos]=useState(null); // {lat,lng} of current location
-
+  const [RL, setRL] = useState(null);
+  const [userPos, setUserPos] = useState(null);
+  const [locating, setLocating] = useState(false);
+  const mapRef = useRef(null);
+  const placesCount = pins.filter(p=>p.id&&!p.id.startsWith("seed")).length;
   const geoPins = pins.filter(p=>p.lat!=null&&p.lng!=null);
-  const mapW=350, mapH=530;
 
-  /* When userPos is known: project pins onto a metres-based plane centred on
-     the user. When unknown: fall back to bounding-box normalisation. */
-  let renderPins, ringMeters=100, ringPx=52;
+  useEffect(()=>{
+    import('react-leaflet').then(m=>setRL(m)).catch(()=>{});
+  },[]);
 
-  if(userPos){
-    /* Equirectangular projection centred on user — fine at city scale */
-    const mPerDegLat = 111320;
-    const mPerDegLng = 111320*Math.cos(userPos.lat*Math.PI/180);
-    const withDist = geoPins.map(p=>({
-      ...p,
-      dx:(p.lng-userPos.lng)*mPerDegLng,   // metres east
-      dy:(p.lat-userPos.lat)*mPerDegLat,   // metres north
-    }));
-    const maxDist = Math.max(120, ...withDist.map(p=>Math.hypot(p.dx,p.dy)));
-    /* Fit furthest pin at ~80% of half the smaller map dimension */
-    const halfPx = Math.min(mapW,mapH)/2;
-    const mPerPx = maxDist/(halfPx*0.8);
-    const niceM=[10,20,50,100,200,500,1000,2000,5000,10000].filter(v=>v<=halfPx/2.6*mPerPx*1.2).pop()||100;
-    ringMeters=niceM; ringPx=niceM/mPerPx;
-    renderPins = pins.map(p=>{
-      if(p.lat!=null&&p.lng!=null){
-        const g=withDist.find(w=>w.id===p.id)||{dx:0,dy:0};
-        return {...p, rx:50+(g.dx/mPerPx/mapW)*100, ry:50-(g.dy/mPerPx/mapH)*100};
-      }
-      return {...p, rx:p.x??50, ry:p.y??50};
-    });
-  } else {
-    const minLat = geoPins.length?Math.min(...geoPins.map(p=>p.lat)):0;
-    const maxLat = geoPins.length?Math.max(...geoPins.map(p=>p.lat)):1;
-    const minLng = geoPins.length?Math.min(...geoPins.map(p=>p.lng)):0;
-    const maxLng = geoPins.length?Math.max(...geoPins.map(p=>p.lng)):1;
-    const latSpan = maxLat-minLat||0.0001;
-    const lngSpan = maxLng-minLng||0.0001;
-    renderPins = pins.map(p=>{
-      if(p.lat!=null&&p.lng!=null){
-        const rx=geoPins.length<2?50:15+((p.lng-minLng)/lngSpan)*70;
-        const ry=geoPins.length<2?50:85-((p.lat-minLat)/latSpan)*70;
-        return {...p,rx,ry};
-      }
-      return {...p, rx:p.x??50, ry:p.y??50};
-    });
-    if(geoPins.length>=2){
-      const R=6371, lat=(minLat+maxLat)/2*Math.PI/180, dlng=(maxLng-minLng)*Math.PI/180;
-      const extKm=R*Math.abs(dlng)*Math.cos(lat)/0.70;
-      const mPerPx=(extKm*1000)/(mapW*0.70);
-      const niceM=[10,20,50,100,200,500,1000,2000,5000].filter(v=>v<=(mapH/2)/2/mPerPx*0.8).pop()||100;
-      ringMeters=niceM; ringPx=niceM/mPerPx;
-    }
-  }
-  const rings=[1,2,3].map(n=>({r:ringPx*n, label:ringMeters*n>=1000?`${ringMeters*n/1000} km`:`${ringMeters*n} m`}));
-
-  const handleLocate = () => {
-    if(!navigator.geolocation){ setLocatePulse(true); setTimeout(()=>setLocatePulse(false),1200); return; }
+  const handleLocate = (map) => {
+    if(!navigator.geolocation) return;
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos)=>{
-        setUserPos({lat:pos.coords.latitude, lng:pos.coords.longitude});
-        setLocating(false); setLocatePulse(true); setTimeout(()=>setLocatePulse(false),1400);
-      },
-      ()=>{ setLocating(false); setLocatePulse(true); setTimeout(()=>setLocatePulse(false),1200); },
-      {enableHighAccuracy:true, timeout:8000}
-    );
+    navigator.geolocation.getCurrentPosition(pos=>{
+      const latlng = [pos.coords.latitude, pos.coords.longitude];
+      setUserPos(latlng);
+      setLocating(false);
+      const m = mapRef.current;
+      if(m) m.setView(latlng, 16);
+    }, ()=>setLocating(false), {enableHighAccuracy:true,timeout:8000});
   };
 
-  const placesCount = pins.filter(p=>p.id&&!p.id.startsWith("seed")).length;
+  const defaultCenter = geoPins.length
+    ? [geoPins.reduce((s,p)=>s+p.lat,0)/geoPins.length, geoPins.reduce((s,p)=>s+p.lng,0)/geoPins.length]
+    : [43.65, -79.38];
 
+  /* ── Leaflet version ── */
+  if(RL){
+    const { MapContainer, TileLayer, CircleMarker, Circle, Popup } = RL;
+    const mapHeight = "calc(100dvh - 64px)";
+    return (
+      <div style={{position:"relative",height:mapHeight}}>
+        <MapContainer
+          center={userPos||defaultCenter}
+          zoom={15}
+          style={{width:"100%",height:"100%",background:C.bg2}}
+          ref={mapRef}
+          zoomControl={false}
+          attributionControl={false}>
+          <TileLayer
+            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            attribution="© OpenStreetMap © CARTO"
+          />
+          {/* Distance rings around user */}
+          {userPos && [100,200,300].map(r=>(
+            <Circle key={r} center={userPos} radius={r}
+              pathOptions={{color:"rgba(125,154,106,0.3)",weight:0.8,fill:false}}/>
+          ))}
+          {/* User position dot */}
+          {userPos && (
+            <CircleMarker center={userPos} radius={6}
+              pathOptions={{color:C.sageB,fillColor:C.sageB,fillOpacity:1,weight:2}}>
+            </CircleMarker>
+          )}
+          {/* Pins */}
+          {geoPins.map((p,i)=>(
+            <CircleMarker key={i} center={[p.lat,p.lng]} radius={5}
+              pathOptions={{color:C.sageB,fillColor:C.sageB,fillOpacity:0.7,weight:1.5}}>
+              <Popup>
+                <div style={{background:C.surf,padding:"8px 10px",borderRadius:"6px",minWidth:"100px"}}>
+                  <div style={{...body("12px",C.cream),marginBottom:"2px"}}>{p.tag||"Anchored"}</div>
+                  <div style={{...body("10px",C.muted)}}>{p.date||""}{p.duration?` · ${p.duration} min`:""}</div>
+                </div>
+              </Popup>
+            </CircleMarker>
+          ))}
+        </MapContainer>
+        {/* Locate button */}
+        <button onClick={()=>handleLocate(mapRef.current)}
+          style={{position:"absolute",bottom:"80px",right:"14px",width:"36px",height:"36px",
+            borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,
+            cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+            zIndex:1000,backdropFilter:"blur(4px)"}}>
+          {locating
+            ? <div style={{width:"12px",height:"12px",borderRadius:"50%",border:`1.5px solid ${C.sageB}`,borderTopColor:"transparent",animation:"spin 0.8s linear infinite"}}/>
+            : <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+                <circle cx="10" cy="10" r="3" fill={C.sageB}/>
+                <circle cx="10" cy="10" r="7" stroke={C.sageB} strokeWidth="1" fill="none"/>
+                <line x1="10" y1="1" x2="10" y2="4" stroke={C.sageB} strokeWidth="1.2"/>
+                <line x1="10" y1="16" x2="10" y2="19" stroke={C.sageB} strokeWidth="1.2"/>
+                <line x1="1" y1="10" x2="4" y2="10" stroke={C.sageB} strokeWidth="1.2"/>
+                <line x1="16" y1="10" x2="19" y2="10" stroke={C.sageB} strokeWidth="1.2"/>
+              </svg>}
+        </button>
+        {/* Bottom panel */}
+        <div style={{position:"absolute",bottom:0,left:0,right:0,
+          background:`linear-gradient(${C.surf2}ee,${C.bg2}f8)`,
+          borderTop:`0.5px solid ${C.bord}`,padding:"12px 18px 16px",
+          zIndex:1000,backdropFilter:"blur(6px)"}}>
+          <div style={{...body("11px",C.dim),fontStyle:"italic",marginBottom:"6px"}}>The world is waiting.</div>
+          <div style={{display:"flex",alignItems:"center",gap:"7px"}}>
+            <div style={{width:"5px",height:"5px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 5px rgba(163,192,137,0.6)`}}/>
+            <span style={{...dsp("9px",C.muted,400,"0.14em")}}>PLACES ANCHORED: {placesCount}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Styled fallback (Leaflet not loaded) ── */
+  const geoPins2 = pins.filter(p=>p.lat!=null&&p.lng!=null);
+  const mapH=530, mapW=350;
+  let renderPins, ringMeters=100, ringPx=52;
+  if(userPos){
+    const mPerDegLat=111320,mPerDegLng=111320*Math.cos(userPos[0]*Math.PI/180);
+    const withDist=geoPins2.map(p=>({...p,dx:(p.lng-userPos[1])*mPerDegLng,dy:(p.lat-userPos[0])*mPerDegLat}));
+    const maxDist=Math.max(120,...withDist.map(p=>Math.hypot(p.dx,p.dy)));
+    const halfPx=Math.min(mapW,mapH)/2,mPerPx=maxDist/(halfPx*0.8);
+    const niceM=[10,20,50,100,200,500,1000,2000,5000,10000].filter(v=>v<=halfPx/2.6*mPerPx*1.2).pop()||100;
+    ringMeters=niceM; ringPx=niceM/mPerPx;
+    renderPins=pins.map(p=>{
+      if(p.lat!=null&&p.lng!=null){const g=withDist.find(w=>w.id===p.id)||{dx:0,dy:0};return{...p,rx:50+(g.dx/mPerPx/mapW)*100,ry:50-(g.dy/mPerPx/mapH)*100};}
+      return{...p,rx:p.x??50,ry:p.y??50};
+    });
+  } else {
+    const minLat=geoPins2.length?Math.min(...geoPins2.map(p=>p.lat)):0,maxLat=geoPins2.length?Math.max(...geoPins2.map(p=>p.lat)):1;
+    const minLng=geoPins2.length?Math.min(...geoPins2.map(p=>p.lng)):0,maxLng=geoPins2.length?Math.max(...geoPins2.map(p=>p.lng)):1;
+    const latSpan=maxLat-minLat||0.0001,lngSpan=maxLng-minLng||0.0001;
+    renderPins=pins.map(p=>{
+      if(p.lat!=null&&p.lng!=null)return{...p,rx:geoPins2.length<2?50:15+((p.lng-minLng)/lngSpan)*70,ry:geoPins2.length<2?50:85-((p.lat-minLat)/latSpan)*70};
+      return{...p,rx:p.x??50,ry:p.y??50};
+    });
+  }
+  const rings=[1,2,3].map(n=>({r:ringPx*n,label:ringMeters*n>=1000?`${ringMeters*n/1000} km`:`${ringMeters*n} m`}));
   return (
     <div style={{position:"relative",height:"100%"}}>
-      <div style={{
-        background:`linear-gradient(160deg,${C.bg2},${C.surf2} 60%,${C.bg2})`,
-        height:`${mapH}px`, position:"relative", overflow:"hidden",
-      }}>
-        {/* Distance rings */}
+      <div style={{background:`linear-gradient(160deg,${C.bg2},${C.surf2} 60%,${C.bg2})`,height:`${mapH}px`,position:"relative",overflow:"hidden"}}>
         {rings.map(({r,label})=>(
           <div key={r} style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",width:`${r*2}px`,height:`${r*2}px`,borderRadius:"50%",border:`0.5px solid rgba(125,154,106,0.18)`,pointerEvents:"none"}}>
             <div style={{position:"absolute",top:"-12px",left:"50%",transform:"translateX(-50%)",...body("8px",C.dim),whiteSpace:"nowrap"}}>{label}</div>
           </div>
         ))}
-
-        {/* Centre dot with pulse */}
         <div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",zIndex:2,pointerEvents:"none"}}>
-          {locatePulse && <div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",width:"40px",height:"40px",borderRadius:"50%",border:`1px solid ${C.sageB}`,opacity:0.4,animation:"none",transition:"opacity .4s"}}/>}
-          <div style={{width:"7px",height:"7px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 ${locatePulse?"16px":"8px"} rgba(163,192,137,${locatePulse?"0.9":"0.7"})`,transition:"box-shadow .3s"}}/>
+          <div style={{width:"7px",height:"7px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 8px rgba(163,192,137,0.7)`}}/>
         </div>
-
-        {/* Pins */}
         {renderPins.map((p,i)=>(
-          <div key={i}
-            onMouseEnter={()=>setHoveredPin(p.id??i)}
-            onMouseLeave={()=>setHoveredPin(null)}
-            onClick={()=>setHoveredPin(v=>(v===(p.id??i)?null:(p.id??i)))}
-            style={{position:"absolute",left:`${p.rx}%`,top:`${p.ry}%`,transform:"translate(-50%,-50%)",display:"flex",flexDirection:"column",alignItems:"center",gap:"3px",cursor:"pointer",zIndex:hoveredPin===(p.id??i)?5:1}}>
-            <svg width="13" height="13" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill={hoveredPin===(p.id??i)?"rgba(163,192,137,0.22)":"rgba(163,192,137,0.12)"} stroke={C.sageB} strokeWidth="0.6"/><line x1="7" y1="5" x2="7" y2="9" stroke={C.sageB} strokeWidth="0.7"/><line x1="5" y1="7" x2="9" y2="7" stroke={C.sageB} strokeWidth="0.7"/></svg>
-            {hoveredPin===(p.id??i) && (
-              <div style={{position:"absolute",bottom:"calc(100% + 7px)",left:"50%",transform:"translateX(-50%)",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
-                <div style={{...body("11px",C.cream),marginBottom:"2px"}}>{p.tag||"Anchored"}</div>
-                <div style={{...body("10px",C.muted)}}>{p.date||""}{p.duration?` · ${p.duration} min`:""}</div>
-                <div style={{position:"absolute",bottom:"-5px",left:"50%",transform:"translateX(-50%)",width:"8px",height:"8px",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.sageB}`,borderTop:"none",borderLeft:"none",rotate:"45deg"}}/>
-              </div>
-            )}
-            {p.tag && hoveredPin!==(p.id??i) && <div style={{background:"rgba(13,20,15,0.85)",border:`0.5px solid ${C.bord}`,borderRadius:"3px",padding:"1px 5px",...body("8px",C.sage),whiteSpace:"nowrap"}}>{p.tag}</div>}
+          <div key={i} style={{position:"absolute",left:`${p.rx}%`,top:`${p.ry}%`,transform:"translate(-50%,-50%)",cursor:"pointer",zIndex:1}}>
+            <svg width="13" height="13" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill="rgba(163,192,137,0.12)" stroke={C.sageB} strokeWidth="0.6"/><line x1="7" y1="5" x2="7" y2="9" stroke={C.sageB} strokeWidth="0.7"/><line x1="5" y1="7" x2="9" y2="7" stroke={C.sageB} strokeWidth="0.7"/></svg>
           </div>
         ))}
-
-        {/* Locate button — bottom right */}
-        <button onClick={handleLocate} style={{position:"absolute",bottom:"80px",right:"14px",width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4,backdropFilter:"blur(4px)"}}>
-          {locating
-            ? <div style={{width:"12px",height:"12px",borderRadius:"50%",border:`1.5px solid ${C.sageB}`,borderTopColor:"transparent",animation:"spin 0.8s linear infinite"}}/>
-            : <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" fill={C.sageB}/><circle cx="10" cy="10" r="7" stroke={C.sageB} strokeWidth="1" fill="none"/><line x1="10" y1="1" x2="10" y2="4" stroke={C.sageB} strokeWidth="1.2"/><line x1="10" y1="16" x2="10" y2="19" stroke={C.sageB} strokeWidth="1.2"/><line x1="1" y1="10" x2="4" y2="10" stroke={C.sageB} strokeWidth="1.2"/><line x1="16" y1="10" x2="19" y2="10" stroke={C.sageB} strokeWidth="1.2"/></svg>}
+        <button onClick={()=>handleLocate(null)} style={{position:"absolute",bottom:"80px",right:"14px",width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4}}>
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" fill={C.sageB}/><circle cx="10" cy="10" r="7" stroke={C.sageB} strokeWidth="1" fill="none"/><line x1="10" y1="1" x2="10" y2="4" stroke={C.sageB} strokeWidth="1.2"/><line x1="10" y1="16" x2="10" y2="19" stroke={C.sageB} strokeWidth="1.2"/><line x1="1" y1="10" x2="4" y2="10" stroke={C.sageB} strokeWidth="1.2"/><line x1="16" y1="10" x2="19" y2="10" stroke={C.sageB} strokeWidth="1.2"/></svg>
         </button>
-
-        {/* Bottom info panel */}
         <div style={{position:"absolute",bottom:0,left:0,right:0,background:`linear-gradient(${C.surf2}ee,${C.bg2}f8)`,borderTop:`0.5px solid ${C.bord}`,padding:"12px 18px 16px",zIndex:3,backdropFilter:"blur(6px)"}}>
           <div style={{...body("11px",C.dim),fontStyle:"italic",marginBottom:"6px"}}>The world is waiting.</div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <div style={{display:"flex",alignItems:"center",gap:"7px"}}>
-              <div style={{width:"5px",height:"5px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 5px rgba(163,192,137,0.6)`}}/>
-              <span style={{...dsp("9px",C.muted,400,"0.14em")}}>PLACES ANCHORED: {placesCount}</span>
-            </div>
+          <div style={{display:"flex",alignItems:"center",gap:"7px"}}>
+            <div style={{width:"5px",height:"5px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 5px rgba(163,192,137,0.6)`}}/>
+            <span style={{...dsp("9px",C.muted,400,"0.14em")}}>PLACES ANCHORED: {placesCount}</span>
           </div>
         </div>
       </div>
-
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}
-@keyframes fadeRise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-@keyframes wispDrift{0%{transform:translateX(-160px);opacity:0}15%{opacity:1}80%{opacity:0.8}100%{transform:translateX(430px);opacity:0}}
-@keyframes slowSpin{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}
-@keyframes mPan{from{transform:translateX(0)}to{transform:translateX(-800px)}}`}</style>
     </div>
   );
 }
@@ -2443,7 +2491,13 @@ function loadPersisted(){
     return raw ? JSON.parse(raw) : {};
   } catch { return {}; }
 }
-async function loadFromArtifactStorage(){ return null; }
+async function loadFromArtifactStorage(){
+  if(typeof window==="undefined" || !window.storage?.get) return null;
+  try {
+    const r = await window.storage.get(STORAGE_KEY);
+    return r?.value ? JSON.parse(r.value) : null;
+  } catch { return null; }
+}
 function writeStorage(json){
   const d = checkStorage();
   if(d.ls){ try { localStorage.setItem(STORAGE_KEY, json); } catch {} }
@@ -2502,8 +2556,14 @@ export default function AscendApp(){
   const [theme,setTheme]=useState(P.theme ?? "navy");
   const [fontScale,setFontScale]=useState(P.fontScale ?? 1.0);
   const [guidedSession,setGuidedSession]=useState(P.guidedSession ?? true);
+  const [splashImgLoaded,setSplashImgLoaded]=useState(false);
   const [anchorImmediate,setAnchorImmediate]=useState(true);
   applyTheme(theme);
+  // Fade out the HTML loading splash when React mounts
+  useEffect(()=>{
+    const s=document.getElementById("splash");
+    if(s){ s.style.transition="opacity 0.6s"; s.style.opacity="0"; setTimeout(()=>s?.remove(),650); }
+  },[]);
 
   const [importPanel,setImportPanel]=useState(false);
   const [importText,setImportText]=useState("");
@@ -2775,8 +2835,8 @@ export default function AscendApp(){
             <span style={{fontSize:"8px",color:"#fff",fontFamily:"monospace",letterSpacing:"0.05em"}}>DEV</span>
           </button>
           <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"40px 30px",textAlign:"center"}}>
-            <Emblem size={104}/>
-            <div style={{...dsp("30px",C.gold,500,"0.28em"),marginTop:"22px"}}>ASCEND</div>
+            <SplashLogo size={270} onLoad={()=>setSplashImgLoaded(true)}/>
+            {!splashImgLoaded && <div style={{...dsp("30px",C.gold,500,"0.28em"),marginTop:"22px"}}>ASCEND</div>}
             <div style={{...body("15px",C.muted),marginTop:"16px",lineHeight:"1.7",fontStyle:"italic"}}>Presence. Embodiment.<br/>Participation.</div>
             <button onClick={()=>setOnboarding("chapter1")} style={{marginTop:"48px",padding:"13px 44px",background:"linear-gradient(rgba(163,192,137,0.16),rgba(163,192,137,0.06))",border:`0.5px solid ${C.sageB}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.sageB,400,"0.22em")}}>BEGIN THE CLIMB</button>
           </div>
