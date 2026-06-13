@@ -2883,7 +2883,7 @@ export default function AscendApp(){
   const [anch,setAnch]=useState(false);
   const [anchInitType,setAnchInitType]=useState(P.anchInitType || "sitting");
   const [libOpenId,setLibOpenId]=useState(null);
-  const [cloudToken,setCloudToken]=useState(()=>localStorage.getItem(CLOUD_TOKEN_KEY)||null);
+  const [cloudToken,setCloudToken]=useState(()=>{ try{ return localStorage.getItem(CLOUD_TOKEN_KEY)||null; }catch{ return null; } });
   const [cloudUser,setCloudUser]=useState(null);
   const [cloudSyncing,setCloudSyncing]=useState(false);
   const [cloudMsg,setCloudMsg]=useState(null); // {type:"ok"|"err", text}
@@ -3012,8 +3012,7 @@ export default function AscendApp(){
   const applyImport = (data) => {
     try {
       if(!data.v) throw new Error("Invalid backup — missing version field.");
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      saveToArtifactStorage(JSON.stringify(data));
+      writeStorage(JSON.stringify(data));
       const mc=migrateCh(data.ch);
       if(mc) setCh(mc);
       if(data.sessions) setSessions(data.sessions);
