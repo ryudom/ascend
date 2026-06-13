@@ -2288,7 +2288,6 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
     alignment:"sitting", release:"sitting", breath:"sitting" };
 
   // External: when Quest tab navigates here with a specific entry to open
-  const { useEffect } = React;
   useEffect(()=>{
     if(!openEntryId) return;
     const entry = LIBRARY_ENTRIES.find(e=>e.id===openEntryId);
