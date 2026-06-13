@@ -552,11 +552,44 @@ function Overlay({ title, onBack, right, children }){
 // Default extra practice types shown in the dropdown
 const EXTRA_TYPES = [];
 
-function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true }){
+/* ─── Synthesised gong — no download needed, Web Audio API ─── */
+/* ─── getAudioCtx: create once per anchor session, call on user gesture ─── */
+function getAudioCtx(ref){
+  try{
+    if(ref.current && ref.current.state!=="closed") return ref.current;
+    const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null;
+    ref.current=new AC();
+  }catch(e){ return null; }
+  return ref.current;
+}
+function playGong(ctx){
+  try{
+    if(!ctx) return;
+    const resume = ctx.state==="suspended" ? ctx.resume() : Promise.resolve();
+    resume.then(()=>{
+      const now=ctx.currentTime;
+      const tone=(freq,amp,decay)=>{
+        const o=ctx.createOscillator(); const g=ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type="sine"; o.frequency.value=freq;
+        g.gain.setValueAtTime(amp,now);
+        g.gain.exponentialRampToValueAtTime(0.0001,now+decay);
+        o.start(now); o.stop(now+decay+0.1);
+      };
+      tone(110, 0.55, 6.0);
+      tone(220, 0.30, 4.0);
+      tone(294, 0.20, 2.8);
+      tone(440, 0.14, 1.8);
+      tone(880, 0.07, 0.9);
+    });
+  }catch(e){}
+}
+
+function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting" }){
   const [phase,setPhase]       = useState("active");
   const [running,setRunning]   = useState(startImmediately);
   const [t,setT]               = useState(0);
-  const [pType,setPType]       = useState("sitting");
+  const [pType,setPType]       = useState(initialType);
   const [tags,setTags]         = useState([]);
   const [refl,setRefl]         = useState("");
   const [pinSession,setPinSession] = useState(false);
@@ -571,6 +604,11 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
   const [creatingAct,setCreatingAct] = useState(false);
   const [newActName,setNewActName] = useState("");
   const [newActStat,setNewActStat] = useState("str");
+  const [alarmSecs,setAlarmSecs]   = useState(null);
+  const [alarmFired,setAlarmFired] = useState(false);
+  const [alarmOpen,setAlarmOpen]   = useState(false);
+  const [alarmInput,setAlarmInput] = useState("");
+  const audioCtxRef = useRef(null); // pre-warmed on first user gesture
 
   const CORE = [{id:"sitting",label:"Sit"},{id:"standing",label:"Stand"},{id:"walking",label:"Walk"}];
   const isCore = id => CORE.some(c=>c.id===id);
@@ -595,6 +633,12 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
     const id=setInterval(()=>setT(x=>x+0.1),100);
     return ()=>clearInterval(id);
   },[running]);
+
+  /* Alarm: fire gong + pause when elapsed reaches target */
+  useEffect(()=>{
+    if(!alarmSecs||alarmFired) return;
+    if(elapsed>=alarmSecs){ setAlarmFired(true); setRunning(false); playGong(audioCtxRef.current); }
+  },[elapsed]);
 
   const finish = () => { setRunning(false); if(elapsed<10){ onClose(); return; } if(skipReview) onDone({quickAnchor:true,elapsed}); else setPhase("review"); };
   const ret = () => {
@@ -639,7 +683,67 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
           })()}
 
           <div style={{textAlign:"center"}}>
-            <div style={{...dsp("22px",W(running?0.3:0.22),400,"0.08em")}}>{sec(elapsed)}</div>
+            {/* Timer row: elapsed + alarm bell */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"14px"}}>
+              <div style={{...dsp("22px",W(running?0.3:0.22),400,"0.08em")}}>{sec(elapsed)}</div>
+              <button onClick={()=>{ setAlarmOpen(v=>!v); getAudioCtx(audioCtxRef); }} title="Set alarm" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",background:"none",border:"none",cursor:"pointer",padding:"4px",opacity:alarmOpen?1:0.7}}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 002 2z" fill={alarmFired?C.gold:alarmSecs?C.sageB:C.muted}/>
+                  <path d="M18 16v-5a6 6 0 00-5-5.91V4a1 1 0 00-2 0v1.09A6 6 0 006 11v5l-2 2v1h16v-1l-2-2z" fill={alarmFired?C.gold:alarmSecs?C.sageB:C.muted} opacity={alarmFired?"1":"0.85"}/>
+                  {alarmFired&&<circle cx="18" cy="6" r="4" fill={C.gold}/>}
+                </svg>
+                {alarmSecs&&!alarmFired&&<span style={{...body("8px",C.sageB),lineHeight:1}}>{sec(alarmSecs)}</span>}
+                {alarmFired&&<span style={{...body("8px",C.gold),lineHeight:1}}>✓</span>}
+              </button>
+            </div>
+
+            {/* Alarm fired banner */}
+            {alarmFired&&(
+              <div style={{margin:"6px auto 0",display:"inline-flex",alignItems:"center",gap:"6px",padding:"4px 12px",background:"rgba(201,168,76,0.12)",border:`0.5px solid ${C.goldDim}`,borderRadius:"4px"}}>
+                <span style={{...body("10px",C.gold),fontStyle:"italic"}}>Timer reached — gong sounded</span>
+              </div>
+            )}
+
+            {/* Alarm picker */}
+            {alarmOpen&&(
+              <div style={{margin:"12px auto 0",padding:"12px 14px",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"8px",maxWidth:"260px"}}>
+                <div style={{...dsp("8px",C.muted,400,"0.14em"),marginBottom:"10px"}}>SET ALARM</div>
+                {/* Quick presets */}
+                <div style={{display:"flex",gap:"6px",justifyContent:"center",flexWrap:"wrap",marginBottom:"10px"}}>
+                  {[5,10,15,20,30,45].map(m=>{
+                    const active=alarmSecs===m*60;
+                    return (
+                      <button key={m} onClick={()=>{setAlarmSecs(m*60);setAlarmFired(false);setAlarmOpen(false);}}
+                        style={{padding:"5px 10px",background:active?"rgba(163,192,137,0.18)":"rgba(163,192,137,0.06)",border:`0.5px solid ${active?C.sageB:C.bord}`,borderRadius:"4px",cursor:"pointer",...body("12px",active?C.sageB:C.muted)}}>
+                        {m}m
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* Custom minutes input */}
+                <div style={{display:"flex",gap:"6px",alignItems:"center",justifyContent:"center"}}>
+                  <input type="number" min="1" max="180" placeholder="min" value={alarmInput}
+                    onChange={e=>setAlarmInput(e.target.value)}
+                    onKeyDown={e=>{if(e.key==="Enter"){const m=parseInt(alarmInput);if(m>0){setAlarmSecs(m*60);setAlarmFired(false);setAlarmInput("");setAlarmOpen(false);}}}}
+                    style={{width:"64px",padding:"5px 8px",background:C.bg,border:`0.5px solid ${C.bord}`,borderRadius:"4px",color:C.cream,fontSize:"13px",textAlign:"center",outline:"none"}}/>
+                  <button onClick={()=>{const m=parseInt(alarmInput);if(m>0){setAlarmSecs(m*60);setAlarmFired(false);setAlarmInput("");setAlarmOpen(false);}}}
+                    style={{padding:"5px 10px",background:"rgba(163,192,137,0.1)",border:`0.5px solid ${C.sageB}`,borderRadius:"4px",cursor:"pointer",...body("11px",C.sageB)}}>
+                    Set
+                  </button>
+                  {alarmSecs&&(
+                    <button onClick={()=>{setAlarmSecs(null);setAlarmFired(false);setAlarmInput("");setAlarmOpen(false);}}
+                      style={{padding:"5px 8px",background:"none",border:`0.5px solid ${C.bord}`,borderRadius:"4px",cursor:"pointer",...body("11px",C.dim)}}>
+                      Clear
+                    </button>
+                  )}
+                  <button onClick={()=>playGong(getAudioCtx(audioCtxRef))}
+                    style={{padding:"5px 8px",background:"none",border:`0.5px solid ${C.bord}`,borderRadius:"4px",cursor:"pointer",...body("11px",C.dim)}} title="Test gong sound">
+                    🔔 Test
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div style={{display:"flex",justifyContent:"center",marginTop:"14px"}}>
               <button onClick={()=>setRunning(r=>!r)} style={{padding:"9px 24px",background:"rgba(163,192,137,0.08)",border:"none",borderRadius:"3px",cursor:"pointer",...dsp("11px",C.sageB,400,"0.2em")}}>{running?"PAUSE":(elapsed>0?"RESUME":"START")}</button>
             </div>
@@ -1109,6 +1213,16 @@ function CapacitiesList({ stats, devMode, setCh }){
 function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacities, setCapacities }){
   const totalMin = sessions.reduce((a,s)=>a+s.duration,0);
   const longestMin = sessions.reduce((a,s)=>Math.max(a,s.duration),0);
+  const todayISO = new Date().toISOString().slice(0,10);
+  const computeStreak = ss => {
+    const dates = new Set(ss.map(s=>s.date).filter(d=>d&&d.match(/^\d{4}-\d{2}-\d{2}$/)));
+    const check = new Date();
+    if(!dates.has(todayISO)) check.setDate(check.getDate()-1);
+    let streak=0;
+    while(dates.has(check.toISOString().slice(0,10))){ streak++; check.setDate(check.getDate()-1); }
+    return streak;
+  };
+  const currentStreak = computeStreak(sessions);
 
   const setStatVal = (k, lvl) => setCh(p=>({...p, stats:{...p.stats, [k]: totalXPForLevel(clamp(parseInt(lvl),1,100))}}));
 
@@ -1213,7 +1327,7 @@ function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacit
       {/* ── COMPACT STREAK ROW ── */}
       <div style={{margin:"10px 14px 0",display:"flex"}}>
         {[
-          {l:"CURRENT STREAK",  v:"4 days"},
+          {l:"CURRENT STREAK",  v:currentStreak===0?"—":`${currentStreak} ${currentStreak===1?"day":"days"}`},
           {l:"TOTAL TIME",      v:`${Math.floor(totalMin/60)}h ${totalMin%60}m`},
           {l:"LONGEST SESSION", v:`${Math.floor(longestMin/60)}h ${longestMin%60}m`},
         ].map(({l,v},i)=>(
@@ -1232,7 +1346,7 @@ function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacit
 const ACT1_CHAPTERS=[
   {n:1,title:"The Current",                sub:"Recognition",                        state:"active"},
   {n:2,title:"The Doorway",               sub:"Where attention goes, energy flows",  state:"locked"},
-  {n:3,title:"The Three Forms",           sub:"The hidden foundations",              state:"locked"},
+  {n:3,title:"Foundations of Mastery",           sub:"The hidden foundations",              state:"locked"},
   {n:4,title:"The First Ground",          sub:"A place in the world",               state:"locked"},
   {n:5,title:"The Living World",          sub:"The oldest teacher",                 state:"locked"},
   {n:6,title:"Cultivating the Capacities",sub:"The invisible harvest",              state:"locked"},
@@ -1279,7 +1393,7 @@ const DOORWAY_SCENES=[
     "Not because it is hidden. Because attention never learned the way in.",
     "You have always been able to go in. You just forgot you could.",
   ]},
-  {label:"iii · the three conditions",body:[
+  {label:"iii · the three conditions",perPage:4,body:[
     "The door does not open by force. It opens when three conditions are met.",
     "Alignment — the body upright, the channel clear.",
     "Release — unnecessary holding let go.",
@@ -1492,6 +1606,11 @@ const CHAPTER_REQUIREMENTS = {
   3: { needsRead:true,
       libRequired:["sit_prac","stand_prac","walk_prac"],
       practice:{ desc:"Read each form in the Library, then practice Sit, Stand, and Walk — at least 5 minutes each.",
+        subChecks:[
+          {label:"Sit · 5 min", typeId:"sitting",  anchorType:"sitting"},
+          {label:"Stand · 5 min",typeId:"standing", anchorType:"standing"},
+          {label:"Walk · 5 min", typeId:"walking",  anchorType:"walking"},
+        ],
         check: ss => ["sitting","standing","walking"].every(t=>ss.some(s=>s.typeId===t&&(s.elapsed||0)>=300)) } },
   4: { needsRead:true, practice:{ desc:"Anchor a session and pin it to your map.",
       check: (ss,libReadAt,pins) => pins.some(p=>p.id&&!p.id.startsWith("seed")) } },
@@ -1639,7 +1758,7 @@ const ANCHOR_SUBQUESTS = [
 const CHAPTER_META = [
   {n:1, title:"The Current",                sub:"Recognition",                        act:"ACT I"},
   {n:2, title:"The Doorway",               sub:"Where attention goes, energy flows",  act:"ACT I"},
-  {n:3, title:"The Three Forms",           sub:"The hidden foundations",              act:"ACT I"},
+  {n:3, title:"Foundations of Mastery",           sub:"The hidden foundations",              act:"ACT I"},
   {n:4, title:"The First Ground",          sub:"A place in the world",               act:"ACT I"},
   {n:5, title:"The Living World",          sub:"The oldest teacher",                 act:"ACT I"},
   {n:6, title:"Cultivating the Capacities",sub:"The invisible harvest",              act:"ACT II"},
@@ -1651,7 +1770,7 @@ const CHAPTER_QUESTS = {
   2: { label:"Who are you, really?", desc:"Anchor once. Enter the house of your soul." },
 };
 
-function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=[], chaptersRead=[], onMarkRead, libReadAt={}, pins=[], chStats={} }){
+function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=[], chaptersRead=[], onMarkRead, libReadAt={}, pins=[], chStats={}, onOpenAnchor=()=>{}, onGoToLib=()=>{} }){
   const [view,setView]               = useState("overview");
   const [readingN,setReadingN]       = useState(null);
   const [scene,setScene]             = useState(0);
@@ -1682,13 +1801,15 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
   const fadeGo = fn => { setFade(false); setTimeout(()=>{ fn(); setFade(true); }, 600); };
 
   const openChapter = n => {
-    setReadingN(n); setScene(0); setParaPage(0); setOnQuestScreen(false); setFade(true); setView("read");
+    const alreadyRead = readDone(n);
+    setReadingN(n); setScene(0); setParaPage(0); setOnQuestScreen(alreadyRead); setFade(true); setView("read");
   };
 
   const advance = () => {
     const scenes = CHAPTER_SCENES[readingN]||[];
     const body = scenes[scene]?.body||[];
-    const totalParaPages = Math.ceil(body.length/2);
+    const pp = scenes[scene]?.perPage || 2;
+    const totalParaPages = Math.ceil(body.length/pp);
     if(paraPage < totalParaPages-1){
       fadeGo(()=>setParaPage(p=>p+1));
     } else if(scene < scenes.length-1){
@@ -1741,11 +1862,11 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
             <>
               <div style={{position:"relative",zIndex:1}}>
               <div style={{...dsp("10px",mood.accent,400,"0.22em"),marginBottom:"20px"}}>{scenes[scene]?.label?.toUpperCase()}</div>
-              {(scenes[scene]?.body||[]).slice(paraPage*2, paraPage*2+2).map((p,i)=>(
+              {(()=>{ const pp=scenes[scene]?.perPage||2; return (scenes[scene]?.body||[]).slice(paraPage*pp, paraPage*pp+pp).map((p,i)=>(
                 <p key={`${scene}-${paraPage}-${i}`}
                    style={{...body("15px",C.cream),lineHeight:"1.95",marginBottom:"16px",fontStyle:"italic",
                      animation:`fadeRise 0.7s ease ${i*0.18}s both`}}>{p}</p>
-              ))}
+              )); })()}
               </div>
             </>
           ) : (
@@ -1765,13 +1886,14 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
                 if(req.subQuests && readingN===2){
                   return (
                     <div style={{marginBottom:"20px"}}>
-                      {/* Story gate */}
-                      <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"10px 14px",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",marginBottom:"8px"}}>
+                      {/* Story gate — clickable to re-read */}
+                      <button onClick={()=>{setOnQuestScreen(false);setScene(0);setParaPage(0);}} style={{width:"100%",display:"flex",alignItems:"center",gap:"10px",padding:"10px 14px",background:C.surf,border:`0.5px solid ${rDone?C.sageB:C.bord}`,borderRadius:"6px",marginBottom:"8px",cursor:"pointer",textAlign:"left"}}>
                         <div style={{width:"22px",height:"22px",borderRadius:"50%",flexShrink:0,background:rDone?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${rDone?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
                           {rDone?<span style={{color:C.sageB,fontSize:"11px"}}>✓</span>:<span style={{color:C.dim,fontSize:"9px"}}>i</span>}
                         </div>
-                        <div style={{...body("12px",rDone?C.cream:C.muted)}}>Read the chapter</div>
-                      </div>
+                        <div style={{flex:1,...body("12px",rDone?C.cream:C.muted)}}>Read the chapter</div>
+                        {rDone&&<span style={{...body("10px",C.dim)}}>re-read →</span>}
+                      </button>
                       {/* Anchor sub-quests */}
                       {ANCHOR_SUBQUESTS.map((sq,i)=>{
                         const sc=STAT_COLORS[sq.sc]||C.sageB;
@@ -1790,22 +1912,21 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
                               {isDone&&<span style={{color:C.sageB,fontSize:"11px"}}>✓</span>}
                             </div>
                             {isActive&&!isDone&&(
-                              <div style={{display:"flex",gap:"16px",paddingLeft:"14px"}}>
-                                <div style={{display:"flex",alignItems:"center",gap:"5px"}}>
+                              <div style={{display:"flex",gap:"8px",paddingLeft:"14px"}}>
+                                <button onClick={()=>onGoToLib(sq.libId)} style={{display:"flex",alignItems:"center",gap:"5px",background:isRead?"rgba(163,192,137,0.08)":"transparent",border:`0.5px solid ${isRead?C.sageB:C.bord}`,borderRadius:"4px",padding:"4px 8px",cursor:"pointer"}}>
                                   <span style={{fontSize:"9px",color:isRead?C.sageB:C.dim}}>{isRead?"✓":"○"}</span>
-                                  <span style={{...body("10px",isRead?C.muted:C.dim)}}>Read in Library</span>
-                                </div>
-                                <div style={{display:"flex",alignItems:"center",gap:"5px"}}>
+                                  <span style={{...body("10px",isRead?C.sageB:C.muted)}}>Read in Library</span>
+                                </button>
+                                <button onClick={()=>onOpenAnchor("sitting")} style={{display:"flex",alignItems:"center",gap:"5px",background:isPrac?"rgba(163,192,137,0.08)":"transparent",border:`0.5px solid ${isPrac?C.sageB:C.bord}`,borderRadius:"4px",padding:"4px 8px",cursor:"pointer"}}>
                                   <span style={{fontSize:"9px",color:isPrac?C.sageB:C.dim}}>{isPrac?"✓":"○"}</span>
-                                  <span style={{...body("10px",isPrac?C.muted:C.dim)}}>Practice once</span>
-                                </div>
+                                  <span style={{...body("10px",isPrac?C.sageB:C.muted)}}>Practice once</span>
+                                </button>
                               </div>
                             )}
                           </div>
                         );
                       })}
                       {!rDone&&<div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px",textAlign:"center"}}>Read the chapter above to begin.</div>}
-                      {rDone&&!pracDone(readingN)&&<div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px",textAlign:"center"}}>Open the Library tab to find the Anchor entries.</div>}
                     </div>
                   );
                 }
@@ -1815,36 +1936,55 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
                 const libReqs = req.libRequired||[];
                 return (
                   <div style={{background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"8px",padding:"14px 16px",marginBottom:"20px",display:"flex",flexDirection:"column",gap:"10px"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
+                    {/* Read gate — clickable to re-read */}
+                    <button onClick={()=>{setOnQuestScreen(false);setScene(0);setParaPage(0);}} style={{display:"flex",alignItems:"center",gap:"12px",background:"none",border:"none",cursor:"pointer",textAlign:"left",padding:0}}>
                       <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:rDone?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${rDone?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
                         {rDone?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<span style={{color:C.dim,fontSize:"11px"}}>i</span>}
                       </div>
-                      <div><div style={{...body("13px",rDone?C.cream:C.muted)}}>Read the chapter</div></div>
-                    </div>
+                      <div style={{flex:1}}><div style={{...body("13px",rDone?C.cream:C.muted)}}>Read the chapter</div></div>
+                      {rDone&&<span style={{...body("10px",C.dim),paddingRight:"4px"}}>re-read →</span>}
+                    </button>
                     {libReqs.map(id=>{
                       const e=LIBRARY_ENTRIES.find(x=>x.id===id);
                       const done=libReadAt[id]!==undefined;
                       return (
-                        <div key={id} style={{display:"flex",alignItems:"center",gap:"12px",opacity:rDone?1:0.4}}>
+                        <button key={id} onClick={()=>{if(rDone)onGoToLib(id);}} style={{display:"flex",alignItems:"center",gap:"12px",opacity:rDone?1:0.4,background:"none",border:"none",cursor:rDone?"pointer":"default",textAlign:"left",padding:0}}>
                           <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:done?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${done?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
                             {done?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<span style={{color:C.dim,fontSize:"10px"}}>↗</span>}
                           </div>
                           <div>
                             <div style={{...body("13px",done?C.cream:C.muted)}}>Read: {e?.title||id}</div>
-                            {!done&&rDone&&<div style={{...body("10px",C.dim),fontStyle:"italic"}}>Library tab → {e?.section||"Practices"}</div>}
+                            {!done&&rDone&&<div style={{...body("10px",C.dim),fontStyle:"italic"}}>Tap to open in Library →</div>}
                           </div>
-                        </div>
+                        </button>
                       );
                     })}
-                    <div style={{display:"flex",alignItems:"center",gap:"12px",opacity:rDone?1:0.4}}>
+                    {req.practice?.subChecks ? (
+                      req.practice.subChecks.map(sc=>{
+                        const done=sessions.some(s=>s.typeId===sc.typeId&&(s.elapsed||0)>=300);
+                        return (
+                          <button key={sc.typeId} onClick={()=>{if(rDone)onOpenAnchor(sc.anchorType);}} style={{display:"flex",alignItems:"center",gap:"12px",opacity:rDone?1:0.4,background:"none",border:"none",cursor:rDone?"pointer":"default",textAlign:"left",padding:0}}>
+                            <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:done?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${done?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                              {done?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<PresenceMark size={12} color={C.dim} sw={1}/>}
+                            </div>
+                            <div>
+                              <div style={{...body("13px",done?C.cream:C.muted)}}>{sc.label}</div>
+                              {!done&&rDone&&<div style={{...body("10px",C.dim),fontStyle:"italic"}}>Tap to open Anchor →</div>}
+                            </div>
+                          </button>
+                        );
+                      })
+                    ) : (
+                    <button onClick={()=>{if(rDone)onOpenAnchor("sitting");}} style={{display:"flex",alignItems:"center",gap:"12px",opacity:rDone?1:0.4,background:"none",border:"none",cursor:rDone?"pointer":"default",textAlign:"left",padding:0}}>
                       <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:pDone?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${pDone?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
                         {pDone?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<PresenceMark size={12} color={C.dim} sw={1}/>}
                       </div>
                       <div>
                         <div style={{...body("13px",pDone?C.cream:C.muted)}}>{req.practice?.desc||""}</div>
-                        {!pDone&&<div style={{...body("10px",C.dim),fontStyle:"italic"}}>Use the Anchor below</div>}
+                        {!pDone&&rDone&&<div style={{...body("10px",C.dim),fontStyle:"italic"}}>Tap to open Anchor →</div>}
                       </div>
-                    </div>
+                    </button>
+                    )}
                   </div>
                 );
               })()}
@@ -1867,7 +2007,7 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
           <div style={{position:"relative",zIndex:2,padding:"12px 26px 28px",background:`linear-gradient(transparent,${mood.bg1}ee 30%)`,flexShrink:0}}>
             <div style={{display:"flex",gap:"6px",justifyContent:"center",marginBottom:"14px"}}>
               {scenes.flatMap((sc,si)=>
-                Array.from({length:Math.ceil((sc.body?.length||1)/2)},(_,pi)=>{
+                Array.from({length:Math.ceil((sc.body?.length||1)/(sc.perPage||2))},(_,pi)=>{
                   const active = si===scene && pi===paraPage;
                   const past   = si<scene || (si===scene && pi<paraPage);
                   return <div key={`${si}-${pi}`} style={{width:active?"16px":"5px",height:"5px",borderRadius:"3px",background:active?C.gold:past?C.sage:C.bord,transition:"all .3s"}}/>;
@@ -1875,7 +2015,7 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
               )}
             </div>
             <button onClick={advance} style={{width:"100%",padding:"13px",background:"rgba(163,192,137,0.1)",border:`0.5px solid ${C.sageB}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.sageB,400,"0.18em")}}>
-              {(scene<scenes.length-1||(scene===scenes.length-1&&paraPage<Math.ceil((scenes[scene]?.body?.length||1)/2)-1))?"CONTINUE →":"THE QUEST →"}
+              {(scene<scenes.length-1||(scene===scenes.length-1&&paraPage<Math.ceil((scenes[scene]?.body?.length||1)/(scenes[scene]?.perPage||2))-1))?"CONTINUE →":"THE QUEST →"}
             </button>
           </div>
         )}
@@ -1963,6 +2103,9 @@ function MapTab({ pins }){
   const [locating,setLocating]=useState(false);
   const [locatePulse,setLocatePulse]=useState(false);
   const [userPos,setUserPos]=useState(null);
+  const [zoom,setZoom]=useState(1);
+  const [pan,setPan]=useState({x:0,y:0});
+  const containerRef=useRef(null);
 
   const geoPins = pins.filter(p=>p.lat!=null&&p.lng!=null);
   const mapW=350, mapH=530;
@@ -1994,7 +2137,10 @@ function MapTab({ pins }){
       ringMeters=niceM; ringPx=niceM/mPerPx;
     }
   }
-  const rings=[1,2,3].map(n=>({r:ringPx*n,label:ringMeters*n>=1000?`${ringMeters*n/1000} km`:`${ringMeters*n} m`}));
+
+  // Scale-aware ring labels: divide by zoom so labels reflect what's actually visible
+  const fmtM = m => m>=1000?`${Number((m/1000).toFixed(1)).toString()} km`:`${Math.round(m)} m`;
+  const rings=[1,2,3].map(n=>({r:ringPx*n, label:fmtM((ringMeters*n)/zoom)}));
   const placesCount=pins.filter(p=>p.id&&!p.id.startsWith("seed")).length;
 
   const handleLocate=()=>{
@@ -2007,35 +2153,100 @@ function MapTab({ pins }){
     );
   };
 
+  const resetView=()=>{ setZoom(1); setPan({x:0,y:0}); };
+
+  // Attach zoom/pan gesture handlers via DOM (needed for passive:false on touchmove/wheel)
+  useEffect(()=>{
+    const el=containerRef.current; if(!el) return;
+    let lastTouch=null, lastPinch=null, isDrag=false, lastMouse=null;
+
+    const onTouchStart=e=>{
+      if(e.touches.length===1){ lastTouch={x:e.touches[0].clientX,y:e.touches[0].clientY}; lastPinch=null; }
+      else if(e.touches.length===2){ lastPinch=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); lastTouch=null; }
+    };
+    const onTouchMove=e=>{
+      e.preventDefault();
+      if(e.touches.length===1&&lastTouch){
+        const dx=e.touches[0].clientX-lastTouch.x, dy=e.touches[0].clientY-lastTouch.y;
+        setPan(p=>({x:p.x+dx,y:p.y+dy}));
+        lastTouch={x:e.touches[0].clientX,y:e.touches[0].clientY};
+      } else if(e.touches.length===2&&lastPinch!==null){
+        const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+        setZoom(z=>Math.max(0.3,Math.min(10,z*(d/lastPinch))));
+        lastPinch=d;
+      }
+    };
+    const onWheel=e=>{ e.preventDefault(); setZoom(z=>Math.max(0.3,Math.min(10,z*(e.deltaY<0?1.12:0.88)))); };
+    const onMouseDown=e=>{ isDrag=true; lastMouse={x:e.clientX,y:e.clientY}; };
+    const onMouseMove=e=>{ if(!isDrag||!lastMouse) return; setPan(p=>({x:p.x+e.clientX-lastMouse.x,y:p.y+e.clientY-lastMouse.y})); lastMouse={x:e.clientX,y:e.clientY}; };
+    const onMouseUp=()=>{ isDrag=false; lastMouse=null; };
+
+    el.addEventListener('touchstart',onTouchStart,{passive:true});
+    el.addEventListener('touchmove',onTouchMove,{passive:false});
+    el.addEventListener('wheel',onWheel,{passive:false});
+    el.addEventListener('mousedown',onMouseDown);
+    el.addEventListener('mousemove',onMouseMove);
+    el.addEventListener('mouseup',onMouseUp);
+    el.addEventListener('mouseleave',onMouseUp);
+    return ()=>{
+      el.removeEventListener('touchstart',onTouchStart);
+      el.removeEventListener('touchmove',onTouchMove);
+      el.removeEventListener('wheel',onWheel);
+      el.removeEventListener('mousedown',onMouseDown);
+      el.removeEventListener('mousemove',onMouseMove);
+      el.removeEventListener('mouseup',onMouseUp);
+      el.removeEventListener('mouseleave',onMouseUp);
+    };
+  },[]);
+
   return (
     <div style={{position:"relative",height:"100%"}}>
-      <div style={{background:`linear-gradient(160deg,${C.bg2},${C.surf2} 60%,${C.bg2})`,height:`${mapH}px`,position:"relative",overflow:"hidden"}}>
-        {rings.map(({r,label})=>(
-          <div key={r} style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",width:`${r*2}px`,height:`${r*2}px`,borderRadius:"50%",border:`0.5px solid rgba(125,154,106,0.18)`,pointerEvents:"none"}}>
-            <div style={{position:"absolute",top:"-12px",left:"50%",transform:"translateX(-50%)",...body("8px",C.dim),whiteSpace:"nowrap"}}>{label}</div>
+      <div ref={containerRef} style={{background:`linear-gradient(160deg,${C.bg2},${C.surf2} 60%,${C.bg2})`,height:`${mapH}px`,position:"relative",overflow:"hidden",cursor:"grab",touchAction:"none"}}>
+        {/* Pannable / zoomable canvas */}
+        <div style={{position:"absolute",inset:0,transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`,transformOrigin:"50% 50%"}}>
+          {/* Concentric rings */}
+          {rings.map(({r,label})=>(
+            <div key={r} style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",width:`${r*2}px`,height:`${r*2}px`,borderRadius:"50%",border:`0.5px solid rgba(125,154,106,0.18)`,pointerEvents:"none"}}>
+              <div style={{position:"absolute",top:"-12px",left:"50%",transform:`translateX(-50%) scale(${1/zoom})`,transformOrigin:"center bottom",...body("8px",C.dim),whiteSpace:"nowrap"}}>{label}</div>
+            </div>
+          ))}
+          {/* Center dot */}
+          <div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",zIndex:2,pointerEvents:"none"}}>
+            {locatePulse&&<div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",width:"40px",height:"40px",borderRadius:"50%",border:`1px solid ${C.sageB}`,opacity:0.4}}/>}
+            <div style={{width:"7px",height:"7px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 ${locatePulse?"16px":"8px"} rgba(163,192,137,${locatePulse?"0.9":"0.7"})`,transition:"box-shadow .3s"}}/>
           </div>
-        ))}
-        <div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",zIndex:2,pointerEvents:"none"}}>
-          {locatePulse&&<div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",width:"40px",height:"40px",borderRadius:"50%",border:`1px solid ${C.sageB}`,opacity:0.4}}/>}
-          <div style={{width:"7px",height:"7px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 ${locatePulse?"16px":"8px"} rgba(163,192,137,${locatePulse?"0.9":"0.7"})`,transition:"box-shadow .3s"}}/>
+          {/* Pins */}
+          {renderPins.map((p,i)=>(
+            <div key={i} onMouseEnter={()=>setHoveredPin(p.id??i)} onMouseLeave={()=>setHoveredPin(null)} onClick={e=>{e.stopPropagation();setHoveredPin(v=>v===(p.id??i)?null:(p.id??i));}}
+              style={{position:"absolute",left:`${p.rx}%`,top:`${p.ry}%`,transform:"translate(-50%,-50%)",display:"flex",flexDirection:"column",alignItems:"center",gap:"3px",cursor:"pointer",zIndex:hoveredPin===(p.id??i)?5:1}}>
+              <svg width="13" height="13" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill={hoveredPin===(p.id??i)?"rgba(163,192,137,0.22)":"rgba(163,192,137,0.12)"} stroke={C.sageB} strokeWidth="0.6"/><line x1="7" y1="5" x2="7" y2="9" stroke={C.sageB} strokeWidth="0.7"/><line x1="5" y1="7" x2="9" y2="7" stroke={C.sageB} strokeWidth="0.7"/></svg>
+              {hoveredPin===(p.id??i)&&(
+                <div style={{position:"absolute",bottom:"calc(100% + 7px)",left:"50%",transform:`translateX(-50%) scale(${1/zoom})`,transformOrigin:"center bottom",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
+                  <div style={{...body("11px",C.cream),marginBottom:"2px"}}>{p.tag||"Anchored"}</div>
+                  <div style={{...body("10px",C.muted)}}>{p.date||""}{p.duration?` · ${p.duration} min`:""}</div>
+                </div>
+              )}
+              {p.tag&&hoveredPin!==(p.id??i)&&<div style={{background:"rgba(13,20,15,0.85)",border:`0.5px solid ${C.bord}`,borderRadius:"3px",padding:"1px 5px",...body("8px",C.sage),whiteSpace:"nowrap"}}>{p.tag}</div>}
+            </div>
+          ))}
         </div>
-        {renderPins.map((p,i)=>(
-          <div key={i} onMouseEnter={()=>setHoveredPin(p.id??i)} onMouseLeave={()=>setHoveredPin(null)} onClick={()=>setHoveredPin(v=>v===(p.id??i)?null:(p.id??i))}
-            style={{position:"absolute",left:`${p.rx}%`,top:`${p.ry}%`,transform:"translate(-50%,-50%)",display:"flex",flexDirection:"column",alignItems:"center",gap:"3px",cursor:"pointer",zIndex:hoveredPin===(p.id??i)?5:1}}>
-            <svg width="13" height="13" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill={hoveredPin===(p.id??i)?"rgba(163,192,137,0.22)":"rgba(163,192,137,0.12)"} stroke={C.sageB} strokeWidth="0.6"/><line x1="7" y1="5" x2="7" y2="9" stroke={C.sageB} strokeWidth="0.7"/><line x1="5" y1="7" x2="9" y2="7" stroke={C.sageB} strokeWidth="0.7"/></svg>
-            {hoveredPin===(p.id??i)&&(
-              <div style={{position:"absolute",bottom:"calc(100% + 7px)",left:"50%",transform:"translateX(-50%)",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
-                <div style={{...body("11px",C.cream),marginBottom:"2px"}}>{p.tag||"Anchored"}</div>
-                <div style={{...body("10px",C.muted)}}>{p.date||""}{p.duration?` · ${p.duration} min`:""}</div>
-              </div>
-            )}
-            {p.tag&&hoveredPin!==(p.id??i)&&<div style={{background:"rgba(13,20,15,0.85)",border:`0.5px solid ${C.bord}`,borderRadius:"3px",padding:"1px 5px",...body("8px",C.sage),whiteSpace:"nowrap"}}>{p.tag}</div>}
+
+        {/* Fixed controls (not part of pannable canvas) */}
+        <div style={{position:"absolute",bottom:"80px",right:"14px",display:"flex",flexDirection:"column",gap:"6px",zIndex:4}}>
+          <button onClick={handleLocate} style={{width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+            {locating?<div style={{width:"12px",height:"12px",borderRadius:"50%",border:`1.5px solid ${C.sageB}`,borderTopColor:"transparent",animation:"spin 0.8s linear infinite"}}/>
+            :<svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" fill={C.sageB}/><circle cx="10" cy="10" r="7" stroke={C.sageB} strokeWidth="1" fill="none"/><line x1="10" y1="1" x2="10" y2="4" stroke={C.sageB} strokeWidth="1.2"/><line x1="10" y1="16" x2="10" y2="19" stroke={C.sageB} strokeWidth="1.2"/><line x1="1" y1="10" x2="4" y2="10" stroke={C.sageB} strokeWidth="1.2"/><line x1="16" y1="10" x2="19" y2="10" stroke={C.sageB} strokeWidth="1.2"/></svg>}
+          </button>
+          {(zoom!==1||pan.x!==0||pan.y!==0)&&(
+            <button onClick={resetView} title="Reset view" style={{width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",...body("11px",C.muted)}}>
+              ⌂
+            </button>
+          )}
+          <div style={{width:"36px",padding:"4px 0",borderRadius:"8px",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",...body("8px",C.dim),whiteSpace:"nowrap",letterSpacing:"0"}}>
+            {Math.round(zoom*100)}%
           </div>
-        ))}
-        <button onClick={handleLocate} style={{position:"absolute",bottom:"80px",right:"14px",width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4,backdropFilter:"blur(4px)"}}>
-          {locating?<div style={{width:"12px",height:"12px",borderRadius:"50%",border:`1.5px solid ${C.sageB}`,borderTopColor:"transparent",animation:"spin 0.8s linear infinite"}}/>
-          :<svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" fill={C.sageB}/><circle cx="10" cy="10" r="7" stroke={C.sageB} strokeWidth="1" fill="none"/><line x1="10" y1="1" x2="10" y2="4" stroke={C.sageB} strokeWidth="1.2"/><line x1="10" y1="16" x2="10" y2="19" stroke={C.sageB} strokeWidth="1.2"/><line x1="1" y1="10" x2="4" y2="10" stroke={C.sageB} strokeWidth="1.2"/><line x1="16" y1="10" x2="19" y2="10" stroke={C.sageB} strokeWidth="1.2"/></svg>}
-        </button>
+        </div>
+
         <div style={{position:"absolute",bottom:0,left:0,right:0,background:`linear-gradient(${C.surf2}ee,${C.bg2}f8)`,borderTop:`0.5px solid ${C.bord}`,padding:"12px 18px 16px",zIndex:3,backdropFilter:"blur(6px)"}}>
           <div style={{...body("11px",C.dim),fontStyle:"italic",marginBottom:"6px"}}>The world is waiting.</div>
           <div style={{display:"flex",alignItems:"center",gap:"7px"}}>
@@ -2064,23 +2275,93 @@ function LibCard({ title, sub, prog, swatch }){
     </div>
   );
 }
-function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters=[] }){
+function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters=[], onOpenAnchor=()=>{}, openEntryId=null, onClearOpenEntry=()=>{} }){
   const chapterActive = n => completedChapters.includes(n-1) || completedChapters.includes(n);
   const entryUnlocked = e => !e.unlock || chapterActive(e.unlock);
   const [filter,setFilter]=useState("All");
-  const [open,setOpen]=useState(null);
+  const [selected,setSelected]=useState(null); // full entry object or null
   const sections=["Anchors","Capacities","Centers","Practices"];
   const filters=["All",...sections];
+
+  // Anchor type map for practice entries
+  const ANCHOR_TYPE = { sit_prac:"sitting", stand_prac:"standing", walk_prac:"walking",
+    alignment:"sitting", release:"sitting", breath:"sitting" };
+
+  // External: when Quest tab navigates here with a specific entry to open
+  const { useEffect } = React;
+  useEffect(()=>{
+    if(!openEntryId) return;
+    const entry = LIBRARY_ENTRIES.find(e=>e.id===openEntryId);
+    if(entry && entryUnlocked(entry)){
+      setSelected(entry);
+      if(onLibRead) onLibRead(openEntryId);
+    }
+    onClearOpenEntry();
+  },[openEntryId]); // eslint-disable-line
+
+  const openEntry = (e) => {
+    setSelected(e);
+    if(onLibRead) onLibRead(e.id);
+  };
+
+  /* ── DETAIL VIEW ── */
+  if(selected){
+    const sc = STAT_COLORS[selected.sc]||C.sageB;
+    const anchorType = ANCHOR_TYPE[selected.id];
+    const sq = ANCHOR_SUBQUESTS.find(a=>a.libId===selected.id);
+    const isRead = sq ? libReadAt[selected.id]!==undefined : false;
+    const isPrac = isRead && sq && qualSessions > libReadAt[selected.id];
+    return (
+      <div style={{padding:"0 0 100px"}}>
+        {/* Back bar */}
+        <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"14px 20px 12px",borderBottom:`0.5px solid ${C.bord}`}}>
+          <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:"18px",padding:0,lineHeight:1}}>←</button>
+          <span style={{...dsp("9px",C.muted,400,"0.16em")}}>LIBRARY · {selected.section.toUpperCase()}</span>
+        </div>
+        {/* Entry header */}
+        <div style={{padding:"22px 20px 0"}}>
+          <div style={{display:"flex",gap:"12px",alignItems:"flex-start",marginBottom:"16px"}}>
+            <div style={{width:"4px",alignSelf:"stretch",background:sc,borderRadius:"2px",flexShrink:0,marginTop:"3px"}}/>
+            <div>
+              <div style={{...body("20px",C.cream),marginBottom:"4px"}}>{selected.title}</div>
+              <div style={{...body("12px",C.muted)}}>{selected.sub}</div>
+            </div>
+          </div>
+          {/* Body paragraphs */}
+          {selected.body.map((p,i)=>(
+            <p key={i} style={{...body("14px",C.txt),lineHeight:"1.9",marginTop:i===0?"0":"14px",marginBottom:0}}>{p}</p>
+          ))}
+          {/* Practice block */}
+          {selected.practice && (
+            <div style={{marginTop:"22px",padding:"14px 16px",background:"rgba(163,192,137,0.06)",border:`0.5px solid rgba(163,192,137,0.2)`,borderRadius:"8px"}}>
+              <div style={{...dsp("8px",C.sage,400,"0.14em"),marginBottom:"8px"}}>PRACTICE</div>
+              <p style={{...body("13px",C.muted),lineHeight:"1.8",margin:0,fontStyle:"italic"}}>{selected.practice}</p>
+            </div>
+          )}
+          {/* Anchor action button */}
+          {anchorType && (
+            <button onClick={()=>onOpenAnchor(anchorType)} style={{marginTop:"16px",width:"100%",padding:"13px",background:"rgba(163,192,137,0.1)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",cursor:"pointer",...dsp("10px",C.sageB,400,"0.18em")}}>
+              ANCHOR NOW · {anchorType==="sitting"?"SIT":anchorType==="standing"?"STAND":"WALK"} ↗
+            </button>
+          )}
+          {/* Sub-quest status if applicable */}
+          {sq && (
+            <div style={{marginTop:"12px",padding:"10px 12px",background:isPrac?"rgba(163,192,137,0.06)":"rgba(201,168,76,0.07)",border:`0.5px solid ${isPrac?C.sageB:C.goldDim}`,borderRadius:"6px"}}>
+              <div style={{...body("11px",isPrac?C.sageB:C.gold),fontStyle:"italic"}}>
+                {isPrac?"✓ Sub-quest complete":"Read ✓ — anchor once to complete this sub-quest"}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* ── LIST VIEW ── */
   const allFiltered=LIBRARY_ENTRIES.filter(e=>filter==="All"||e.section===filter);
   const visible=allFiltered.filter(entryUnlocked);
   const locked=allFiltered.filter(e=>!entryUnlocked(e));
   const bySec=sections.map(s=>({s,items:visible.filter(e=>e.section===s)})).filter(g=>g.items.length>0);
-
-  const handleOpen = (id) => {
-    if(open===id){ setOpen(null); return; }
-    setOpen(id);
-    if(onLibRead) onLibRead(id); // mark as read the moment card opens
-  };
 
   return (
     <div style={{padding:"4px 20px 100px"}}>
@@ -2090,7 +2371,7 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
       </div>
       <SL title="Library"/>
       <div style={{display:"flex",gap:"6px",marginBottom:"18px",flexWrap:"wrap"}}>
-        {filters.map(f=><Pill key={f} on={filter===f} onClick={()=>{setFilter(f);setOpen(null);}}>{f}</Pill>)}
+        {filters.map(f=><Pill key={f} on={filter===f} onClick={()=>setFilter(f)}>{f}</Pill>)}
       </div>
 
       {bySec.map(({s,items})=>(
@@ -2098,21 +2379,18 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
           <div style={{...dsp("9px",C.muted,400,"0.18em"),marginBottom:"8px"}}>{s.toUpperCase()}</div>
           {items.map(e=>{
             const sc=STAT_COLORS[e.sc]||C.sageB;
-            const isOpen=open===e.id;
-            // Sub-quest status for anchor entries
             const sq=ANCHOR_SUBQUESTS.find(a=>a.libId===e.id);
             const isRead=sq?libReadAt[e.id]!==undefined:false;
             const isPrac=isRead&&sq&&qualSessions>libReadAt[e.id];
             const sqDone=isRead&&isPrac;
-            const r=[sc.replace('#','')].flatMap(h=>h.match(/.{2}/g).map(x=>parseInt(x,16)));
+            const hasAction=!!ANCHOR_TYPE[e.id];
             return (
-              <div key={e.id} style={{marginBottom:"8px",borderRadius:"8px",border:`0.5px solid ${isOpen?sc:C.bord}`,overflow:"hidden",transition:"border-color .2s"}}>
-                <div onClick={()=>handleOpen(e.id)} style={{display:"flex",alignItems:"center",gap:"12px",padding:"13px 14px",cursor:"pointer",background:isOpen?`rgba(${r.join(',')},0.06)`:"transparent"}}>
+              <div key={e.id} onClick={()=>openEntry(e)} style={{marginBottom:"8px",borderRadius:"8px",border:`0.5px solid ${C.bord}`,overflow:"hidden",cursor:"pointer",transition:"border-color .2s",":hover":{borderColor:sc}}}>
+                <div style={{display:"flex",alignItems:"center",gap:"12px",padding:"13px 14px",background:"transparent"}}>
                   <div style={{width:"3px",alignSelf:"stretch",background:sc,borderRadius:"2px",flexShrink:0}}/>
                   <div style={{flex:1}}>
                     <div style={{display:"flex",alignItems:"center",gap:"7px"}}>
                       <div style={{...body("14px",C.cream)}}>{e.title}</div>
-                      {/* Quest badge */}
                       {sq&&(
                         <div style={{fontSize:"9px",fontFamily:"Cinzel,serif",letterSpacing:"0.08em",
                           color:sqDone?C.sageB:isRead?C.gold:C.dim,
@@ -2122,30 +2400,12 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
                           {sqDone?"✓ DONE":isRead?isPrac?"✓ DONE":"PRACTICE":"CH. 2"}
                         </div>
                       )}
+                      {hasAction&&<div style={{fontSize:"9px",color:C.dim,border:`0.5px solid ${C.bord}`,padding:"1px 5px",borderRadius:"3px",fontFamily:"Cinzel,serif",letterSpacing:"0.06em"}}>ANCHOR</div>}
                     </div>
                     <div style={{...body("11px",C.muted)}}>{e.sub}</div>
                   </div>
-                  <span style={{color:C.dim,fontSize:"12px"}}>{isOpen?"▲":"▼"}</span>
+                  <span style={{color:C.dim,fontSize:"12px"}}>›</span>
                 </div>
-                {isOpen && (
-                  <div style={{padding:"0 14px 16px 29px",borderTop:`0.5px solid ${C.bord}`}}>
-                    {e.body.map((p,i)=>(
-                      <p key={i} style={{...body("13px",C.txt),lineHeight:"1.85",marginTop:"12px",marginBottom:0}}>{p}</p>
-                    ))}
-                    {e.practice && (
-                      <div style={{marginTop:"16px",padding:"12px",background:"rgba(163,192,137,0.06)",border:`0.5px solid rgba(163,192,137,0.18)`,borderRadius:"6px"}}>
-                        <div style={{...dsp("8px",C.sage,400,"0.14em"),marginBottom:"6px"}}>PRACTICE</div>
-                        <p style={{...body("12px",C.muted),lineHeight:"1.75",margin:0,fontStyle:"italic"}}>{e.practice}</p>
-                      </div>
-                    )}
-                    {/* Sub-quest reminder after reading */}
-                    {sq&&isRead&&!isPrac&&(
-                      <div style={{marginTop:"12px",padding:"10px 12px",background:"rgba(201,168,76,0.07)",border:`0.5px solid ${C.goldDim}`,borderRadius:"6px"}}>
-                        <div style={{...body("11px",C.gold),fontStyle:"italic"}}>Now anchor once to complete this sub-quest →</div>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             );
           })}
@@ -2175,7 +2435,7 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
 
 function JournalScreen({ onBack, onSave, onEntryChange }){
   const [mood,setMood]=useState(null),[bdy,setBdy]=useState(null),[entry,setEntry]=useState(""),[saved,setSaved]=useState(false);
-  const save=()=>{ if(!entry.trim())return; const date=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}); onSave({text:entry.trim(),mood,body:bdy,date}); setSaved(true); setTimeout(()=>{setEntry("");setMood(null);setBdy(null);setSaved(false);},1100); };
+  const save=()=>{ if(!entry.trim())return; const date=new Date().toISOString().slice(0,10); onSave({text:entry.trim(),mood,body:bdy,date}); setSaved(true); setTimeout(()=>{setEntry("");setMood(null);setBdy(null);setSaved(false);},1100); };
   return (
     <Overlay title="Journal" onBack={onBack}>
       <SL title="How are you right now?"/>
@@ -2191,17 +2451,22 @@ function JournalScreen({ onBack, onSave, onEntryChange }){
 function LogsScreen({ onBack, sessions, jEntries }){
   const [tab,setTab]=useState("timeline"),[exp,setExp]=useState(null);
   const TC={"Sit":C.gold,"Stand":C.sage,"Walk":C.slate,"Move":"#b06a52","Train":"#9b8550","Create":"#6b9e8e","Serve":"#b8834a","Anchor":"rgba(163,192,137,0.55)"};
-  const todayStr=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
+  const todayISO=new Date().toISOString().slice(0,10);
+  const formatDate=d=>{
+    if(!d)return "";
+    if(d===todayISO)return "Today";
+    if(d.match(/^\d{4}-\d{2}-\d{2}$/))return new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
+    return d; // legacy strings pass through
+  };
   const dm={};
   sessions.forEach(s=>{ if(!dm[s.date])dm[s.date]={ss:[],ee:[]}; dm[s.date].ss.push(s); });
   jEntries.forEach(e=>{
     /* normalise: entries saved today group with today's sessions */
-    const key=e.date===todayStr?"Today":e.date;
+    const key=e.date&&e.date.match(/^\d{4}-\d{2}-\d{2}$/)?e.date:todayISO;
     if(!dm[key])dm[key]={ss:[],ee:[]};
     dm[key].ee.push(e);
   });
-  const order=["Today","May 28","May 27","May 26","May 25","May 24","May 23"];
-  const dates=Object.keys(dm).sort((a,b)=>{const ai=order.indexOf(a),bi=order.indexOf(b);if(ai>=0&&bi>=0)return ai-bi;if(ai>=0)return-1;if(bi>=0)return 1;return 0;});
+  const dates=Object.keys(dm).sort((a,b)=>b.localeCompare(a));
   return (
     <Overlay title="Logs" onBack={onBack}>
       <div style={{display:"flex",background:C.surf,borderRadius:"6px",border:`0.5px solid ${C.bord}`,marginBottom:"18px",overflow:"hidden"}}>
@@ -2221,7 +2486,7 @@ function LogsScreen({ onBack, sessions, jEntries }){
             return (
               <div key={date} style={{marginBottom:"7px"}}>
                 <button onClick={()=>setExp(isOpen?null:date)} style={{width:"100%",background:isOpen?"rgba(163,192,137,0.08)":C.surf,border:`0.5px solid ${isOpen?C.sageB:C.bord}`,borderRadius:"6px",padding:"13px 15px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
-                  <div style={{textAlign:"left"}}><div style={{...dsp("11px",isOpen?C.sageB:C.cream)}}>{date}</div><div style={{...body("11px",C.muted),marginTop:"2px"}}>{sum.join(" · ")||"—"}</div></div>
+                  <div style={{textAlign:"left"}}><div style={{...dsp("11px",isOpen?C.sageB:C.cream)}}>{formatDate(date)}</div><div style={{...body("11px",C.muted),marginTop:"2px"}}>{sum.join(" · ")||"—"}</div></div>
                   <span style={{color:C.muted,fontSize:"11px",display:"inline-block",transform:isOpen?"rotate(180deg)":"none"}}>▾</span>
                 </button>
                 {isOpen&&(
@@ -2262,7 +2527,8 @@ function LogsScreen({ onBack, sessions, jEntries }){
           }))}
       {tab==="charts" && (()=>{
         const TC={"Sit":C.gold,"Stand":C.sage,"Walk":C.slate,"Move":"#b06a52","Train":"#9b8550","Create":"#6b9e8e","Serve":"#b8834a"};
-        const order=["May 23","May 24","May 25","May 26","May 27","Today"];
+        const todayISO=new Date().toISOString().slice(0,10);
+        const order=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));return d.toISOString().slice(0,10);});
         // Build per-day, per-type minutes
         const dayData={};
         order.forEach(d=>{ dayData[d]={}; });
@@ -2303,7 +2569,7 @@ function LogsScreen({ onBack, sessions, jEntries }){
                             yOff+=h;
                             return <rect key={type} x={barX(i)} y={y} width={barW} height={h} fill={TC[type]||C.muted} rx="2" opacity="0.85"/>;
                           })}
-                          <text x={barX(i)+barW/2} y={chartH+14} textAnchor="middle" fontSize="7.5" fill={C.muted} fontFamily="Cinzel,serif">{date==="Today"?"Today":date.split(" ")[1]}</text>
+                          <text x={barX(i)+barW/2} y={chartH+14} textAnchor="middle" fontSize="7.5" fill={C.muted} fontFamily="Cinzel,serif">{date===todayISO?"Today":date.slice(8)}</text>
                         </g>
                       );
                     })}
@@ -2343,9 +2609,37 @@ function Toggle({ on, onToggle }){
 }
 
 function SettingsScreen({ onBack, name, setName, anchorImmediate, setAnchorImmediate, theme, setTheme,
-    devMode, enableDevMode, disableDevMode, exportData, importData, applyImport, resetData,
-    fontScale, setFontScale, guidedSession, setGuidedSession, exportPanel, setExportPanel, importPanel, setImportPanel, importText, setImportText }){
+    devMode, enableDevMode, disableDevMode, exportData, applyImport, resetData,
+    fontScale, setFontScale, guidedSession, setGuidedSession,
+    cloudUser, cloudSyncing, cloudMsg, onSaveCloud, onLoadCloud, onSignOut }){
   const [resetConfirm,setResetConfirm]=useState(false);
+  const [importDone,setImportDone]=useState(false);
+  const [cloudEmail,setCloudEmail]=useState("");
+  const [linkStatus,setLinkStatus]=useState("idle"); // idle|sending|sent|error
+  const fileInputRef = useRef(null);
+
+  const handleSendLink = async () => {
+    if(!cloudEmail.trim()||linkStatus==="sending") return;
+    setLinkStatus("sending");
+    const {ok,error} = await sbSendMagicLink(cloudEmail.trim());
+    setLinkStatus(ok?"sent":"error");
+    if(!ok) setTimeout(()=>setLinkStatus("idle"),3000);
+  };
+
+  const handleFileImport = (e) => {
+    const file = e.target.files?.[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        applyImport(data);
+        setImportDone(true);
+        setTimeout(()=>setImportDone(false), 2500);
+      } catch(err){ alert("Import failed: "+err.message); }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
   return (
     <Overlay title="Settings" onBack={onBack}>
       <SL title="Preferences"/>
@@ -2398,45 +2692,64 @@ function SettingsScreen({ onBack, name, setName, anchorImmediate, setAnchorImmed
         <div style={{...body("12px",C.muted),marginBottom:"6px"}}>Name</div>
         <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("15px"),padding:"11px 12px",outline:"none",caretColor:C.sageB,boxSizing:"border-box",marginBottom:"16px"}}/>
 
-        {/* Export / Import */}
+        {/* Cloud Sync */}
+        <SL title="Cloud Sync"/>
+        {SB_URL ? (
+          cloudUser ? (
+            <div style={{marginBottom:"16px"}}>
+              <div style={{...body("11px",C.muted),marginBottom:"10px"}}>{cloudUser.email}</div>
+              {cloudMsg&&(
+                <div style={{...body("11px",cloudMsg.type==="ok"?C.sageB:"rgba(220,120,120,0.9)"),marginBottom:"8px",fontStyle:"italic"}}>{cloudMsg.text}</div>
+              )}
+              <div style={{display:"flex",gap:"8px",marginBottom:"8px"}}>
+                <button onClick={onSaveCloud} disabled={cloudSyncing} style={{flex:1,padding:"9px",background:"rgba(163,192,137,0.08)",border:`0.5px solid ${C.sageB}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.sageB,400,"0.12em")}}>
+                  {cloudSyncing?"…":"↑ SAVE TO CLOUD"}
+                </button>
+                <button onClick={onLoadCloud} disabled={cloudSyncing} style={{flex:1,padding:"9px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.muted,400,"0.12em")}}>
+                  {cloudSyncing?"…":"↓ LOAD FROM CLOUD"}
+                </button>
+              </div>
+              <button onClick={onSignOut} style={{width:"100%",padding:"7px",background:"transparent",border:"none",cursor:"pointer",...body("10px",C.dim),fontStyle:"italic"}}>Sign out</button>
+            </div>
+          ) : (
+            <div style={{marginBottom:"16px"}}>
+              {linkStatus==="sent" ? (
+                <div style={{padding:"12px",background:"rgba(163,192,137,0.06)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",textAlign:"center"}}>
+                  <div style={{...body("13px",C.cream),marginBottom:"4px"}}>Check your email</div>
+                  <div style={{...body("11px",C.muted),fontStyle:"italic"}}>Click the link to sign in — then come back here.</div>
+                </div>
+              ) : (
+                <>
+                  <input value={cloudEmail} onChange={e=>setCloudEmail(e.target.value)}
+                    onKeyDown={e=>e.key==="Enter"&&handleSendLink()}
+                    placeholder="your@email.com" type="email"
+                    style={{width:"100%",padding:"9px 10px",background:C.bg,border:`0.5px solid ${C.bord}`,borderRadius:"4px",color:C.txt,...body("13px"),outline:"none",caretColor:C.sageB,boxSizing:"border-box",marginBottom:"8px"}}/>
+                  <button onClick={handleSendLink} disabled={!cloudEmail.trim()||linkStatus==="sending"}
+                    style={{width:"100%",padding:"9px",background:"rgba(163,192,137,0.08)",border:`0.5px solid ${cloudEmail.trim()?C.sageB:C.bord}`,borderRadius:"4px",cursor:cloudEmail.trim()?"pointer":"default",...dsp("9px",cloudEmail.trim()?C.sageB:C.dim,400,"0.14em")}}>
+                    {linkStatus==="sending"?"SENDING…":linkStatus==="error"?"TRY AGAIN":"SEND MAGIC LINK"}
+                  </button>
+                  <div style={{...body("10px",C.dim),fontStyle:"italic",marginTop:"6px",textAlign:"center"}}>No password — one tap in your email.</div>
+                </>
+              )}
+            </div>
+          )
+        ) : (
+          <div style={{...body("11px",C.dim),fontStyle:"italic",marginBottom:"16px"}}>Cloud sync not configured.</div>
+        )}
+
+        {/* Backup / Restore */}
+        <input ref={fileInputRef} type="file" accept=".json" onChange={handleFileImport} style={{display:"none"}}/>
         <div style={{display:"flex",gap:"8px",marginBottom:"6px"}}>
-          <button onClick={exportData} style={{flex:1,padding:"9px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.muted,400,"0.12em")}}>EXPORT DATA</button>
-          <button onClick={importData} style={{flex:1,padding:"9px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.muted,400,"0.12em")}}>IMPORT DATA</button>
+          <button onClick={exportData} style={{flex:1,padding:"9px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.muted,400,"0.12em")}}>↓ BACKUP</button>
+          <button onClick={()=>fileInputRef.current?.click()} style={{flex:1,padding:"9px",background:importDone?"rgba(163,192,137,0.1)":"transparent",border:`0.5px solid ${importDone?C.sageB:C.bord}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",importDone?C.sageB:C.muted,400,"0.12em")}}>
+            {importDone?"✓ RESTORED":"↑ RESTORE"}
+          </button>
         </div>
         {(()=>{ const d=checkStorage(); return (
           <div style={{...body("9px",C.dim),marginBottom:"10px",fontStyle:"italic"}}>
-            Storage — device: {d.ls?"✓":"✕"} · cloud: {d.ws?"✓":"✕"}{!d.ls&&!d.ws?" (none available — use Export to back up)":""}
+            Storage — device: {d.ls?"✓":"✕"} · cloud: {d.ws?"✓":"✕"}{!d.ls&&!d.ws?" (use Backup to save your data)":""}
           </div>
         );})()}
-        {exportPanel && (
-          <div style={{marginBottom:"12px",padding:"10px",background:C.surf,border:`0.5px solid ${C.sageB}`,borderRadius:"6px"}}>
-            {exportPanel==="copied"
-              ? <div style={{...body("12px",C.sage),textAlign:"center",padding:"4px 0"}}>✓ Copied to clipboard — paste into a text file to save.</div>
-              : <>
-                  <div style={{...body("11px",C.muted),marginBottom:"6px"}}>Copy this text and save it somewhere safe:</div>
-                  <textarea readOnly value={exportPanel} onClick={e=>e.target.select()}
-                    style={{width:"100%",height:"80px",background:C.bg,border:`0.5px solid ${C.bord}`,borderRadius:"4px",color:C.dim,fontSize:"9px",fontFamily:"monospace",padding:"6px",resize:"none",boxSizing:"border-box",lineHeight:"1.4"}}/>
-                  <button onClick={()=>{navigator.clipboard?.writeText(exportPanel).then(()=>setExportPanel("copied")).catch(()=>{});}}
-                    style={{width:"100%",marginTop:"6px",padding:"6px",background:"rgba(163,192,137,0.1)",border:`0.5px solid ${C.sageB}`,borderRadius:"4px",cursor:"pointer",...dsp("8px",C.sage,400,"0.12em")}}>COPY TO CLIPBOARD</button>
-                </>
-            }
-            <button onClick={()=>setExportPanel(false)} style={{width:"100%",marginTop:"6px",padding:"5px",background:"transparent",border:"none",cursor:"pointer",...dsp("8px",C.dim,400,"0.1em")}}>DISMISS</button>
-          </div>
-        )}
-        {importPanel && (
-          <div style={{marginBottom:"12px",padding:"10px",background:C.surf,border:`0.5px solid ${C.sageB}`,borderRadius:"6px"}}>
-            <div style={{...body("11px",C.muted),marginBottom:"6px"}}>Paste your exported data below:</div>
-            <textarea value={importText} onChange={e=>setImportText(e.target.value)}
-              placeholder='{"v":1,...}'
-              style={{width:"100%",height:"80px",background:C.bg,border:`0.5px solid ${C.bord}`,borderRadius:"4px",color:C.txt,fontSize:"9px",fontFamily:"monospace",padding:"6px",resize:"none",boxSizing:"border-box",lineHeight:"1.4",caretColor:C.sageB,outline:"none"}}/>
-            <div style={{display:"flex",gap:"6px",marginTop:"6px"}}>
-              <button onClick={applyImport} disabled={!importText.trim()}
-                style={{flex:1,padding:"7px",background:importText.trim()?"rgba(163,192,137,0.1)":"transparent",border:`0.5px solid ${importText.trim()?C.sageB:C.bord}`,borderRadius:"4px",cursor:importText.trim()?"pointer":"default",...dsp("8px",importText.trim()?C.sage:C.dim,400,"0.12em")}}>APPLY</button>
-              <button onClick={()=>{setImportPanel(false);setImportText("");}}
-                style={{padding:"7px 12px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"4px",cursor:"pointer",...dsp("8px",C.dim,400,"0.1em")}}>✕</button>
-            </div>
-          </div>
-        )}
 
         {/* Reset */}
         {!resetConfirm
@@ -2497,6 +2810,59 @@ function writeStorage(json){
   }
 }
 
+/* ── SUPABASE CLOUD SYNC ─────────────────────────────────────────────────── */
+const _env = (typeof window!=="undefined" && window._ascendEnv) || {};
+const SB_URL = _env.SUPABASE_URL || "";
+const SB_KEY  = _env.SUPABASE_KEY  || "";
+const CLOUD_TOKEN_KEY = "ascend_cloud_token";
+const CLOUD_REFRESH_KEY = "ascend_cloud_refresh";
+
+async function sbSendMagicLink(email){
+  if(!SB_URL||!SB_KEY) return {ok:false,error:"Not configured"};
+  try{
+    const r=await fetch(`${SB_URL}/auth/v1/otp`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":SB_KEY},
+      body:JSON.stringify({email,create_user:true})
+    });
+    return {ok:r.ok,error:r.ok?null:(await r.json()).message};
+  }catch(e){return {ok:false,error:e.message};}
+}
+
+async function sbGetUser(token){
+  if(!SB_URL||!SB_KEY||!token) return null;
+  try{
+    const r=await fetch(`${SB_URL}/auth/v1/user`,{
+      headers:{"Authorization":`Bearer ${token}`,"apikey":SB_KEY}
+    });
+    return r.ok?(await r.json()):null;
+  }catch{return null;}
+}
+
+async function sbSaveData(token,userId,data){
+  if(!SB_URL||!SB_KEY||!token) return false;
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/user_data`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`,"apikey":SB_KEY,"Prefer":"resolution=merge-duplicates"},
+      body:JSON.stringify({user_id:userId,data,updated_at:new Date().toISOString()})
+    });
+    return r.ok;
+  }catch{return false;}
+}
+
+async function sbLoadData(token,userId){
+  if(!SB_URL||!SB_KEY||!token) return null;
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/user_data?user_id=eq.${userId}&select=data`,{
+      headers:{"Authorization":`Bearer ${token}`,"apikey":SB_KEY}
+    });
+    if(!r.ok) return null;
+    const rows=await r.json();
+    return rows?.[0]?.data||null;
+  }catch{return null;}
+}
+
 export default function AscendApp(){
   /* hydrate once on mount */
   const P = useMemo(loadPersisted, []);
@@ -2515,6 +2881,12 @@ export default function AscendApp(){
     }
   };
   const [anch,setAnch]=useState(false);
+  const [anchInitType,setAnchInitType]=useState(P.anchInitType || "sitting");
+  const [libOpenId,setLibOpenId]=useState(null);
+  const [cloudToken,setCloudToken]=useState(()=>localStorage.getItem(CLOUD_TOKEN_KEY)||null);
+  const [cloudUser,setCloudUser]=useState(null);
+  const [cloudSyncing,setCloudSyncing]=useState(false);
+  const [cloudMsg,setCloudMsg]=useState(null); // {type:"ok"|"err", text}
   const [capacities,setCapacities]=useState(false);
   const [chaptersRead,setChaptersRead]=useState(P.chaptersRead??[]);
   const [libReadAt,setLibReadAt]=useState(P.libReadAt??{});
@@ -2553,8 +2925,29 @@ export default function AscendApp(){
     if(s){ s.style.transition="opacity 0.6s"; s.style.opacity="0"; setTimeout(()=>s?.remove(),650); }
   },[]);
 
-  const [importPanel,setImportPanel]=useState(false);
-  const [importText,setImportText]=useState("");
+  // Handle magic link callback — Supabase puts token in URL hash
+  useEffect(()=>{
+    const hash=window.location.hash;
+    if(hash.includes("access_token")){
+      const params=new URLSearchParams(hash.slice(1));
+      const token=params.get("access_token");
+      const refresh=params.get("refresh_token");
+      if(token){
+        localStorage.setItem(CLOUD_TOKEN_KEY,token);
+        if(refresh) localStorage.setItem(CLOUD_REFRESH_KEY,refresh);
+        setCloudToken(token);
+        window.history.replaceState(null,"",window.location.pathname);
+        sbGetUser(token).then(u=>{ if(u) setCloudUser(u); });
+      }
+    } else if(cloudToken){
+      // Validate stored token
+      sbGetUser(cloudToken).then(u=>{
+        if(u) setCloudUser(u);
+        else{ localStorage.removeItem(CLOUD_TOKEN_KEY); setCloudToken(null); }
+      });
+    }
+  },[]);
+
 
   /* ── Dev mode helpers ── */
   const enableDevMode = () => {
@@ -2578,25 +2971,49 @@ export default function AscendApp(){
   };
 
   /* ── Export / Import / Reset ── */
-  const [exportPanel,setExportPanel]=useState(false);
+  const showCloudMsg = (type,text) => { setCloudMsg({type,text}); setTimeout(()=>setCloudMsg(null),3000); };
+
+  const handleSaveCloud = async () => {
+    if(!cloudUser||!cloudToken) return;
+    setCloudSyncing(true);
+    const raw = localStorage.getItem(STORAGE_KEY)||JSON.stringify(blobRef.current);
+    const ok = await sbSaveData(cloudToken, cloudUser.id, JSON.parse(raw));
+    setCloudSyncing(false);
+    showCloudMsg(ok?"ok":"err", ok?"Saved to cloud ✓":"Save failed — try again");
+  };
+
+  const handleLoadCloud = async () => {
+    if(!cloudUser||!cloudToken) return;
+    setCloudSyncing(true);
+    const data = await sbLoadData(cloudToken, cloudUser.id);
+    setCloudSyncing(false);
+    if(!data){ showCloudMsg("err","No cloud data found"); return; }
+    applyImport(data);
+    showCloudMsg("ok","Restored from cloud ✓");
+  };
+
+  const handleSignOut = () => {
+    localStorage.removeItem(CLOUD_TOKEN_KEY);
+    localStorage.removeItem(CLOUD_REFRESH_KEY);
+    setCloudToken(null); setCloudUser(null);
+  };
   const exportData = () => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY)||JSON.stringify({v:1});
-      if(navigator.clipboard?.writeText){
-        navigator.clipboard.writeText(raw).then(()=>setExportPanel("copied")).catch(()=>setExportPanel(raw));
-      } else {
-        setExportPanel(raw);
-      }
+      const raw = localStorage.getItem(STORAGE_KEY) || JSON.stringify(blobRef.current);
+      const date = new Date().toISOString().slice(0,10);
+      const blob = new Blob([raw], {type:"application/json"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `ascend-backup-${date}.json`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
     } catch(e){ alert("Export failed: "+e.message); }
   };
-  const importData = () => { setImportPanel(true); setImportText(""); };
-  const applyImport = () => {
+  const applyImport = (data) => {
     try {
-      const data = JSON.parse(importText.trim());
       if(!data.v) throw new Error("Invalid backup — missing version field.");
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       saveToArtifactStorage(JSON.stringify(data));
-      // Apply directly to state (no reload)
       const mc=migrateCh(data.ch);
       if(mc) setCh(mc);
       if(data.sessions) setSessions(data.sessions);
@@ -2613,7 +3030,6 @@ export default function AscendApp(){
       if(data.types) setTypes(data.types);
       if(data.library) setLibrary(data.library);
       if(data.onboardingDone) setOnboarding("done");
-      setImportPanel(false); setImportText("");
     } catch(e){ alert("Import failed: "+e.message); }
   };
   const resetData = () => {
@@ -2635,7 +3051,7 @@ export default function AscendApp(){
      sees the latest without re-binding listeners. */
   const blob = {
     v:1, tab, fontScale, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library,
-    completedChapters, hasAnchored, theme, guidedSession, onboardingDone: onboarding==="done",
+    completedChapters, hasAnchored, theme, guidedSession, anchInitType, onboardingDone: onboarding==="done",
   };
   const blobRef = useRef(blob);
   blobRef.current = blob;
@@ -2646,7 +3062,7 @@ export default function AscendApp(){
     const json = JSON.stringify(blobRef.current);
     const t = setTimeout(()=>writeStorage(json), 250);
     return ()=>clearTimeout(t);
-  },[hydrated, devMode, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding]);
+  },[hydrated, devMode, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType]);
 
   /* ── FLUSH: write immediately when the page is hidden or unloaded ── */
   useEffect(()=>{
@@ -2684,6 +3100,7 @@ export default function AscendApp(){
         if(P2.theme){ setTheme(P2.theme); applyTheme(P2.theme); }
         if(P2.fontScale) setFontScale(P2.fontScale);
         if(P2.guidedSession!==undefined) setGuidedSession(P2.guidedSession);
+        if(P2.anchInitType) setAnchInitType(P2.anchInitType);
         if(P2.tab) setTab(P2.tab);
         if(P2.types) setTypes(P2.types);
         if(P2.library) setLibrary(P2.library);
@@ -2711,6 +3128,7 @@ export default function AscendApp(){
     const isA=quickAnchor||!type;
     /* sessions < 10 s are discarded silently */
     if(!isA && (elapsedSecs??0) < 10){ setAnch(false); return; }
+    if(!isA && typeId) setAnchInitType(typeId); // remember last used type
     const xpE=isA?0:Math.floor((elapsedSecs??0)/10);
     const {sg}=isA?{sg:{}}:rewards(typeId||"sitting",xpE,activeActivities);
     const AWARENESS_STAT={head:"wis",chest:"hrt",belly:"wil"};
@@ -2721,7 +3139,7 @@ export default function AscendApp(){
       },0);
       sg[sk]=(sg[sk]||0)+siphon;
     }
-    const s={type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,date:"Today",activities:activities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg};
+    const s={type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),activities:activities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg};
     setSessions(p=>[s,...p]);
     setHasAnchored(true);
     if(!hasAnchored && guidedSession) setGuidedSession(false); // auto-off after first session
@@ -2802,7 +3220,10 @@ export default function AscendApp(){
     overflow: "hidden",
   };
 
-  const outerWrap = {width:"100%",height:"100dvh",background:C.bg,overflow:"hidden"};
+  const outerWrap = {width:"100%",height:"100dvh",background:C.bg,overflow:"hidden",
+    paddingTop:"env(safe-area-inset-top)",
+    paddingBottom:"env(safe-area-inset-bottom,0px)",
+    boxSizing:"border-box"};
 
   FONT_SCALE = fontScale; // apply at render time so all body()/dsp() calls reflect current scale
 
@@ -2969,15 +3390,15 @@ export default function AscendApp(){
   return (
     <div style={outerWrap}>
       <style>{`
-        body{margin:0;padding:0;background:#0d1410;overscroll-behavior:none;}
-        html{overscroll-behavior:none;}
+        body{margin:0;padding:0;background:${C.bg};overscroll-behavior:none;}
+        html{overscroll-behavior:none;background:${C.bg};}
         ::-webkit-scrollbar { width: 0 !important; height: 0 !important; background: transparent !important; }
         * { scrollbar-width: none !important; -ms-overflow-style: none !important; touch-action: pan-y; }
         input, textarea, select { touch-action: auto; }
       `}</style>
       <div style={phoneStyle}>
         {/* floating DEV indicator */}
-        <button onClick={devMode?disableDevMode:enableDevMode} style={{position:"absolute",top:"5px",right:"10px",zIndex:400,background:"none",border:"none",cursor:"pointer",padding:"2px 5px",fontSize:"8px",fontFamily:"monospace",letterSpacing:"0.12em",color:devMode?"rgba(180,100,100,0.85)":"rgba(150,150,150,0.22)",lineHeight:1,left:"10px",right:"auto"}}>DEV</button>
+        <button onClick={devMode?disableDevMode:enableDevMode} style={{position:"absolute",top:"5px",zIndex:400,background:"none",border:"none",cursor:"pointer",padding:"2px 5px",fontSize:"8px",fontFamily:"monospace",letterSpacing:"0.12em",color:devMode?"rgba(180,100,100,0.85)":"rgba(150,150,150,0.22)",lineHeight:1,left:"10px",right:"auto"}}>DEV</button>
         {/* header */}
         <div style={{padding:"14px 20px 10px",borderBottom:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
           <div style={{display:"flex",alignItems:"center",gap:"11px"}}>
@@ -2997,12 +3418,12 @@ export default function AscendApp(){
           );})()}
         </div>
 
-        {/* content */}
+        {/* content — all tabs stay mounted so internal state (quest screen, library entry) persists */}
         <div style={{flex:1,overflowY:"auto",paddingBottom:"118px"}}>
-          {tab==="character"&&<CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities}/>}
-          {tab==="quest"&&<QuestTab completedChapters={completedChapters} onCompleteChapter={n=>setCompletedChapters(p=>[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}}/>}
-          {tab==="map"&&<MapTab pins={pins}/>}
-          {tab==="library"&&<LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters}/>}
+          <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities}/></div>
+          <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>setCompletedChapters(p=>[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}/></div>
+          <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins}/></div>
+          <div style={{display:tab==="library"?"block":"none"}}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)}/></div>
         </div>
 
         {/* floating anchor button */}
@@ -3072,7 +3493,7 @@ export default function AscendApp(){
               <div style={{...body("12px",C.muted),marginBottom:"22px"}}>You have unsaved writing.</div>
               <div style={{display:"flex",gap:"10px",justifyContent:"center"}}>
                 <button onClick={()=>{
-                  if(journalDraft.trim()){const date=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});setJEnt(p=>[{text:journalDraft.trim(),date},...p]);awardJournalXP();}
+                  if(journalDraft.trim()){const date=new Date().toISOString().slice(0,10);setJEnt(p=>[{text:journalDraft.trim(),date},...p]);awardJournalXP();}
                   setJournalDraft(""); savePending(); setSavePending(null);
                 }} style={{padding:"9px 18px",background:"rgba(163,192,137,0.12)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",cursor:"pointer",...dsp("9px",C.sageB,400,"0.12em")}}>SAVE & LEAVE</button>
                 <button onClick={()=>{setJournalDraft(""); savePending(); setSavePending(null);}}
@@ -3083,8 +3504,8 @@ export default function AscendApp(){
         )}
         {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");}} onSave={e=>{setJEnt(p=>[e,...p]);awardJournalXP();setScr(null);setJournalDraft("");}} onEntryChange={setJournalDraft}/>}
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
-        {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} anchorImmediate={anchorImmediate} setAnchorImmediate={setAnchorImmediate} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} importData={importData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} guidedSession={guidedSession} setGuidedSession={setGuidedSession} exportPanel={exportPanel} setExportPanel={setExportPanel} importPanel={importPanel} setImportPanel={setImportPanel} importText={importText} setImportText={setImportText}/>}
-        {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={anchorImmediate} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession}/>}
+        {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} anchorImmediate={anchorImmediate} setAnchorImmediate={setAnchorImmediate} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} guidedSession={guidedSession} setGuidedSession={setGuidedSession} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onSignOut={handleSignOut}/>}
+        {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={anchorImmediate} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType}/>}
       </div>
     </div>
   );
