@@ -3207,7 +3207,7 @@ export default function AscendApp(){
   const phoneStyle = {
     width: "100%",
     maxWidth: "430px",
-    height: "100dvh",
+    height: "100%",
     margin: "0 auto",
     position: "relative",
     background: `linear-gradient(${C.bg},${C.bg2})`,
