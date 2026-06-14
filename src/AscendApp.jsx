@@ -751,7 +751,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
 
           {/* Session type — SL style */}
           <div style={{padding:"26px 22px 0"}}>
-            <SL title="Session Type" right={
+            <SL title="Practice" right={
               <div style={{position:"relative"}}>
                 <button onClick={()=>setDropdown(d=>!d)} style={{display:"flex",alignItems:"center",gap:"7px",padding:"3px 10px",background:dropdown?"rgba(163,192,137,0.1)":"transparent",border:`0.5px solid ${dropdown?C.sageB:C.bord}`,borderRadius:"4px",cursor:"pointer",transition:"all .18s"}}>
                   <span style={{...body("12px",C.cream)}}>{typeLabel}</span>
