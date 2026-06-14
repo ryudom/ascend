@@ -3446,17 +3446,17 @@ export default function AscendApp(){
         {/* Journal / Logs flank the anchor on the character tab */}
         {tab==="character" && !anch && scr!=="journal" && scr!=="logs" && scr!=="settings" && (
           <>
-            <button onClick={()=>setScr("journal")} style={{position:"absolute",bottom:"76px",left:"16.5%",transform:"translateX(-50%)",zIndex:261,background:"none",border:"none",cursor:"pointer",padding:"3px 6px",display:"flex",flexDirection:"row",alignItems:"center",gap:"5px"}}>
+            <button onClick={()=>setScr("journal")} style={{position:"absolute",bottom:"calc(76px + env(safe-area-inset-bottom))",left:"16.5%",transform:"translateX(-50%)",zIndex:261,background:"none",border:"none",cursor:"pointer",padding:"3px 6px",display:"flex",flexDirection:"row",alignItems:"center",gap:"5px"}}>
               <NavIcon id="journal" color={C.muted} size={23}/>
               <span style={{...dsp("9.2px",C.muted,400,"0.14em")}}>JOURNAL</span>
             </button>
-            <button onClick={()=>setScr("logs")} style={{position:"absolute",bottom:"76px",right:"16.5%",transform:"translateX(50%)",zIndex:261,background:"none",border:"none",cursor:"pointer",padding:"3px 6px",display:"flex",flexDirection:"row",alignItems:"center",gap:"5px"}}>
+            <button onClick={()=>setScr("logs")} style={{position:"absolute",bottom:"calc(76px + env(safe-area-inset-bottom))",right:"16.5%",transform:"translateX(50%)",zIndex:261,background:"none",border:"none",cursor:"pointer",padding:"3px 6px",display:"flex",flexDirection:"row",alignItems:"center",gap:"5px"}}>
               <span style={{...dsp("9.2px",C.muted,400,"0.14em")}}>LOGS</span>
               <NavIcon id="logs" color={C.muted} size={23}/>
             </button>
           </>
         )}
-        <nav style={{position:"absolute",bottom:0,left:0,width:"100%",boxSizing:"border-box",background:C.surf,borderTop:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",padding:`0 0 calc(2px + env(safe-area-inset-bottom))`,zIndex:260}}>
+        <nav style={{position:"absolute",bottom:0,left:0,width:"100%",height:"calc(64px + env(safe-area-inset-bottom))",boxSizing:"border-box",background:C.surf,borderTop:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start",padding:`8px 0 0`,paddingBottom:"env(safe-area-inset-bottom)",zIndex:260}}>
           <div style={{display:"flex",flex:1,justifyContent:"space-around",alignItems:"center"}}>
             {NAV.slice(0,2).map(({id,l})=>(
               <button key={id} onClick={()=>navigateTo(()=>{setTab(id);setAnch(false);if(id==="character")setCapacities(false);})} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",padding:"2px 12px",border:"none",background:"none",cursor:"pointer"}}>
