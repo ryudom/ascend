@@ -3208,8 +3208,6 @@ export default function AscendApp(){
     width: "100%",
     maxWidth: "430px",
     height: "100dvh",
-    paddingTop: "env(safe-area-inset-top)",
-    boxSizing: "border-box",
     margin: "0 auto",
     position: "relative",
     background: `linear-gradient(${C.bg},${C.bg2})`,
@@ -3416,7 +3414,7 @@ export default function AscendApp(){
         </div>
 
         {/* content — all tabs stay mounted so internal state (quest screen, library entry) persists */}
-        <div style={{flex:1,overflowY:"auto",paddingBottom:"calc(118px + env(safe-area-inset-bottom))"}}>
+        <div style={{flex:1,overflowY:"auto",paddingBottom:"118px"}}>
           <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities}/></div>
           <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>setCompletedChapters(p=>[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}/></div>
           <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins}/></div>
@@ -3446,17 +3444,17 @@ export default function AscendApp(){
         {/* Journal / Logs flank the anchor on the character tab */}
         {tab==="character" && !anch && scr!=="journal" && scr!=="logs" && scr!=="settings" && (
           <>
-            <button onClick={()=>setScr("journal")} style={{position:"absolute",bottom:"calc(76px + env(safe-area-inset-bottom))",left:"16.5%",transform:"translateX(-50%)",zIndex:261,background:"none",border:"none",cursor:"pointer",padding:"3px 6px",display:"flex",flexDirection:"row",alignItems:"center",gap:"5px"}}>
+            <button onClick={()=>setScr("journal")} style={{position:"absolute",bottom:"76px",left:"16.5%",transform:"translateX(-50%)",zIndex:261,background:"none",border:"none",cursor:"pointer",padding:"3px 6px",display:"flex",flexDirection:"row",alignItems:"center",gap:"5px"}}>
               <NavIcon id="journal" color={C.muted} size={23}/>
               <span style={{...dsp("9.2px",C.muted,400,"0.14em")}}>JOURNAL</span>
             </button>
-            <button onClick={()=>setScr("logs")} style={{position:"absolute",bottom:"calc(76px + env(safe-area-inset-bottom))",right:"16.5%",transform:"translateX(50%)",zIndex:261,background:"none",border:"none",cursor:"pointer",padding:"3px 6px",display:"flex",flexDirection:"row",alignItems:"center",gap:"5px"}}>
+            <button onClick={()=>setScr("logs")} style={{position:"absolute",bottom:"76px",right:"16.5%",transform:"translateX(50%)",zIndex:261,background:"none",border:"none",cursor:"pointer",padding:"3px 6px",display:"flex",flexDirection:"row",alignItems:"center",gap:"5px"}}>
               <span style={{...dsp("9.2px",C.muted,400,"0.14em")}}>LOGS</span>
               <NavIcon id="logs" color={C.muted} size={23}/>
             </button>
           </>
         )}
-        <nav style={{position:"absolute",bottom:0,left:0,width:"100%",height:"calc(64px + env(safe-area-inset-bottom))",boxSizing:"border-box",background:C.surf,borderTop:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start",padding:`8px 0 0`,paddingBottom:"env(safe-area-inset-bottom)",zIndex:260}}>
+        <nav style={{position:"absolute",bottom:0,left:0,width:"100%",height:"64px",boxSizing:"border-box",background:C.surf,borderTop:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 0 2px",zIndex:260}}>
           <div style={{display:"flex",flex:1,justifyContent:"space-around",alignItems:"center"}}>
             {NAV.slice(0,2).map(({id,l})=>(
               <button key={id} onClick={()=>navigateTo(()=>{setTab(id);setAnch(false);if(id==="character")setCapacities(false);})} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",padding:"2px 12px",border:"none",background:"none",cursor:"pointer"}}>
