@@ -2223,7 +2223,7 @@ function MapTab({ pins }){
               {hoveredPin===(p.id??i)&&(
                 <div style={{position:"absolute",bottom:"calc(100% + 7px)",left:"50%",transform:`translateX(-50%) scale(${1/zoom})`,transformOrigin:"center bottom",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
                   <div style={{...body("11px",C.cream),marginBottom:"2px"}}>{p.tag||"Anchored"}</div>
-                  <div style={{...body("10px",C.muted)}}>{p.date||""}{p.duration?` · ${p.duration} min`:""}</div>
+                  <div style={{...body("10px",C.muted)}}>{p.date?p.date.match(/^\d{4}-\d{2}-\d{2}$/)?new Date(p.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):p.date:""}{p.duration?` · ${p.duration} min`:""}</div>
                 </div>
               )}
               {p.tag&&hoveredPin!==(p.id??i)&&<div style={{background:"rgba(13,20,15,0.85)",border:`0.5px solid ${C.bord}`,borderRadius:"3px",padding:"1px 5px",...body("8px",C.sage),whiteSpace:"nowrap"}}>{p.tag}</div>}
@@ -2882,6 +2882,20 @@ async function sbGetUser(token){
   }catch{return null;}
 }
 
+async function sbRefreshToken(refreshToken){
+  if(!SB_URL||!SB_KEY||!refreshToken) return null;
+  try{
+    const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":SB_KEY},
+      body:JSON.stringify({refresh_token:refreshToken})
+    });
+    if(!r.ok) return null;
+    const d=await r.json();
+    return {access_token:d.access_token,refresh_token:d.refresh_token,user:d.user};
+  }catch{return null;}
+}
+
 async function sbSaveData(token,userId,data){
   if(!SB_URL||!SB_KEY||!token) return false;
   try{
@@ -2968,14 +2982,32 @@ export default function AscendApp(){
     if(s){ s.style.transition="opacity 0.6s"; s.style.opacity="0"; setTimeout(()=>s?.remove(),650); }
   },[]);
 
-  // Restore cloud session from stored token on mount
+  // Restore cloud session — refresh silently if access token expired
   useEffect(()=>{
-    if(cloudToken){
-      sbGetUser(cloudToken).then(u=>{
-        if(u) setCloudUser(u);
-        else{ localStorage.removeItem(CLOUD_TOKEN_KEY); setCloudToken(null); }
-      });
-    }
+    if(!cloudToken) return;
+    if(!SB_URL||!SB_KEY) return; // not configured, keep token as-is
+    sbGetUser(cloudToken).then(async u=>{
+      if(u){ setCloudUser(u); return; }
+      // Access token expired — try refresh
+      const stored=localStorage.getItem(CLOUD_REFRESH_KEY);
+      if(stored){
+        const refreshed=await sbRefreshToken(stored);
+        if(refreshed){
+          localStorage.setItem(CLOUD_TOKEN_KEY,refreshed.access_token);
+          if(refreshed.refresh_token) localStorage.setItem(CLOUD_REFRESH_KEY,refreshed.refresh_token);
+          setCloudToken(refreshed.access_token);
+          if(refreshed.user) setCloudUser(refreshed.user);
+        } else {
+          // Both tokens dead — clear and ask to sign in again
+          localStorage.removeItem(CLOUD_TOKEN_KEY);
+          localStorage.removeItem(CLOUD_REFRESH_KEY);
+          setCloudToken(null);
+        }
+      } else {
+        localStorage.removeItem(CLOUD_TOKEN_KEY);
+        setCloudToken(null);
+      }
+    });
   },[]);
 
 
@@ -3178,7 +3210,7 @@ export default function AscendApp(){
     setHasAnchored(true);
     if(!hasAnchored && guidedSession) setGuidedSession(false); // auto-off after first session
     if(pinSession){
-      const _date=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
+      const _date=new Date().toISOString().slice(0,10);
       const makePin=(lat,lng)=>({
         id:`${Date.now()}_${Math.random().toString(36).substr(2,6)}`,
         lat,lng,tag:pinTag||"",date:_date,duration,
