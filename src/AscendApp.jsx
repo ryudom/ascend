@@ -2610,19 +2610,36 @@ function Toggle({ on, onToggle }){
 function SettingsScreen({ onBack, name, setName, anchorImmediate, setAnchorImmediate, theme, setTheme,
     devMode, enableDevMode, disableDevMode, exportData, applyImport, resetData,
     fontScale, setFontScale, guidedSession, setGuidedSession,
-    cloudUser, cloudSyncing, cloudMsg, onSaveCloud, onLoadCloud, onSignOut }){
+    cloudUser, cloudSyncing, cloudMsg, onSaveCloud, onLoadCloud, onSignOut, onVerified }){
   const [resetConfirm,setResetConfirm]=useState(false);
   const [importDone,setImportDone]=useState(false);
   const [cloudEmail,setCloudEmail]=useState("");
-  const [linkStatus,setLinkStatus]=useState("idle"); // idle|sending|sent|error
-  const fileInputRef = useRef(null);
+  const [cloudCode,setCloudCode]=useState("");
+  const [otpStep,setOtpStep]=useState("email"); // email|code|error
+  const [otpStatus,setOtpStatus]=useState("idle"); // idle|sending|verifying
+  const [otpError,setOtpError]=useState("");
 
-  const handleSendLink = async () => {
-    if(!cloudEmail.trim()||linkStatus==="sending") return;
-    setLinkStatus("sending");
-    const {ok,error} = await sbSendMagicLink(cloudEmail.trim());
-    setLinkStatus(ok?"sent":"error");
-    if(!ok) setTimeout(()=>setLinkStatus("idle"),3000);
+  const handleSendCode = async () => {
+    if(!cloudEmail.trim()||otpStatus==="sending") return;
+    setOtpStatus("sending"); setOtpError("");
+    const {ok,error} = await sbSendOTP(cloudEmail.trim());
+    if(ok){ setOtpStep("code"); setOtpStatus("idle"); }
+    else{ setOtpError(error||"Failed to send"); setOtpStatus("idle"); }
+  };
+
+  const handleVerifyCode = async () => {
+    if(!cloudCode.trim()||otpStatus==="verifying") return;
+    setOtpStatus("verifying"); setOtpError("");
+    const res = await sbVerifyOTP(cloudEmail.trim(), cloudCode.trim());
+    if(res.ok){
+      localStorage.setItem(CLOUD_TOKEN_KEY, res.access_token);
+      if(res.refresh_token) localStorage.setItem(CLOUD_REFRESH_KEY, res.refresh_token);
+      // bubble up to App
+      onVerified(res.access_token, res.user);
+      setOtpStep("email"); setOtpStatus("idle"); setCloudCode(""); setCloudEmail("");
+    } else {
+      setOtpError(res.error||"Invalid code"); setOtpStatus("idle");
+    }
   };
 
   const handleFileImport = (e) => {
@@ -2712,22 +2729,33 @@ function SettingsScreen({ onBack, name, setName, anchorImmediate, setAnchorImmed
             </div>
           ) : (
             <div style={{marginBottom:"16px"}}>
-              {linkStatus==="sent" ? (
-                <div style={{padding:"12px",background:"rgba(163,192,137,0.06)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",textAlign:"center"}}>
-                  <div style={{...body("13px",C.cream),marginBottom:"4px"}}>Check your email</div>
-                  <div style={{...body("11px",C.muted),fontStyle:"italic"}}>Click the link to sign in — then come back here.</div>
-                </div>
+              {otpStep==="code" ? (
+                <>
+                  <div style={{...body("11px",C.muted),marginBottom:"10px",fontStyle:"italic"}}>Code sent to {cloudEmail}</div>
+                  <input value={cloudCode} onChange={e=>setCloudCode(e.target.value.replace(/\D/g,"").slice(0,6))}
+                    onKeyDown={e=>e.key==="Enter"&&handleVerifyCode()}
+                    placeholder="6-digit code" type="text" inputMode="numeric" maxLength={6}
+                    style={{width:"100%",padding:"9px 10px",background:C.bg,border:`0.5px solid ${C.bord}`,borderRadius:"4px",color:C.txt,...body("16px"),outline:"none",caretColor:C.sageB,boxSizing:"border-box",marginBottom:"8px",textAlign:"center",letterSpacing:"0.3em"}}/>
+                  {otpError&&<div style={{...body("10px","rgba(220,120,120,0.9)"),marginBottom:"8px",textAlign:"center"}}>{otpError}</div>}
+                  <button onClick={handleVerifyCode} disabled={cloudCode.length<6||otpStatus==="verifying"}
+                    style={{width:"100%",padding:"9px",background:"rgba(163,192,137,0.08)",border:`0.5px solid ${cloudCode.length===6?C.sageB:C.bord}`,borderRadius:"4px",cursor:cloudCode.length===6?"pointer":"default",...dsp("9px",cloudCode.length===6?C.sageB:C.dim,400,"0.14em")}}>
+                    {otpStatus==="verifying"?"VERIFYING…":"CONFIRM CODE"}
+                  </button>
+                  <button onClick={()=>{setOtpStep("email");setOtpStatus("idle");setCloudCode("");setOtpError("");}}
+                    style={{width:"100%",padding:"6px",background:"none",border:"none",cursor:"pointer",...body("10px",C.dim),fontStyle:"italic",marginTop:"4px"}}>← different email</button>
+                </>
               ) : (
                 <>
                   <input value={cloudEmail} onChange={e=>setCloudEmail(e.target.value)}
-                    onKeyDown={e=>e.key==="Enter"&&handleSendLink()}
+                    onKeyDown={e=>e.key==="Enter"&&handleSendCode()}
                     placeholder="your@email.com" type="email"
                     style={{width:"100%",padding:"9px 10px",background:C.bg,border:`0.5px solid ${C.bord}`,borderRadius:"4px",color:C.txt,...body("13px"),outline:"none",caretColor:C.sageB,boxSizing:"border-box",marginBottom:"8px"}}/>
-                  <button onClick={handleSendLink} disabled={!cloudEmail.trim()||linkStatus==="sending"}
+                  {otpError&&<div style={{...body("10px","rgba(220,120,120,0.9)"),marginBottom:"8px",textAlign:"center"}}>{otpError}</div>}
+                  <button onClick={handleSendCode} disabled={!cloudEmail.trim()||otpStatus==="sending"}
                     style={{width:"100%",padding:"9px",background:"rgba(163,192,137,0.08)",border:`0.5px solid ${cloudEmail.trim()?C.sageB:C.bord}`,borderRadius:"4px",cursor:cloudEmail.trim()?"pointer":"default",...dsp("9px",cloudEmail.trim()?C.sageB:C.dim,400,"0.14em")}}>
-                    {linkStatus==="sending"?"SENDING…":linkStatus==="error"?"TRY AGAIN":"SEND MAGIC LINK"}
+                    {otpStatus==="sending"?"SENDING…":"SEND CODE"}
                   </button>
-                  <div style={{...body("10px",C.dim),fontStyle:"italic",marginTop:"6px",textAlign:"center"}}>No password — one tap in your email.</div>
+                  <div style={{...body("10px",C.dim),fontStyle:"italic",marginTop:"6px",textAlign:"center"}}>A 6-digit code will arrive in your email.</div>
                 </>
               )}
             </div>
@@ -2816,7 +2844,7 @@ const SB_KEY  = _env.SUPABASE_KEY  || "";
 const CLOUD_TOKEN_KEY = "ascend_cloud_token";
 const CLOUD_REFRESH_KEY = "ascend_cloud_refresh";
 
-async function sbSendMagicLink(email){
+async function sbSendOTP(email){
   if(!SB_URL||!SB_KEY) return {ok:false,error:"Not configured"};
   try{
     const r=await fetch(`${SB_URL}/auth/v1/otp`,{
@@ -2825,6 +2853,20 @@ async function sbSendMagicLink(email){
       body:JSON.stringify({email,create_user:true})
     });
     return {ok:r.ok,error:r.ok?null:(await r.json()).message};
+  }catch(e){return {ok:false,error:e.message};}
+}
+
+async function sbVerifyOTP(email,token){
+  if(!SB_URL||!SB_KEY) return {ok:false,error:"Not configured"};
+  try{
+    const r=await fetch(`${SB_URL}/auth/v1/verify`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":SB_KEY},
+      body:JSON.stringify({type:"email",token,email})
+    });
+    const d=await r.json();
+    if(!r.ok) return {ok:false,error:d.message||d.error_description||"Invalid code"};
+    return {ok:true,access_token:d.access_token,refresh_token:d.refresh_token,user:d.user};
   }catch(e){return {ok:false,error:e.message};}
 }
 
@@ -2924,22 +2966,9 @@ export default function AscendApp(){
     if(s){ s.style.transition="opacity 0.6s"; s.style.opacity="0"; setTimeout(()=>s?.remove(),650); }
   },[]);
 
-  // Handle magic link callback — Supabase puts token in URL hash
+  // Restore cloud session from stored token on mount
   useEffect(()=>{
-    const hash=window.location.hash;
-    if(hash.includes("access_token")){
-      const params=new URLSearchParams(hash.slice(1));
-      const token=params.get("access_token");
-      const refresh=params.get("refresh_token");
-      if(token){
-        localStorage.setItem(CLOUD_TOKEN_KEY,token);
-        if(refresh) localStorage.setItem(CLOUD_REFRESH_KEY,refresh);
-        setCloudToken(token);
-        window.history.replaceState(null,"",window.location.pathname);
-        sbGetUser(token).then(u=>{ if(u) setCloudUser(u); });
-      }
-    } else if(cloudToken){
-      // Validate stored token
+    if(cloudToken){
       sbGetUser(cloudToken).then(u=>{
         if(u) setCloudUser(u);
         else{ localStorage.removeItem(CLOUD_TOKEN_KEY); setCloudToken(null); }
@@ -2989,6 +3018,11 @@ export default function AscendApp(){
     if(!data){ showCloudMsg("err","No cloud data found"); return; }
     applyImport(data);
     showCloudMsg("ok","Restored from cloud ✓");
+  };
+
+  const handleVerified = (token, user) => {
+    setCloudToken(token);
+    setCloudUser(user);
   };
 
   const handleSignOut = () => {
@@ -3501,7 +3535,7 @@ export default function AscendApp(){
         )}
         {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");}} onSave={e=>{setJEnt(p=>[e,...p]);awardJournalXP();setScr(null);setJournalDraft("");}} onEntryChange={setJournalDraft}/>}
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
-        {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} anchorImmediate={anchorImmediate} setAnchorImmediate={setAnchorImmediate} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} guidedSession={guidedSession} setGuidedSession={setGuidedSession} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onSignOut={handleSignOut}/>}
+        {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} anchorImmediate={anchorImmediate} setAnchorImmediate={setAnchorImmediate} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} guidedSession={guidedSession} setGuidedSession={setGuidedSession} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onSignOut={handleSignOut} onVerified={handleVerified}/>}
         {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={anchorImmediate} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType}/>}
       </div>
     </div>
