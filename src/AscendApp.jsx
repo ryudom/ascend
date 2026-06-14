@@ -2618,6 +2618,7 @@ function SettingsScreen({ onBack, name, setName, anchorImmediate, setAnchorImmed
   const [otpStep,setOtpStep]=useState("email"); // email|code|error
   const [otpStatus,setOtpStatus]=useState("idle"); // idle|sending|verifying
   const [otpError,setOtpError]=useState("");
+  const fileInputRef = useRef(null);
 
   const handleSendCode = async () => {
     if(!cloudEmail.trim()||otpStatus==="sending") return;
