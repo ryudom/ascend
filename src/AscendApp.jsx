@@ -3220,7 +3220,6 @@ export default function AscendApp(){
 
   const outerWrap = {width:"100%",height:"100dvh",background:C.bg,overflow:"hidden",
     paddingTop:"env(safe-area-inset-top)",
-    paddingBottom:"env(safe-area-inset-bottom,0px)",
     boxSizing:"border-box"};
 
   FONT_SCALE = fontScale; // apply at render time so all body()/dsp() calls reflect current scale
@@ -3417,7 +3416,7 @@ export default function AscendApp(){
         </div>
 
         {/* content — all tabs stay mounted so internal state (quest screen, library entry) persists */}
-        <div style={{flex:1,overflowY:"auto",paddingBottom:"118px"}}>
+        <div style={{flex:1,overflowY:"auto",paddingBottom:"calc(118px + env(safe-area-inset-bottom))"}}>
           <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities}/></div>
           <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>setCompletedChapters(p=>[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}/></div>
           <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins}/></div>
@@ -3457,7 +3456,7 @@ export default function AscendApp(){
             </button>
           </>
         )}
-        <nav style={{position:"absolute",bottom:0,left:0,width:"100%",height:"64px",boxSizing:"border-box",background:C.surf,borderTop:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 0 2px",zIndex:260}}>
+        <nav style={{position:"absolute",bottom:0,left:0,width:"100%",boxSizing:"border-box",background:C.surf,borderTop:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",padding:`0 0 calc(2px + env(safe-area-inset-bottom))`,zIndex:260}}>
           <div style={{display:"flex",flex:1,justifyContent:"space-around",alignItems:"center"}}>
             {NAV.slice(0,2).map(({id,l})=>(
               <button key={id} onClick={()=>navigateTo(()=>{setTab(id);setAnch(false);if(id==="character")setCapacities(false);})} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",padding:"2px 12px",border:"none",background:"none",cursor:"pointer"}}>
