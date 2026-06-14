@@ -3207,7 +3207,9 @@ export default function AscendApp(){
   const phoneStyle = {
     width: "100%",
     maxWidth: "430px",
-    height: "100%",
+    height: "100dvh",
+    paddingTop: "env(safe-area-inset-top)",
+    boxSizing: "border-box",
     margin: "0 auto",
     position: "relative",
     background: `linear-gradient(${C.bg},${C.bg2})`,
@@ -3218,9 +3220,7 @@ export default function AscendApp(){
     overflow: "hidden",
   };
 
-  const outerWrap = {width:"100%",height:"100dvh",background:C.bg,overflow:"hidden",
-    paddingTop:"env(safe-area-inset-top)",
-    boxSizing:"border-box"};
+  const outerWrap = {width:"100%",height:"100dvh",background:C.bg,overflow:"hidden"};
 
   FONT_SCALE = fontScale; // apply at render time so all body()/dsp() calls reflect current scale
 
