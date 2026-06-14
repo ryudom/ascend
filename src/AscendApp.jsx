@@ -3395,7 +3395,7 @@ export default function AscendApp(){
       `}</style>
       <div style={phoneStyle}>
         {/* floating DEV indicator */}
-        <button onClick={devMode?disableDevMode:enableDevMode} style={{position:"absolute",top:"calc(5px + env(safe-area-inset-top))",zIndex:400,background:"none",border:"none",cursor:"pointer",padding:"2px 5px",fontSize:"8px",fontFamily:"monospace",letterSpacing:"0.12em",color:devMode?"rgba(180,100,100,0.85)":"rgba(150,150,150,0.22)",lineHeight:1,left:"10px",right:"auto"}}>DEV</button>
+        <button onClick={devMode?disableDevMode:enableDevMode} style={{position:"absolute",top:"5px",zIndex:400,background:"none",border:"none",cursor:"pointer",padding:"2px 5px",fontSize:"8px",fontFamily:"monospace",letterSpacing:"0.12em",color:devMode?"rgba(180,100,100,0.85)":"rgba(150,150,150,0.22)",lineHeight:1,left:"10px",right:"auto"}}>DEV</button>
         {/* header */}
         <div style={{padding:"14px 20px 10px",borderBottom:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
           <div style={{display:"flex",alignItems:"center",gap:"11px"}}>
