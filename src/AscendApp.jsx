@@ -1215,7 +1215,7 @@ function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacit
   const longestMin = sessions.reduce((a,s)=>Math.max(a,s.duration),0);
   const todayISO = new Date().toISOString().slice(0,10);
   const computeStreak = ss => {
-    const dates = new Set(ss.map(s=>s.date).filter(d=>d&&d.match(/^\d{4}-\d{2}-\d{2}$/)));
+    const dates = new Set(ss.map(s=>s.date==="Today"?todayISO:(s.date||"")).filter(d=>d.match(/^\d{4}-\d{2}-\d{2}$/)));
     const check = new Date();
     if(!dates.has(todayISO)) check.setDate(check.getDate()-1);
     let streak=0;
@@ -2458,7 +2458,7 @@ function LogsScreen({ onBack, sessions, jEntries }){
     return d; // legacy strings pass through
   };
   const dm={};
-  sessions.forEach(s=>{ if(!dm[s.date])dm[s.date]={ss:[],ee:[]}; dm[s.date].ss.push(s); });
+  sessions.forEach(s=>{ const k=s.date==="Today"?todayISO:(s.date||todayISO); if(!dm[k])dm[k]={ss:[],ee:[]}; dm[k].ss.push(s); });
   jEntries.forEach(e=>{
     /* normalise: entries saved today group with today's sessions */
     const key=e.date&&e.date.match(/^\d{4}-\d{2}-\d{2}$/)?e.date:todayISO;
@@ -2532,8 +2532,9 @@ function LogsScreen({ onBack, sessions, jEntries }){
         const dayData={};
         order.forEach(d=>{ dayData[d]={}; });
         sessions.filter(s=>s.type!=="Anchor").forEach(s=>{
-          if(!dayData[s.date]) dayData[s.date]={};
-          dayData[s.date][s.type]=(dayData[s.date][s.type]||0)+s.duration;
+          const d=s.date==="Today"?todayISO:(s.date||todayISO);
+          if(!dayData[d]) dayData[d]={};
+          dayData[d][s.type]=(dayData[d][s.type]||0)+s.duration;
         });
         const activeDays=order.filter(d=>Object.keys(dayData[d]||{}).length>0);
         const maxMins=Math.max(30,...activeDays.map(d=>Object.values(dayData[d]||{}).reduce((a,v)=>a+v,0)));
@@ -3270,9 +3271,10 @@ export default function AscendApp(){
     };
     return (
       <div style={outerWrap}>
+        <style>{`body{margin:0;padding:0;background:${C.bg};} html{background:${C.bg};}`}</style>
         <div style={phoneStyle}>
-          {/* Dev skip — tiny, top-left */}
-          <button onClick={devSkip} style={{position:"absolute",top:"10px",left:"10px",zIndex:10,background:"transparent",border:"none",cursor:"pointer",padding:"4px 6px",opacity:0.18}}>
+          {/* Dev skip — tiny, top-center */}
+          <button onClick={devSkip} style={{position:"absolute",top:"10px",left:"50%",transform:"translateX(-50%)",zIndex:10,background:"transparent",border:"none",cursor:"pointer",padding:"4px 6px",opacity:0.18}}>
             <span style={{fontSize:"8px",color:"#fff",fontFamily:"monospace",letterSpacing:"0.05em"}}>DEV</span>
           </button>
           <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"40px 30px",textAlign:"center"}}>
@@ -3430,7 +3432,7 @@ export default function AscendApp(){
       `}</style>
       <div style={phoneStyle}>
         {/* floating DEV indicator */}
-        <button onClick={devMode?disableDevMode:enableDevMode} style={{position:"absolute",top:"5px",zIndex:400,background:"none",border:"none",cursor:"pointer",padding:"2px 5px",fontSize:"8px",fontFamily:"monospace",letterSpacing:"0.12em",color:devMode?"rgba(180,100,100,0.85)":"rgba(150,150,150,0.22)",lineHeight:1,left:"10px",right:"auto"}}>DEV</button>
+        <button onClick={devMode?disableDevMode:enableDevMode} style={{position:"absolute",top:"5px",left:"50%",transform:"translateX(-50%)",zIndex:400,background:"none",border:"none",cursor:"pointer",padding:"2px 5px",fontSize:"8px",fontFamily:"monospace",letterSpacing:"0.12em",color:devMode?"rgba(180,100,100,0.85)":"rgba(150,150,150,0.22)",lineHeight:1}}>DEV</button>
         {/* header */}
         <div style={{padding:"14px 20px 10px",borderBottom:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
           <div style={{display:"flex",alignItems:"center",gap:"11px"}}>
