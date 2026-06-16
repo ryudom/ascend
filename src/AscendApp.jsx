@@ -38,7 +38,7 @@ const STAT_MAP = {
 };
 const STATS = [
   {k:"str", l:"Root",        s:"STR"},
-  {k:"vit", l:"Vitality",    s:"VIT"},
+  {k:"vit", l:"Energy",      s:"VIT"},
   {k:"wil", l:"Will",        s:"WIL"},
   {k:"hrt", l:"Openness",    s:"HRT"},
   {k:"voi", l:"Voice",       s:"VOI"},
@@ -562,6 +562,15 @@ function getAudioCtx(ref){
   }catch(e){ return null; }
   return ref.current;
 }
+
+function unlockAudio(ref){
+  const ctx=getAudioCtx(ref); if(!ctx) return;
+  // Play a silent 1-sample buffer — the standard iOS Web Audio unlock pattern
+  const buf=ctx.createBuffer(1,1,22050);
+  const src=ctx.createBufferSource();
+  src.buffer=buf; src.connect(ctx.destination); src.start(0);
+  if(ctx.state==="suspended") ctx.resume();
+}
 function playGong(ctx){
   try{
     if(!ctx) return;
@@ -597,7 +606,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
   const [dropdown,setDropdown] = useState(false);  // show dropdown panel
   const [adding,setAdding]     = useState(false);  // show new-type input inside dropdown
   const [newType,setNewType]   = useState("");
-  const [awarenessLanding,setAwarenessLanding] = useState(null); // head|chest|belly|ground
+  const [awarenessLanding,setAwarenessLanding] = useState([]); // array of region ids
   const [feelOpen,setFeelOpen] = useState(false);
   const [activeActIds,setActiveActIds] = useState([]);
   const [actDrop,setActDrop]   = useState(false);
@@ -686,7 +695,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
             {/* Timer row: elapsed + alarm bell */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"14px"}}>
               <div style={{...dsp("22px",W(running?0.3:0.22),400,"0.08em")}}>{sec(elapsed)}</div>
-              <button onClick={()=>{ setAlarmOpen(v=>!v); getAudioCtx(audioCtxRef); }} title="Set alarm" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",background:"none",border:"none",cursor:"pointer",padding:"4px",opacity:alarmOpen?1:0.7}}>
+              <button onClick={()=>{ setAlarmOpen(v=>!v); unlockAudio(audioCtxRef); }} title="Set alarm" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",background:"none",border:"none",cursor:"pointer",padding:"4px",opacity:alarmOpen?1:0.7}}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                   <path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 002 2z" fill={alarmFired?C.gold:alarmSecs?C.sageB:C.muted}/>
                   <path d="M18 16v-5a6 6 0 00-5-5.91V4a1 1 0 00-2 0v1.09A6 6 0 006 11v5l-2 2v1h16v-1l-2-2z" fill={alarmFired?C.gold:alarmSecs?C.sageB:C.muted} opacity={alarmFired?"1":"0.85"}/>
@@ -736,7 +745,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                       Clear
                     </button>
                   )}
-                  <button onClick={()=>playGong(getAudioCtx(audioCtxRef))}
+                  <button onClick={()=>{unlockAudio(audioCtxRef);playGong(audioCtxRef.current);}}
                     style={{padding:"5px 8px",background:"none",border:`0.5px solid ${C.bord}`,borderRadius:"4px",cursor:"pointer",...body("11px",C.dim)}} title="Test gong sound">
                     🔔 Test
                   </button>
@@ -745,7 +754,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
             )}
 
             <div style={{display:"flex",justifyContent:"center",marginTop:"14px"}}>
-              <button onClick={()=>setRunning(r=>!r)} style={{padding:"9px 24px",background:"rgba(163,192,137,0.08)",border:"none",borderRadius:"3px",cursor:"pointer",...dsp("11px",C.sageB,400,"0.2em")}}>{running?"PAUSE":(elapsed>0?"RESUME":"START")}</button>
+              <button onClick={()=>{setRunning(r=>!r); unlockAudio(audioCtxRef);}} style={{padding:"9px 24px",background:"rgba(163,192,137,0.08)",border:"none",borderRadius:"3px",cursor:"pointer",...dsp("11px",C.sageB,400,"0.2em")}}>{running?"PAUSE":(elapsed>0?"RESUME":"START")}</button>
             </div>
           </div>
 
@@ -791,7 +800,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                   <span style={{color:C.muted,fontSize:"9px"}}>{actDrop?"▲":"▼"}</span>
                 </button>
                 {actDrop && (
-                  <div style={{position:"absolute",top:"100%",right:0,minWidth:"200px",background:C.surf2,border:`0.5px solid ${C.sageB}`,borderRadius:"8px",zIndex:10,padding:"6px 0",boxShadow:`0 8px 24px rgba(0,0,0,0.5)`,marginTop:"6px",maxHeight:"240px",overflowY:"auto"}}>
+                  <div style={{position:"absolute",bottom:"100%",right:0,minWidth:"200px",background:C.surf2,border:`0.5px solid ${C.sageB}`,borderRadius:"8px",zIndex:50,padding:"6px 0",boxShadow:`0 8px 24px rgba(0,0,0,0.5)`,marginBottom:"6px",maxHeight:"240px",overflowY:"auto"}}>
                     {activities.length===0 && !creatingAct && <div style={{...body("12px",C.dim),padding:"10px 14px",fontStyle:"italic"}}>No activities yet</div>}
                     {activities.map(act=>{
                       const sc=STAT_COLORS[act.stat]||C.sageB;
@@ -881,19 +890,27 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
 
           <div style={{textAlign:"left",marginBottom:"22px"}}>
             <div style={{...dsp("9px",C.muted,400,"0.18em"),marginBottom:"11px"}}>WHERE DID AWARENESS LAND?</div>
-            <div style={{display:"flex",gap:"7px"}}>
-              {[{k:"belly",label:"Belly",stat:"wil"},{k:"chest",label:"Chest",stat:"hrt"},{k:"head",label:"Head",stat:"wis"}].map(({k,label,stat})=>{
+            <div style={{display:"flex",gap:"4px"}}>
+              {[
+                {k:"root",         label:"Root",   stat:"str"},
+                {k:"belly",        label:"Belly",  stat:"vit"},
+                {k:"solar_plexus", label:"Solar",  stat:"wil"},
+                {k:"chest",        label:"Chest",  stat:"hrt"},
+                {k:"throat",       label:"Throat", stat:"voi"},
+                {k:"head",         label:"Head",   stat:"wis"},
+                {k:"top",          label:"Crown",  stat:"ali"},
+              ].map(({k,label,stat})=>{
                 const sc=STAT_COLORS[stat]||C.sageB;
-                const on=awarenessLanding===k;
+                const on=awarenessLanding.includes(k);
                 return (
-                  <button key={k} onClick={()=>setAwarenessLanding(p=>p===k?null:k)}
-                    style={{flex:1,padding:"8px 4px",borderRadius:"6px",border:`0.5px solid ${on?sc:C.bord}`,background:on?sc+"18":"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:"3px",transition:"all .18s"}}>
-                    <span style={{...dsp("9px",on?sc:C.muted,400,"0.08em")}}>{label.toUpperCase()}</span>
+                  <button key={k} onClick={()=>setAwarenessLanding(p=>p.includes(k)?p.filter(x=>x!==k):[...p,k])}
+                    style={{flex:1,padding:"6px 2px",borderRadius:"5px",border:`0.5px solid ${on?sc:C.bord}`,background:on?sc+"22":"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",transition:"all .15s"}}>
+                    <span style={{fontSize:"7px",fontFamily:"Cinzel,serif",letterSpacing:"0.04em",color:on?sc:C.dim}}>{label.toUpperCase()}</span>
                   </button>
                 );
               })}
             </div>
-            {awarenessLanding && <div style={{...body("10px",C.dim),fontStyle:"italic",marginTop:"7px",textAlign:"center"}}>25% redirected from other stats to {awarenessLanding==="belly"?"Presence":awarenessLanding==="chest"?"Heart":"Wisdom"}</div>}
+            {awarenessLanding.length>0&&<div style={{...body("10px",C.dim),fontStyle:"italic",marginTop:"7px",textAlign:"center"}}>30% redirected to {awarenessLanding.length===1?awarenessLanding[0]:`${awarenessLanding.length} centers`}</div>}
           </div>
 
           <div style={{marginBottom:"18px"}}>
@@ -1039,7 +1056,7 @@ function EmbodimentSilhouette({ stats, totalXP=0 }){
   const CENTERS = [
     {label:"Wisdom",   cx:197, cy:60,  B:wisB,   R:wisRaw,   color:"167,199,231", vis:wisVis},
     {label:"Heart",    cx:197, cy:195, B:heartB, R:heartRaw, color:"111,168,122", vis:heartVis},
-    {label:"Presence", cx:197, cy:355, B:presB,  R:presRaw,  color:"212,185,106", vis:presVis},
+    {label:"Vitality", cx:197, cy:355, B:presB,  R:presRaw,  color:"212,185,106", vis:presVis},
   ];
 
   return (
@@ -1346,8 +1363,8 @@ function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacit
 const ACT1_CHAPTERS=[
   {n:1,title:"The Current",                sub:"Recognition",                        state:"active"},
   {n:2,title:"The Doorway",               sub:"Where attention goes, energy flows",  state:"locked"},
-  {n:3,title:"Foundations of Mastery",           sub:"The hidden foundations",              state:"locked"},
-  {n:4,title:"The First Ground",          sub:"A place in the world",               state:"locked"},
+  {n:3,title:"The First Ground",          sub:"A place in the world",               state:"locked"},
+  {n:4,title:"Foundations of Mastery",    sub:"The hidden foundations",              state:"locked"},
   {n:5,title:"The Living World",          sub:"The oldest teacher",                 state:"locked"},
   {n:6,title:"Cultivating the Capacities",sub:"The invisible harvest",              state:"locked"},
   {n:7,title:"The Three Fires",           sub:"Centers of being",                   state:"locked"},
@@ -1603,7 +1620,9 @@ const CHAPTER_REQUIREMENTS = {
         }
       }
     },
-  3: { needsRead:true,
+  3: { needsRead:true, practice:{ desc:"Anchor a session and pin it to your map.",
+      check: (ss,libReadAt,pins) => pins.some(p=>p.id&&!p.id.startsWith("seed")) } },
+  4: { needsRead:true,
       libRequired:["sit_prac","stand_prac","walk_prac"],
       practice:{ desc:"Read each form in the Library, then practice Sit, Stand, and Walk — at least 5 minutes each.",
         subChecks:[
@@ -1612,16 +1631,31 @@ const CHAPTER_REQUIREMENTS = {
           {label:"Walk · 5 min", typeId:"walking",  anchorType:"walking"},
         ],
         check: ss => ["sitting","standing","walking"].every(t=>ss.some(s=>s.typeId===t&&(s.elapsed||0)>=300)) } },
-  4: { needsRead:true, practice:{ desc:"Anchor a session and pin it to your map.",
-      check: (ss,libReadAt,pins) => pins.some(p=>p.id&&!p.id.startsWith("seed")) } },
   5: { needsRead:true, practice:{ desc:"Complete one walking session outside.",
       check: ss => ss.some(s=>s.typeId==="walking"&&s.xp>0) } },
   6: { needsRead:true, practice:{ desc:"Build each capacity to 30 XP — practice across all forms.",
+      subChecks:[
+        {label:"Root",      key:"str", xpTarget:30},
+        {label:"Energy",     key:"vit", xpTarget:30},
+        {label:"Will",      key:"wil", xpTarget:30},
+        {label:"Openness",  key:"hrt", xpTarget:30},
+        {label:"Voice",     key:"voi", xpTarget:30},
+        {label:"Clarity",   key:"wis", xpTarget:30},
+        {label:"Alignment", key:"ali", xpTarget:30},
+      ],
       check: (ss,lr,pins,stats) => ["str","vit","wil","hrt","voi","wis","ali"].every(k=>(stats[k]||0)>=30) } },
   7: { needsRead:true,
       libRequired:["presence_ctr","heart_ctr","wisdom_ctr"],
       practice:{ desc:"Read each Center in the Library. Complete one 10-minute session for each — with awareness landing on that center.",
-        check: ss => ["belly","chest","head"].every(center=>ss.some(s=>s.awarenessLanding===center&&(s.elapsed||0)>=600)) } },
+        subChecks:[
+          {label:"Vitality · Lower", centers:["root","belly","solar_plexus"], anchorType:"sitting"},
+          {label:"Heart · Chest",    centers:["chest"],                        anchorType:"sitting"},
+          {label:"Wisdom · Upper",   centers:["head","top"],                   anchorType:"sitting"},
+        ],
+        check: ss => {
+          const hasLand=(s,ids)=>{ const l=Array.isArray(s.awarenessLanding)?s.awarenessLanding:(s.awarenessLanding?[s.awarenessLanding]:[]); return ids.some(id=>l.includes(id)); };
+          return [["root","belly","solar_plexus"],["chest"],["head","top"]].every(ids=>ss.some(s=>hasLand(s,ids)&&(s.elapsed||0)>=600));
+        } } },
 };
 
 const LIBRARY_ENTRIES = [
@@ -1666,7 +1700,7 @@ const LIBRARY_ENTRIES = [
       "Most modern people live from the neck up. Root is what restores the lower half — the legs, the hips, the belly — to active awareness. When Root is present, difficulty does not scatter you. You can be moved without being swept away.",
       "Root is cultivated by returning, again and again, to the felt sense of the body in contact with the earth."
     ] },
-  { id:"vit_cap", unlock:6, section:"Capacities", title:"Vitality", sub:"VIT — Aliveness", sc:"vit",
+  { id:"vit_cap", unlock:6, section:"Capacities", title:"Energy", sub:"VIT — Aliveness", sc:"vit",
     body:[
       "Vitality is not energy as performance. It is the underlying aliveness that makes sustained engagement possible — the difference between functioning and truly inhabiting your life.",
       "Chronically depleted vitality is so common it has become normal. Many people cannot remember what it feels like to be genuinely energized. Vitality returns not through stimulation but through restoration — through presence, breath, rest, and the gradual release of unnecessary holding.",
@@ -1704,10 +1738,10 @@ const LIBRARY_ENTRIES = [
     ] },
 
   /* ── CENTERS ── */
-  { id:"presence_ctr", unlock:7, section:"Centers", title:"Presence Center", sub:"Root · Vitality · Will", sc:"str",
+  { id:"presence_ctr", unlock:7, section:"Centers", title:"Vitality Center", sub:"Root · Energy · Will", sc:"str",
     body:[
-      "The Presence Center is the seat of embodied power — the lower body, the hips, the ground. When the three capacities of this center are developed, there is a quality of being fully here: not just intellectually present, but physically, energetically inhabited.",
-      "Root provides the ground. Vitality provides the fuel. Will provides the direction. Together they form the capacity to show up fully and remain present under pressure — not as effort, but as nature.",
+      "The Vitality Center is the seat of embodied power — the lower body, the hips, the ground. When the three capacities of this center are developed, there is a quality of being fully here: not just intellectually present, but physically, energetically inhabited.",
+      "Root provides the ground. Energy provides the fuel. Will provides the direction. Together they form the capacity to show up fully and remain present under pressure — not as effort, but as nature.",
       "In many traditions, this center is called the hara, the dantien, the seat of will. It is not a metaphor. It is felt in the body as density, steadiness, and a sense of being genuinely inhabited."
     ] },
   { id:"heart_ctr", unlock:7, section:"Centers", title:"Heart Center", sub:"Will · Openness · Voice", sc:"hrt",
@@ -1758,16 +1792,21 @@ const ANCHOR_SUBQUESTS = [
 const CHAPTER_META = [
   {n:1, title:"The Current",                sub:"Recognition",                        act:"ACT I"},
   {n:2, title:"The Doorway",               sub:"Where attention goes, energy flows",  act:"ACT I"},
-  {n:3, title:"Foundations of Mastery",           sub:"The hidden foundations",              act:"ACT I"},
-  {n:4, title:"The First Ground",          sub:"A place in the world",               act:"ACT I"},
+  {n:3, title:"The First Ground",          sub:"A place in the world",               act:"ACT I"},
+  {n:4, title:"Foundations of Mastery",    sub:"The hidden foundations",              act:"ACT I"},
   {n:5, title:"The Living World",          sub:"The oldest teacher",                 act:"ACT I"},
   {n:6, title:"Cultivating the Capacities",sub:"The invisible harvest",              act:"ACT II"},
   {n:7, title:"The Three Fires",           sub:"Centers of being",                   act:"ACT II"},
 ];
-const CHAPTER_SCENES = { 1:DRIFT_SCENES, 2:DOORWAY_SCENES, 3:MASTERY_SCENES, 4:PLACED_SCENES, 5:LIVING_WORLD_SCENES, 6:GROWING_SCENES, 7:THREE_FIRES_SCENES };
+const CHAPTER_SCENES = { 1:DRIFT_SCENES, 2:DOORWAY_SCENES, 3:PLACED_SCENES, 4:MASTERY_SCENES, 5:LIVING_WORLD_SCENES, 6:GROWING_SCENES, 7:THREE_FIRES_SCENES };
 const CHAPTER_QUESTS = {
-  1: { label:"Who are you?",        desc:"Enter the story. Name yourself on the climb.", autoComplete:true },
+  1: { label:"Who are you?",         desc:"Enter the story. Name yourself on the climb.", autoComplete:true },
   2: { label:"Who are you, really?", desc:"Anchor once. Enter the house of your soul." },
+  3: { label:"Plant your feet",      desc:"Anchor a session. Mark your ground on the map." },
+  4: { label:"The three gates",      desc:"Read each form. Practice Sit, Stand, and Walk — five minutes each." },
+  5: { label:"Enter the world",      desc:"Take your practice outside. Complete one walking session in the living world." },
+  6: { label:"Build the vessel",     desc:"Bring every capacity to 30 XP. Practice across all forms." },
+  7: { label:"Tend the fires",       desc:"Read each Center. Complete a 10-minute session in each — awareness landing on that center." },
 };
 
 function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=[], chaptersRead=[], onMarkRead, libReadAt={}, pins=[], chStats={}, onOpenAnchor=()=>{}, onGoToLib=()=>{} }){
@@ -1961,15 +2000,34 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
                     })}
                     {req.practice?.subChecks ? (
                       req.practice.subChecks.map(sc=>{
-                        const done=sessions.some(s=>s.typeId===sc.typeId&&(s.elapsed||0)>=300);
+                        const hasLand=(s,ids)=>{ const l=Array.isArray(s.awarenessLanding)?s.awarenessLanding:(s.awarenessLanding?[s.awarenessLanding]:[]); return ids.some(id=>l.includes(id)); };
+                        const done = sc.key
+                          ? (chStats[sc.key]||0)>=sc.xpTarget
+                          : sc.centers
+                          ? sessions.some(s=>hasLand(s,sc.centers)&&(s.elapsed||0)>=600)
+                          : sc.center
+                          ? sessions.some(s=>hasLand(s,[sc.center])&&(s.elapsed||0)>=600)
+                          : sessions.some(s=>s.typeId===sc.typeId&&(s.elapsed||0)>=300);
+                        const statColor = sc.key ? (STAT_COLORS[sc.key]||C.sageB) : C.sageB;
+                        const xp = sc.key ? Math.min(chStats[sc.key]||0, sc.xpTarget) : 0;
                         return (
-                          <button key={sc.typeId} onClick={()=>{if(rDone)onOpenAnchor(sc.anchorType);}} style={{display:"flex",alignItems:"center",gap:"12px",opacity:rDone?1:0.4,background:"none",border:"none",cursor:rDone?"pointer":"default",textAlign:"left",padding:0}}>
+                          <button key={sc.key||sc.center||sc.typeId}
+                            onClick={()=>{if(rDone&&!sc.key)onOpenAnchor(sc.anchorType||"sitting");}}
+                            style={{display:"flex",alignItems:"center",gap:"12px",opacity:rDone?1:0.4,background:"none",border:"none",cursor:rDone&&!sc.key?"pointer":"default",textAlign:"left",padding:0,width:"100%"}}>
                             <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:done?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${done?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
                               {done?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<PresenceMark size={12} color={C.dim} sw={1}/>}
                             </div>
-                            <div>
-                              <div style={{...body("13px",done?C.cream:C.muted)}}>{sc.label}</div>
-                              {!done&&rDone&&<div style={{...body("10px",C.dim),fontStyle:"italic"}}>Tap to open Anchor →</div>}
+                            <div style={{flex:1}}>
+                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                <div style={{...body("13px",done?C.cream:C.muted)}}>{sc.label}</div>
+                                {sc.key&&<div style={{...dsp("10px",done?C.sageB:C.muted,400,"0.06em")}}>{Math.min(chStats[sc.key]||0,sc.xpTarget)}/{sc.xpTarget} XP</div>}
+                              </div>
+                              {sc.key&&!done&&rDone&&(
+                                <div style={{marginTop:"4px",height:"3px",background:"rgba(255,255,255,0.08)",borderRadius:"2px",overflow:"hidden"}}>
+                                  <div style={{height:"100%",width:`${Math.min(100,((chStats[sc.key]||0)/sc.xpTarget)*100)}%`,background:statColor,borderRadius:"2px",transition:"width 0.4s"}}/>
+                                </div>
+                              )}
+                              {!sc.key&&!done&&rDone&&<div style={{...body("10px",C.dim),fontStyle:"italic"}}>Tap to open Anchor →</div>}
                             </div>
                           </button>
                         );
@@ -3197,13 +3255,18 @@ export default function AscendApp(){
     if(!isA && typeId) setAnchInitType(typeId); // remember last used type
     const xpE=isA?0:Math.floor((elapsedSecs??0)/10);
     const {sg}=isA?{sg:{}}:rewards(typeId||"sitting",xpE,activeActivities);
-    const AWARENESS_STAT={head:"wis",chest:"hrt",belly:"wil"};
-    if(awarenessLanding&&AWARENESS_STAT[awarenessLanding]){
-      const sk=AWARENESS_STAT[awarenessLanding];
-      const siphon=Object.keys(sg).filter(k=>k!==sk).reduce((sum,k)=>{
-        const amt=Math.round(sg[k]*0.25); sg[k]-=amt; return sum+amt;
-      },0);
-      sg[sk]=(sg[sk]||0)+siphon;
+    const AWARENESS_STAT={root:"str",belly:"vit",solar_plexus:"wil",chest:"hrt",throat:"voi",head:"wis",top:"ali"};
+    // backward compat: old sessions stored a string, new ones store an array
+    const lands = Array.isArray(awarenessLanding) ? awarenessLanding : (awarenessLanding ? [awarenessLanding] : []);
+    if(lands.length>0){
+      const selStats=[...new Set(lands.map(r=>AWARENESS_STAT[r]).filter(Boolean))];
+      if(selStats.length>0){
+        const siphon=Object.keys(sg).filter(k=>!selStats.includes(k)).reduce((sum,k)=>{
+          const amt=Math.round(sg[k]*0.30); sg[k]-=amt; return sum+amt;
+        },0);
+        const perStat=Math.round(siphon/selStats.length);
+        selStats.forEach(sk=>{ sg[sk]=(sg[sk]||0)+perStat; });
+      }
     }
     const s={type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),activities:activities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg};
     setSessions(p=>[s,...p]);
@@ -3473,7 +3536,7 @@ export default function AscendApp(){
             </button>
             <div>
               <div style={{...dsp("16px",C.gold,500,"0.14em")}}>{ch.name}</div>
-              <div style={{...dsp("8px",C.muted,400,"0.18em"),marginTop:"1px"}}>{levelToTitle(levelFromTotalXP(ch.totalXP??0)).toUpperCase()} · LVL {levelFromTotalXP(ch.totalXP??0)}</div>
+              <div style={{...dsp("8px",C.muted,400,"0.18em"),marginTop:"1px"}}>{levelToTitle(levelFromTotalXP(ch.totalXP??0)).toUpperCase()} · PRESENCE LVL {levelFromTotalXP(ch.totalXP??0)}</div>
             </div>
           </div>
           {(()=>{const L=levelFromTotalXP(ch.totalXP??0),cur=(ch.totalXP??0)-totalXPForLevel(L),nxt=xpForNextLevel(L);return(
