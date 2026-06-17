@@ -890,22 +890,37 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
 
           <div style={{textAlign:"left",marginBottom:"22px"}}>
             <div style={{...dsp("9px",C.muted,400,"0.18em"),marginBottom:"11px"}}>WHERE DID AWARENESS LAND?</div>
-            <div style={{display:"flex",gap:"4px"}}>
+            {/* Row 1 — the three centers */}
+            <div style={{display:"flex",gap:"5px",marginBottom:"5px"}}>
               {[
-                {k:"root",         label:"Root",   stat:"str"},
-                {k:"belly",        label:"Belly",  stat:"vit"},
+                {k:"belly",  label:"Belly",  stat:"vit"},
+                {k:"chest",  label:"Chest",  stat:"hrt"},
+                {k:"head",   label:"Head",   stat:"wis"},
+              ].map(({k,label,stat})=>{
+                const sc=STAT_COLORS[stat]||C.sageB;
+                const on=awarenessLanding.includes(k);
+                return (
+                  <button key={k} onClick={()=>setAwarenessLanding(p=>p.includes(k)?p.filter(x=>x!==k):[...p,k])}
+                    style={{flex:1,padding:"7px 2px",borderRadius:"5px",border:`0.5px solid ${on?sc:C.bord}`,background:on?sc+"22":"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",transition:"all .15s"}}>
+                    <span style={{fontSize:"8px",fontFamily:"Cinzel,serif",letterSpacing:"0.04em",color:on?sc:C.dim}}>{label.toUpperCase()}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Row 2 — the four sub-regions */}
+            <div style={{display:"flex",gap:"5px"}}>
+              {[
+                {k:"root",         label:"Ground", stat:"str"},
                 {k:"solar_plexus", label:"Solar",  stat:"wil"},
-                {k:"chest",        label:"Chest",  stat:"hrt"},
                 {k:"throat",       label:"Throat", stat:"voi"},
-                {k:"head",         label:"Head",   stat:"wis"},
                 {k:"top",          label:"Crown",  stat:"ali"},
               ].map(({k,label,stat})=>{
                 const sc=STAT_COLORS[stat]||C.sageB;
                 const on=awarenessLanding.includes(k);
                 return (
                   <button key={k} onClick={()=>setAwarenessLanding(p=>p.includes(k)?p.filter(x=>x!==k):[...p,k])}
-                    style={{flex:1,padding:"6px 2px",borderRadius:"5px",border:`0.5px solid ${on?sc:C.bord}`,background:on?sc+"22":"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",transition:"all .15s"}}>
-                    <span style={{fontSize:"7px",fontFamily:"Cinzel,serif",letterSpacing:"0.04em",color:on?sc:C.dim}}>{label.toUpperCase()}</span>
+                    style={{flex:1,padding:"7px 2px",borderRadius:"5px",border:`0.5px solid ${on?sc:C.bord}`,background:on?sc+"22":"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",transition:"all .15s"}}>
+                    <span style={{fontSize:"8px",fontFamily:"Cinzel,serif",letterSpacing:"0.04em",color:on?sc:C.dim}}>{label.toUpperCase()}</span>
                   </button>
                 );
               })}
@@ -2342,8 +2357,16 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
   const filters=["All",...sections];
 
   // Anchor type map for practice entries
-  const ANCHOR_TYPE = { sit_prac:"sitting", stand_prac:"standing", walk_prac:"walking",
-    alignment:"sitting", release:"sitting", breath:"sitting" };
+  const ANCHOR_TYPE = {
+    // Anchors
+    alignment:"sitting", release:"sitting", breath:"sitting",
+    // Practices
+    sit_prac:"sitting", stand_prac:"standing", walk_prac:"walking", placed:"walking",
+    // Capacities — open with remembered type (null → falls back to anchInitType)
+    str_cap:null, vit_cap:null, wil_cap:null, hrt_cap:null, voi_cap:null, wis_cap:null, ali_cap:null,
+    // Centers
+    presence_ctr:null, heart_ctr:null, wisdom_ctr:null,
+  };
 
   // External: when Quest tab navigates here with a specific entry to open
   useEffect(()=>{
@@ -2396,9 +2419,11 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
             </div>
           )}
           {/* Anchor action button */}
-          {anchorType && (
-            <button onClick={()=>onOpenAnchor(anchorType)} style={{marginTop:"16px",width:"100%",padding:"13px",background:"rgba(163,192,137,0.1)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",cursor:"pointer",...dsp("10px",C.sageB,400,"0.18em")}}>
-              ANCHOR NOW · {anchorType==="sitting"?"SIT":anchorType==="standing"?"STAND":"WALK"} ↗
+          {selected.id in ANCHOR_TYPE && (
+            <button onClick={()=>onOpenAnchor(ANCHOR_TYPE[selected.id])} style={{marginTop:"16px",width:"100%",padding:"13px",background:"rgba(163,192,137,0.1)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",cursor:"pointer",...dsp("10px",C.sageB,400,"0.18em")}}>
+              {ANCHOR_TYPE[selected.id]
+                ? `ANCHOR NOW · ${ANCHOR_TYPE[selected.id].toUpperCase()}`
+                : "ANCHOR NOW ↗"}
             </button>
           )}
           {/* Sub-quest status if applicable */}
@@ -2436,27 +2461,14 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
           <div style={{...dsp("9px",C.muted,400,"0.18em"),marginBottom:"8px"}}>{s.toUpperCase()}</div>
           {items.map(e=>{
             const sc=STAT_COLORS[e.sc]||C.sageB;
-            const sq=ANCHOR_SUBQUESTS.find(a=>a.libId===e.id);
-            const isRead=sq?libReadAt[e.id]!==undefined:false;
-            const isPrac=isRead&&sq&&qualSessions>libReadAt[e.id];
-            const sqDone=isRead&&isPrac;
-            const hasAction=!!ANCHOR_TYPE[e.id];
+            const hasAction=e.id in ANCHOR_TYPE;
             return (
               <div key={e.id} onClick={()=>openEntry(e)} style={{marginBottom:"8px",borderRadius:"8px",border:`0.5px solid ${C.bord}`,overflow:"hidden",cursor:"pointer",transition:"border-color .2s",":hover":{borderColor:sc}}}>
                 <div style={{display:"flex",alignItems:"center",gap:"12px",padding:"13px 14px",background:"transparent"}}>
                   <div style={{width:"3px",alignSelf:"stretch",background:sc,borderRadius:"2px",flexShrink:0}}/>
                   <div style={{flex:1}}>
-                    <div style={{display:"flex",alignItems:"center",gap:"7px"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:"7px"}}>`
                       <div style={{...body("14px",C.cream)}}>{e.title}</div>
-                      {sq&&(
-                        <div style={{fontSize:"9px",fontFamily:"Cinzel,serif",letterSpacing:"0.08em",
-                          color:sqDone?C.sageB:isRead?C.gold:C.dim,
-                          background:sqDone?"rgba(163,192,137,0.12)":isRead?"rgba(201,168,76,0.1)":"transparent",
-                          border:`0.5px solid ${sqDone?C.sageB:isRead?C.goldDim:C.bord}`,
-                          padding:"1px 5px",borderRadius:"3px"}}>
-                          {sqDone?"✓ DONE":isRead?isPrac?"✓ DONE":"PRACTICE":"CH. 2"}
-                        </div>
-                      )}
                       {hasAction&&<div style={{fontSize:"9px",color:C.dim,border:`0.5px solid ${C.bord}`,padding:"1px 5px",borderRadius:"3px",fontFamily:"Cinzel,serif",letterSpacing:"0.06em"}}>ANCHOR</div>}
                     </div>
                     <div style={{...body("11px",C.muted)}}>{e.sub}</div>
@@ -2717,7 +2729,9 @@ function SettingsScreen({ onBack, name, setName, anchorImmediate, setAnchorImmed
     e.target.value = "";
   };
   return (
-    <Overlay title="Settings" onBack={onBack}>
+    <Overlay title="Settings" onBack={onBack} right={
+      <button onClick={devMode?disableDevMode:enableDevMode} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 5px",fontSize:"8px",fontFamily:"monospace",letterSpacing:"0.12em",color:devMode?"rgba(180,100,100,0.85)":"rgba(150,150,150,0.3)",lineHeight:1}}>DEV</button>
+    }>
       <SL title="Preferences"/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:`0.5px solid ${C.bord}`}}>
         <div style={{flex:1,paddingRight:"12px"}}>
@@ -3527,7 +3541,7 @@ export default function AscendApp(){
       `}</style>
       <div style={phoneStyle}>
         {/* floating DEV indicator */}
-        <button onClick={devMode?disableDevMode:enableDevMode} style={{position:"absolute",top:"5px",left:"50%",transform:"translateX(-50%)",zIndex:400,background:"none",border:"none",cursor:"pointer",padding:"2px 5px",fontSize:"8px",fontFamily:"monospace",letterSpacing:"0.12em",color:devMode?"rgba(180,100,100,0.85)":"rgba(150,150,150,0.22)",lineHeight:1}}>DEV</button>
+
         {/* header */}
         <div style={{padding:"14px 20px 10px",borderBottom:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
           <div style={{display:"flex",alignItems:"center",gap:"11px"}}>
