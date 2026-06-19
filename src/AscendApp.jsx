@@ -150,8 +150,8 @@ function lerpHex(a,b,t){
   const [ar,ag,ab]=p(a),[br,bg,bb]=p(b);
   return '#'+[ar+(br-ar)*t,ag+(bg-ag)*t,ab+(bb-ab)*t].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
 }
-function MorningScene({ sceneIdx=0, paraPage=0 }){
-  const prog    = Math.min(sceneIdx + paraPage*0.5, 3.5);
+function MorningScene({ sceneIdx=0, paraPage=0, progOverride=null }){
+  const prog    = progOverride!=null ? progOverride : Math.min(sceneIdx + paraPage*0.5, 3.5);
   const skyProg = (prog / 3.5) * (MSKY.length - 1);
   const i0  = Math.min(Math.floor(skyProg), MSKY.length-1);
   const i1  = Math.min(i0+1, MSKY.length-1);
@@ -536,13 +536,14 @@ function Chips({ opts, sel, onSel }){
   return <div style={{display:"flex",flexWrap:"wrap",gap:"6px"}}>{opts.map(o=><Pill key={o} on={sel===o} onClick={()=>onSel(sel===o?null:o)}>{o}</Pill>)}</div>;
 }
 
-function Overlay({ title, onBack, right, children }){
+function Overlay({ title, onBack, right, devBadge, children }){
   return (
     <div style={{position:"absolute",top:0,left:0,width:"100%",height:"calc(100% - 50px)",background:`linear-gradient(${C.bg},${C.bg2})`,zIndex:200,display:"flex",flexDirection:"column"}}>
-      <div style={{padding:"16px 20px",borderBottom:`0.5px solid ${C.bord}`,display:"flex",alignItems:"center",gap:"12px",flexShrink:0}}>
+      <div style={{position:"relative",padding:"16px 20px",borderBottom:`0.5px solid ${C.bord}`,display:"flex",alignItems:"center",gap:"12px",flexShrink:0}}>
         <button onClick={onBack} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:"20px",padding:0}}>←</button>
         <span style={{...dsp("11px",C.cream,400,"0.16em"),flex:1}}>{title.toUpperCase()}</span>
         {right}
+        {devBadge}
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"20px"}}>{children}</div>
     </div>
@@ -1384,6 +1385,14 @@ const ACT1_CHAPTERS=[
   {n:6,title:"Cultivating the Capacities",sub:"The invisible harvest",              state:"locked"},
   {n:7,title:"The Three Fires",           sub:"Centers of being",                   state:"locked"},
 ];
+// Short onboarding intro — shown once, before the user names themself.
+// Full myth (all 5 scenes, including the original "the climb") lives in
+// Chapter 1's in-quest reading, below — nothing here is duplicated there.
+const ONBOARDING_SCENE=[
+  {label:"the invitation",body:[
+    "It's time to reclaim your power...",
+  ]},
+];
 const DRIFT_SCENES=[
   {label:"i · the current",body:[
     "Every age has its current. A direction that quietly pulls human attention.",
@@ -1626,7 +1635,7 @@ const CHAPTER_MOODS = {
 const DEFAULT_MOOD = { bg1:"#0d1410", bg2:"#0d1410", accent:"#7aa060", wisp:"rgba(90,150,80,0.07)" };
 
 const CHAPTER_REQUIREMENTS = {
-  1: { autoComplete:true },
+  1: { needsRead:true },
   2: { needsRead:true, subQuests:true,
       practice:{ desc:"Read each Anchor in the Library, then practice after each one.",
         check:(ss,libReadAt)=>{
@@ -1815,7 +1824,7 @@ const CHAPTER_META = [
 ];
 const CHAPTER_SCENES = { 1:DRIFT_SCENES, 2:DOORWAY_SCENES, 3:PLACED_SCENES, 4:MASTERY_SCENES, 5:LIVING_WORLD_SCENES, 6:GROWING_SCENES, 7:THREE_FIRES_SCENES };
 const CHAPTER_QUESTS = {
-  1: { label:"Who are you?",         desc:"Enter the story. Name yourself on the climb.", autoComplete:true },
+  1: { label:"The Current",          desc:"Recognize the current that carries us — and the turning that calls us back." },
   2: { label:"Who are you, really?", desc:"Anchor once. Enter the house of your soul." },
   3: { label:"Plant your feet",      desc:"Anchor a session. Mark your ground on the map." },
   4: { label:"The three gates",      desc:"Read each form. Practice Sit, Stand, and Walk — five minutes each." },
@@ -1831,6 +1840,47 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
   const [paraPage,setParaPage]       = useState(0);
   const [fade,setFade]               = useState(true);
   const [onQuestScreen,setOnQuestScreen] = useState(false);
+  const [skyDrift,setSkyDrift]       = useState(0); // 0..3.5 day-cycle position for ch.1 backdrop
+  const [crawlDone,setCrawlDone]     = useState(false);
+  const crawlRef = useRef(null);
+  const crawlUserScrolled = useRef(false);
+
+  // Chapter 1 "crawl" — gentle auto-scroll of the full narrative; stops at the end
+  useEffect(()=>{
+    if(!(view==="read" && readingN===1 && !onQuestScreen)) return;
+    setCrawlDone(false);
+    crawlUserScrolled.current=false;
+    let raf;
+    const SPEED=0.32; // px per frame (~19px/s) — slow, readable
+    const tick=()=>{
+      const el=crawlRef.current;
+      if(el){
+        const maxScroll=el.scrollHeight-el.clientHeight;
+        if(el.scrollTop >= maxScroll-2){ setCrawlDone(true); return; }
+        if(!crawlUserScrolled.current){ el.scrollTop += SPEED; }
+      }
+      raf=requestAnimationFrame(tick);
+    };
+    const startTimer=setTimeout(()=>{ raf=requestAnimationFrame(tick); }, 900);
+    return ()=>{ clearTimeout(startTimer); cancelAnimationFrame(raf); };
+  },[view,readingN,onQuestScreen]);
+
+  // One-way night→dawn ramp for the mountain backdrop, then hold at full dawn
+  useEffect(()=>{
+    if(view!=="read") return;
+    setSkyDrift(0); // restart ramp when opening a chapter
+    let raf, start=null;
+    const RAMP=20000; // ms to reach full dawn
+    const tick=(t)=>{
+      if(start==null) start=t;
+      const phase=Math.min((t-start)/RAMP, 1);     // 0..1, then holds
+      const eased=1-Math.pow(1-phase, 2);           // ease-out
+      setSkyDrift(eased*3.5);                        // all the way to full dawn
+      if(phase<1) raf=requestAnimationFrame(tick);
+    };
+    raf=requestAnimationFrame(tick);
+    return ()=>cancelAnimationFrame(raf);
+  },[view,readingN]);
 
   const getState = n => {
     if(completedChapters.includes(n)) return "complete";
@@ -1860,6 +1910,11 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
   };
 
   const advance = () => {
+    if(readingN===1){
+      // Chapter 1 is a single crawl — finishing it goes straight to the quest screen
+      fadeGo(()=>{ setOnQuestScreen(true); if(onMarkRead) onMarkRead(readingN); });
+      return;
+    }
     const scenes = CHAPTER_SCENES[readingN]||[];
     const body = scenes[scene]?.body||[];
     const pp = scenes[scene]?.perPage || 2;
@@ -1885,7 +1940,17 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
     const WISPS   = [{top:"12%",w:140,h:5,d:9,del:0},{top:"31%",w:90,h:4,d:12,del:3},{top:"54%",w:160,h:6,d:8,del:5},{top:"73%",w:110,h:4,d:14,del:1}];
 
     return (
-      <div style={{minHeight:"100%",display:"flex",flexDirection:"column",background:`linear-gradient(170deg,${mood.bg1},${mood.bg2} 70%,${mood.bg1})`,position:"relative",overflow:"hidden"}}>
+      <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:"430px",height:"calc(100dvh - 64px)",zIndex:250,display:"flex",flexDirection:"column",background:"#08090f",overflow:"hidden"}}>
+
+        {/* Chapter 1 — mountain backdrop, continuous with the intro */}
+        {/* Mountain backdrop — all chapters, tinted to the chapter's mood */}
+        <div style={{position:"absolute",inset:0,zIndex:0,overflow:"hidden",pointerEvents:"none"}}>
+          <MorningScene progOverride={skyDrift}/>
+          {/* mood tint — colors the scene to match each chapter */}
+          <div style={{position:"absolute",inset:0,background:mood.accent,mixBlendMode:"color",opacity:0.45}}/>
+          {/* darkening gradient so text stays readable */}
+          <div style={{position:"absolute",inset:0,background:`linear-gradient(170deg,${mood.bg1}44,${mood.bg2}aa 65%,${mood.bg1}ee)`}}/>
+        </div>
 
         {/* Ambient wisps */}
         {WISPS.map((w,i)=>(
@@ -1911,8 +1976,21 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
           {isAlreadyComplete && <span style={{...body("11px",C.sage),marginLeft:"auto",fontStyle:"italic"}}>✓ Complete</span>}
         </div>
 
-        <div style={{position:"relative",zIndex:2,flex:1,padding:"8px 26px 0",overflowY:"auto",opacity:fade?1:0,transition:"opacity 0.5s ease"}}>
+        <div ref={readingN===1?crawlRef:null} onScroll={readingN===1?(()=>{crawlUserScrolled.current=true;}):undefined} style={{position:"relative",zIndex:2,flex:1,padding:"8px 26px 0",overflowY:"auto",opacity:fade?1:0,transition:"opacity 0.5s ease"}}>
           {!onQuestScreen ? (
+            readingN===1 ? (
+              /* Chapter 1 — Star Wars style crawl, all scenes in one column */
+              <div style={{paddingTop:"40vh",paddingBottom:"30vh"}}>
+                {scenes.map((sc,si)=>(
+                  <div key={si} style={{marginBottom:"40px"}}>
+                    <div style={{...dsp("10px",mood.accent,400,"0.22em"),marginBottom:"18px",textAlign:"center"}}>{sc.label?.toUpperCase()}</div>
+                    {(sc.body||[]).map((p,i)=>(
+                      <p key={i} style={{...body("16px",C.cream),lineHeight:"2.0",marginBottom:"18px",fontStyle:"italic",textAlign:"center",textShadow:"0 1px 8px rgba(4,6,14,0.7)"}}>{p}</p>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ) : (
             <>
               <div style={{position:"relative",zIndex:1}}>
               <div style={{...dsp("10px",mood.accent,400,"0.22em"),marginBottom:"20px"}}>{scenes[scene]?.label?.toUpperCase()}</div>
@@ -1923,6 +2001,7 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
               )); })()}
               </div>
             </>
+            )
           ) : (
             /* Quest screen */
             <div>
@@ -2047,7 +2126,7 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
                           </button>
                         );
                       })
-                    ) : (
+                    ) : req.practice ? (
                     <button onClick={()=>{if(rDone)onOpenAnchor("sitting");}} style={{display:"flex",alignItems:"center",gap:"12px",opacity:rDone?1:0.4,background:"none",border:"none",cursor:rDone?"pointer":"default",textAlign:"left",padding:0}}>
                       <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:pDone?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${pDone?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
                         {pDone?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<PresenceMark size={12} color={C.dim} sw={1}/>}
@@ -2057,7 +2136,7 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
                         {!pDone&&rDone&&<div style={{...body("10px",C.dim),fontStyle:"italic"}}>Tap to open Anchor →</div>}
                       </div>
                     </button>
-                    )}
+                    ) : null}
                   </div>
                 );
               })()}
@@ -2077,6 +2156,19 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
 
         {/* Pinned bottom bar — only in narrative mode */}
         {!onQuestScreen && (
+          readingN===1 ? (
+            <div style={{position:"relative",zIndex:2,padding:"12px 26px 28px",background:`linear-gradient(transparent,${mood.bg1}ee 40%)`,flexShrink:0}}>
+              {crawlDone ? (
+                <button onClick={advance} style={{width:"100%",padding:"13px",background:"rgba(163,192,137,0.1)",border:`0.5px solid ${C.sageB}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.sageB,400,"0.18em"),animation:"fadeRise 0.8s ease both"}}>
+                  THE QUEST →
+                </button>
+              ) : (
+                <button onClick={()=>{ if(crawlRef.current){ crawlRef.current.scrollTop=crawlRef.current.scrollHeight; setCrawlDone(true);} }} style={{width:"100%",padding:"13px",background:"transparent",border:`0.5px solid ${C.bord}`,cursor:"pointer",borderRadius:"6px",...dsp("10px",C.dim,400,"0.16em")}}>
+                  SKIP →
+                </button>
+              )}
+            </div>
+          ) : (
           <div style={{position:"relative",zIndex:2,padding:"12px 26px 28px",background:`linear-gradient(transparent,${mood.bg1}ee 30%)`,flexShrink:0}}>
             <div style={{display:"flex",gap:"6px",justifyContent:"center",marginBottom:"14px"}}>
               {scenes.flatMap((sc,si)=>
@@ -2091,6 +2183,7 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
               {(scene<scenes.length-1||(scene===scenes.length-1&&paraPage<Math.ceil((scenes[scene]?.body?.length||1)/(scenes[scene]?.perPage||2))-1))?"CONTINUE →":"THE QUEST →"}
             </button>
           </div>
+          )
         )}
       </div>
     );
@@ -2729,8 +2822,8 @@ function SettingsScreen({ onBack, name, setName, anchorImmediate, setAnchorImmed
     e.target.value = "";
   };
   return (
-    <Overlay title="Settings" onBack={onBack} right={
-      <button onClick={devMode?disableDevMode:enableDevMode} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 5px",fontSize:"8px",fontFamily:"monospace",letterSpacing:"0.12em",color:devMode?"rgba(180,100,100,0.85)":"rgba(150,150,150,0.3)",lineHeight:1}}>DEV</button>
+    <Overlay title="Settings" onBack={onBack} devBadge={
+      <button onClick={devMode?disableDevMode:enableDevMode} style={{position:"absolute",top:"6px",left:"50%",transform:"translateX(-50%)",zIndex:5,background:"none",border:"none",cursor:"pointer",padding:"2px 5px",fontSize:"8px",fontFamily:"monospace",letterSpacing:"0.12em",color:devMode?"rgba(180,100,100,0.85)":"rgba(150,150,150,0.3)",lineHeight:1}}>DEV</button>
     }>
       <SL title="Preferences"/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:`0.5px solid ${C.bord}`}}>
@@ -3022,7 +3115,7 @@ export default function AscendApp(){
   const [activities,setActivities]=useState(P.activities??[]);
   const addActivity=(name,stat)=>setActivities(p=>[...p,{id:`act_${Date.now()}_${Math.random().toString(36).substr(2,4)}`,name,stat}]);
   const deleteActivity=id=>setActivities(p=>p.filter(a=>a.id!==id));
-  // onboarding: "brand" | "name" | "chapter1" | "done"
+  // onboarding: "brand" | "intro" | "done"
   const [onboarding,setOnboarding]=useState(P.onboardingDone ? "done" : "brand");
   const [nameInput,setNameInput]=useState("");
   const [ob1Scene,setOb1Scene]=useState(0);
@@ -3089,7 +3182,7 @@ export default function AscendApp(){
     setCh({name:"Dev",totalXP:0,title:"Seeker",stats:{vit:0,str:0,wil:0,hrt:0,voi:0,wis:0,ali:0}});
     setSessions([]); setJEnt([]); setPins([]); setActivities([]); setChaptersRead([]); setLibReadAt({});
     setTypes(TYPES); setLibrary(Object.fromEntries(TYPES.map(t=>[t.id,[]])));
-    setCompletedChapters([1]); setHasAnchored(false);
+    setCompletedChapters([]); setHasAnchored(false);
     setOnboarding("brand"); setScr(null); setAnch(false);
   };
   const disableDevMode = () => {
@@ -3176,7 +3269,7 @@ export default function AscendApp(){
     setCh({name:"",totalXP:0,title:"Seeker",stats:{vit:0,str:0,wil:0,hrt:0,voi:0,wis:0,ali:0}});
     setSessions([]); setJEnt([]); setPins([]);
     setTypes(TYPES); setLibrary(Object.fromEntries(TYPES.map(t=>[t.id,[]])));
-    setCompletedChapters([1]); setHasAnchored(false);
+    setCompletedChapters([]); setHasAnchored(false);
     setTheme("forest"); applyTheme("forest");
     setOnboarding("brand"); setTab("quest"); setScr(null); setAnch(false);
   };
@@ -3282,7 +3375,7 @@ export default function AscendApp(){
         selStats.forEach(sk=>{ sg[sk]=(sg[sk]||0)+perStat; });
       }
     }
-    const s={type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),activities:activities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg};
+    const s={type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),activities:activities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg,awarenessLanding:lands};
     setSessions(p=>[s,...p]);
     setHasAnchored(true);
     if(!hasAnchored && guidedSession) setGuidedSession(false); // auto-off after first session
@@ -3312,9 +3405,9 @@ export default function AscendApp(){
     setAnch(false);
   };
 
-  // Fade in first scene when chapter1 loads
+  // Fade in first scene when intro loads
   useEffect(()=>{
-    if(onboarding==="chapter1"){ const t=setTimeout(()=>setObFade(true),80); return ()=>clearTimeout(t); }
+    if(onboarding==="intro"){ const t=setTimeout(()=>setObFade(true),80); return ()=>clearTimeout(t); }
   },[onboarding]);
 
   // Fade-in sequence for "Who are you, really?" section
@@ -3336,12 +3429,12 @@ export default function AscendApp(){
 
   const advanceOb1 = () => {
     if(obPractices){ setOnboarding("done"); return; }
-    const body = DRIFT_SCENES[ob1Scene]?.body||[];
+    const body = ONBOARDING_SCENE[ob1Scene]?.body||[];
     const totalParaPages = Math.ceil(body.length/2);
     if(ob1ParaPage < totalParaPages-1){
       fadeTransition(()=>setOb1ParaPage(p=>Math.min(p+1, totalParaPages-1)));
-    } else if(ob1Scene < DRIFT_SCENES.length-1){
-      fadeTransition(()=>{ setOb1Scene(s=>Math.min(s+1, DRIFT_SCENES.length-1)); setOb1ParaPage(0); });
+    } else if(ob1Scene < ONBOARDING_SCENE.length-1){
+      fadeTransition(()=>{ setOb1Scene(s=>Math.min(s+1, ONBOARDING_SCENE.length-1)); setOb1ParaPage(0); });
     } else {
       fadeTransition(()=>setObPractices(true));
     }
@@ -3390,22 +3483,22 @@ export default function AscendApp(){
             <SplashLogo size={270} onLoad={()=>setSplashImgLoaded(true)}/>
             {!splashImgLoaded && <div style={{...dsp("30px",C.gold,500,"0.28em"),marginTop:"22px"}}>ASCEND</div>}
             <div style={{...body("15px",C.muted),marginTop:"16px",lineHeight:"1.7",fontStyle:"italic"}}>Presence. Embodiment.<br/>Participation.</div>
-            <button onClick={()=>setOnboarding("chapter1")} style={{marginTop:"48px",padding:"13px 44px",background:"linear-gradient(rgba(163,192,137,0.16),rgba(163,192,137,0.06))",border:`0.5px solid ${C.sageB}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.sageB,400,"0.22em")}}>BEGIN THE CLIMB</button>
+            <button onClick={()=>setOnboarding("intro")} style={{marginTop:"48px",padding:"13px 44px",background:"linear-gradient(rgba(163,192,137,0.16),rgba(163,192,137,0.06))",border:`0.5px solid ${C.sageB}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.sageB,400,"0.22em")}}>BEGIN THE CLIMB</button>
           </div>
         </div>
       </div>
     );
   }
-  const completeChapter1 = (sessionData) => {
+  const completeIntro = (sessionData) => {
     if(sessionData && !sessionData.quickAnchor) handleDone(sessionData);
     setObAnchorOpen(false);
     setOnboarding("done");
   };
 
-  /* ── CHAPTER 1 ONBOARDING ── */
-  if(onboarding==="chapter1"){
-    const scene = DRIFT_SCENES[ob1Scene] || DRIFT_SCENES[DRIFT_SCENES.length-1];
-    const isLast = ob1Scene === DRIFT_SCENES.length-1;
+  /* ── INTRO ONBOARDING ── */
+  if(onboarding==="intro"){
+    const scene = ONBOARDING_SCENE[ob1Scene] || ONBOARDING_SCENE[ONBOARDING_SCENE.length-1];
+    const isLast = ob1Scene === ONBOARDING_SCENE.length-1;
 
     // Anchor portal open during onboarding — just returning from it completes chapter 1
     if(obAnchorOpen){
@@ -3413,8 +3506,8 @@ export default function AscendApp(){
         <div style={outerWrap}>
           <div style={phoneStyle}>
             <AnchorPortal
-              onClose={()=>completeChapter1(null)}
-              onDone={completeChapter1}
+              onClose={()=>completeIntro(null)}
+              onDone={completeIntro}
               types={types} library={library} setLibrary={setLibrary}
               addType={addType} startImmediately={anchorImmediate}
               skipReview={false}
@@ -3426,7 +3519,7 @@ export default function AscendApp(){
 
     return (
       <div style={outerWrap}>
-        <div style={{...phoneStyle, overflow:"hidden"}}>
+        <div style={{width:"100%",maxWidth:"430px",height:"100dvh",margin:"0 auto",position:"relative",overflow:"hidden",background:C.bg,color:C.txt,fontFamily:"'Crimson Pro',Georgia,serif"}}>
 
           {/* Full-screen morning scene background */}
           <MorningScene sceneIdx={ob1Scene} paraPage={ob1ParaPage}/>
@@ -3437,8 +3530,8 @@ export default function AscendApp(){
 
           {/* Chapter label + title — top left */}
           <div style={{position:"absolute",top:"18px",left:"22px",zIndex:3}}>
-            <div style={{...dsp("9px",C.gold,400,"0.22em"),marginBottom:"3px",opacity:0.8}}>ACT I · CHAPTER 1</div>
-            <div style={{...dsp("20px",C.cream,500,"0.06em"),textShadow:"0 2px 12px rgba(4,6,14,0.9)"}}>The Drift</div>
+            <div style={{...dsp("9px",C.gold,400,"0.22em"),marginBottom:"3px",opacity:0.8}}>ASCENSION PROJECT</div>
+            <div style={{...dsp("20px",C.cream,500,"0.06em"),textShadow:"0 2px 12px rgba(4,6,14,0.9)"}}>The Climb Begins</div>
           </div>
 
           {/* Content area — floats over scene, anchored to bottom */}
@@ -3488,7 +3581,7 @@ export default function AscendApp(){
             {!obPractices && (
               <div style={{padding:"8px 26px 32px",background:"linear-gradient(transparent, rgba(4,6,14,0.6))"}}>
                 <div style={{display:"flex",gap:"6px",justifyContent:"center",marginBottom:"14px"}}>
-                  {DRIFT_SCENES.flatMap((sc,si)=>
+                  {ONBOARDING_SCENE.flatMap((sc,si)=>
                     Array.from({length:Math.ceil((sc.body?.length||1)/2)},(_,pi)=>{
                       const active = si===ob1Scene && pi===ob1ParaPage;
                       const past   = si<ob1Scene || (si===ob1Scene && pi<ob1ParaPage);
@@ -3497,7 +3590,7 @@ export default function AscendApp(){
                   )}
                 </div>
                 <button onClick={advanceOb1} style={{width:"100%",padding:"13px",background:"rgba(201,168,76,0.12)",border:"0.5px solid rgba(201,168,76,0.45)",cursor:"pointer",borderRadius:"6px",...dsp("11px","rgba(201,168,76,0.9)",400,"0.18em")}}>
-                  {(ob1Scene===DRIFT_SCENES.length-1 && ob1ParaPage>=Math.ceil(scene.body.length/2)-1)?"TAKE YOUR FIRST STEPS →":"CONTINUE →"}
+                  {(ob1Scene===ONBOARDING_SCENE.length-1 && ob1ParaPage>=Math.ceil(scene.body.length/2)-1)?"TAKE YOUR FIRST STEPS →":"CONTINUE →"}
                 </button>
               </div>
             )}
