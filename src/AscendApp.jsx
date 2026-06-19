@@ -2264,7 +2264,57 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
   );
 }
 
-function MapTab({ pins }){
+/* ─── REVEAL ZONES — real water/forest geometry around anchored places ───
+   Zones grow with repeated visits (centroid-averaged center, +50m per return
+   within radius+100m, capped at 1km). Geometry is fetched once per zone at a
+   generous 1.3km radius so later growth never needs a second network call. */
+function haversineM(lat1,lng1,lat2,lng2){
+  const R=6371000, toRad=d=>d*Math.PI/180;
+  const dLat=toRad(lat2-lat1), dLng=toRad(lng2-lng1);
+  const a=Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function updateRevealZones(zones, lat, lng){
+  let matchedId=null;
+  for(const z of zones){
+    if(haversineM(z.lat,z.lng,lat,lng) <= z.radius+100){ matchedId=z.id; break; }
+  }
+  if(matchedId){
+    return zones.map(z=>{
+      if(z.id!==matchedId) return z;
+      const sumLat=z.sumLat+lat, sumLng=z.sumLng+lng, count=z.count+1;
+      return {...z, lat:sumLat/count, lng:sumLng/count, sumLat, sumLng, count,
+        radius:Math.min(z.radius+50, 1000)};
+    });
+  }
+  const id=`zone_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+  return [...zones, {id, lat, lng, sumLat:lat, sumLng:lng, count:1, radius:300,
+    water:[], rivers:[], forest:[], fetchedRadius:0, fetchPending:false}];
+}
+
+async function fetchZoneGeometry(lat, lng, radiusM=1300){
+  const latD=radiusM/111320, lngD=radiusM/(111320*Math.cos(lat*Math.PI/180));
+  const bbox=`${lat-latD},${lng-lngD},${lat+latD},${lng+lngD}`;
+  const q=`[out:json][timeout:20];(way["natural"="water"](${bbox});way["natural"="coastline"](${bbox});way["waterway"="river"](${bbox});way["waterway"="stream"](${bbox});way["landuse"="forest"](${bbox});way["natural"="wood"](${bbox}););out geom;`;
+  try{
+    const res=await fetch("https://overpass-api.de/api/interpreter",{method:"POST",body:"data="+encodeURIComponent(q)});
+    if(!res.ok) return null;
+    const data=await res.json();
+    const water=[], rivers=[], forest=[];
+    (data.elements||[]).forEach(el=>{
+      if(!el.geometry || el.geometry.some(g=>g.lat==null)) return;
+      const coords=el.geometry.map(g=>({lat:g.lat,lng:g.lon}));
+      const t=el.tags||{};
+      if(t.waterway) rivers.push(coords);
+      else if(t.natural==="water"||t.natural==="coastline") water.push(coords);
+      else if(t.landuse==="forest"||t.natural==="wood") forest.push(coords);
+    });
+    return {water, rivers, forest};
+  }catch(e){ return null; }
+}
+
+function MapTab({ pins, revealZones=[] }){
   const [hoveredPin,setHoveredPin]=useState(null);
   const [locating,setLocating]=useState(false);
   const [locatePulse,setLocatePulse]=useState(false);
@@ -2275,30 +2325,42 @@ function MapTab({ pins }){
 
   const geoPins = pins.filter(p=>p.lat!=null&&p.lng!=null);
   const mapW=350, mapH=530;
-  let renderPins, ringMeters=100, ringPx=52;
+  let renderPins, ringMeters=100, ringPx=52, mPerPx=10, projectPoint=()=>({rx:50,ry:50});
 
   if(userPos){
     const mPerDegLat=111320, mPerDegLng=111320*Math.cos(userPos.lat*Math.PI/180);
     const withDist=geoPins.map(p=>({...p,dx:(p.lng-userPos.lng)*mPerDegLng,dy:(p.lat-userPos.lat)*mPerDegLat}));
-    const maxDist=Math.max(120,...withDist.map(p=>Math.hypot(p.dx,p.dy)));
-    const halfPx=Math.min(mapW,mapH)/2, mPerPx=maxDist/(halfPx*0.8);
+    const zoneDists=revealZones.map(z=>Math.hypot((z.lng-userPos.lng)*mPerDegLng,(z.lat-userPos.lat)*mPerDegLat)+z.radius);
+    const maxDist=Math.max(120,...withDist.map(p=>Math.hypot(p.dx,p.dy)),...zoneDists);
+    const halfPx=Math.min(mapW,mapH)/2; mPerPx=maxDist/(halfPx*0.8);
     const niceM=[10,20,50,100,200,500,1000,2000,5000,10000].filter(v=>v<=halfPx/2.6*mPerPx*1.2).pop()||100;
     ringMeters=niceM; ringPx=niceM/mPerPx;
+    projectPoint=(lat,lng)=>{
+      const dx=(lng-userPos.lng)*mPerDegLng, dy=(lat-userPos.lat)*mPerDegLat;
+      return {rx:50+(dx/mPerPx/mapW)*100, ry:50-(dy/mPerPx/mapH)*100};
+    };
     renderPins=pins.map(p=>{
-      if(p.lat!=null&&p.lng!=null){const g=withDist.find(w=>w.id===p.id)||{dx:0,dy:0};return{...p,rx:50+(g.dx/mPerPx/mapW)*100,ry:50-(g.dy/mPerPx/mapH)*100};}
+      if(p.lat!=null&&p.lng!=null){const pr=projectPoint(p.lat,p.lng); return{...p,rx:pr.rx,ry:pr.ry};}
       return{...p,rx:p.x??50,ry:p.y??50};
     });
   } else {
-    const minLat=geoPins.length?Math.min(...geoPins.map(p=>p.lat)):0,maxLat=geoPins.length?Math.max(...geoPins.map(p=>p.lat)):1;
-    const minLng=geoPins.length?Math.min(...geoPins.map(p=>p.lng)):0,maxLng=geoPins.length?Math.max(...geoPins.map(p=>p.lng)):1;
-    const latSpan=maxLat-minLat||0.0001,lngSpan=maxLng-minLng||0.0001;
+    const allLats=[...geoPins.map(p=>p.lat),...revealZones.map(z=>z.lat)];
+    const allLngs=[...geoPins.map(p=>p.lng),...revealZones.map(z=>z.lng)];
+    const minLat=allLats.length?Math.min(...allLats):0, maxLat=allLats.length?Math.max(...allLats):1;
+    const minLng=allLngs.length?Math.min(...allLngs):0, maxLng=allLngs.length?Math.max(...allLngs):1;
+    const latSpan=maxLat-minLat||0.0001, lngSpan=maxLng-minLng||0.0001;
+    const hasMulti=allLats.length>=2;
+    projectPoint=(lat,lng)=>({
+      rx: hasMulti ? 15+((lng-minLng)/lngSpan)*70 : 50,
+      ry: hasMulti ? 85-((lat-minLat)/latSpan)*70 : 50,
+    });
     renderPins=pins.map(p=>{
-      if(p.lat!=null&&p.lng!=null)return{...p,rx:geoPins.length<2?50:15+((p.lng-minLng)/lngSpan)*70,ry:geoPins.length<2?50:85-((p.lat-minLat)/latSpan)*70};
+      if(p.lat!=null&&p.lng!=null){const pr=projectPoint(p.lat,p.lng); return{...p,rx:pr.rx,ry:pr.ry};}
       return{...p,rx:p.x??50,ry:p.y??50};
     });
-    if(geoPins.length>=2){
+    if(hasMulti){
       const R=6371,lat=(minLat+maxLat)/2*Math.PI/180,dlng=(maxLng-minLng)*Math.PI/180;
-      const extKm=R*Math.abs(dlng)*Math.cos(lat)/0.70,mPerPx=(extKm*1000)/(mapW*0.70);
+      const extKm=R*Math.abs(dlng)*Math.cos(lat)/0.70; mPerPx=(extKm*1000)/(mapW*0.70);
       const niceM=[10,20,50,100,200,500,1000,2000,5000].filter(v=>v<=(mapH/2)/2/mPerPx*0.8).pop()||100;
       ringMeters=niceM; ringPx=niceM/mPerPx;
     }
@@ -2370,6 +2432,38 @@ function MapTab({ pins }){
       <div ref={containerRef} style={{background:`linear-gradient(160deg,${C.bg2},${C.surf2} 60%,${C.bg2})`,height:`${mapH}px`,position:"relative",overflow:"hidden",cursor:"grab",touchAction:"none"}}>
         {/* Pannable / zoomable canvas */}
         <div style={{position:"absolute",inset:0,transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`,transformOrigin:"50% 50%"}}>
+          {/* Revealed geography — water & forest, only within anchored reveal zones */}
+          <svg width={mapW} height={mapH} viewBox={`0 0 ${mapW} ${mapH}`} style={{position:"absolute",top:0,left:0,width:`${mapW}px`,height:`${mapH}px`,pointerEvents:"none"}}>
+            <defs>
+              {revealZones.map(z=>{
+                const c=projectPoint(z.lat,z.lng);
+                const r=z.radius/mPerPx;
+                return <clipPath id={`zclip-${z.id}`} key={z.id}><circle cx={(c.rx/100)*mapW} cy={(c.ry/100)*mapH} r={r}/></clipPath>;
+              })}
+            </defs>
+            {revealZones.map(z=>{
+              const c=projectPoint(z.lat,z.lng);
+              const cx=(c.rx/100)*mapW, cy=(c.ry/100)*mapH, r=z.radius/mPerPx;
+              const toPx=pt=>{ const p=projectPoint(pt.lat,pt.lng); return `${(p.rx/100)*mapW},${(p.ry/100)*mapH}`; };
+              return (
+                <g key={z.id}>
+                  {/* faint boundary marking revealed ground, even where there's no water/forest */}
+                  <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(163,192,137,0.12)" strokeWidth="0.5" strokeDasharray="2,3"/>
+                  <g clipPath={`url(#zclip-${z.id})`}>
+                    {(z.forest||[]).map((ring,i)=>(
+                      <polygon key={`f${i}`} points={ring.map(toPx).join(" ")} fill="rgba(95,145,75,0.32)" stroke="rgba(125,175,100,0.4)" strokeWidth="0.6"/>
+                    ))}
+                    {(z.water||[]).map((ring,i)=>(
+                      <polygon key={`w${i}`} points={ring.map(toPx).join(" ")} fill="rgba(70,115,165,0.42)" stroke="rgba(110,160,215,0.5)" strokeWidth="0.7"/>
+                    ))}
+                    {(z.rivers||[]).map((line,i)=>(
+                      <polyline key={`r${i}`} points={line.map(toPx).join(" ")} fill="none" stroke="rgba(110,160,215,0.55)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    ))}
+                  </g>
+                </g>
+              );
+            })}
+          </svg>
           {/* Concentric rings */}
           {rings.map(({r,label})=>(
             <div key={r} style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",width:`${r*2}px`,height:`${r*2}px`,borderRadius:"50%",border:`0.5px solid rgba(125,154,106,0.18)`,pointerEvents:"none"}}>
@@ -3132,6 +3226,7 @@ export default function AscendApp(){
   ]);
   const [ch,setCh]=useState(migrateCh(P.ch) ?? {name:"",totalXP:0,title:"Seeker",stats:{vit:0,str:0,wil:0,hrt:0,voi:0,wis:0,ali:0},_statsFmt:"xp"});
   const [pins,setPins]=useState(P.pins ?? []);
+  const [revealZones,setRevealZones]=useState(P.revealZones ?? []);
   const [completedChapters,setCompletedChapters]=useState(P.completedChapters ?? [1]);
   const [hasAnchored,setHasAnchored]=useState(P.hasAnchored ?? false);
   const [devMode,setDevMode]=useState(false);
@@ -3146,6 +3241,30 @@ export default function AscendApp(){
     const s=document.getElementById("splash");
     if(s){ s.style.transition="opacity 0.6s"; s.style.opacity="0"; setTimeout(()=>s?.remove(),650); }
   },[]);
+
+  // Fetch real water/forest geometry for any reveal zone that doesn't have it yet.
+  // Retries on an interval so a zone created offline picks up data once online.
+  useEffect(()=>{
+    let cancelled=false;
+    const tryFetch=()=>{
+      setRevealZones(zs=>{
+        const target=zs.find(z=>z.fetchedRadius===0 && !z.fetchPending);
+        if(!target) return zs;
+        fetchZoneGeometry(target.lat, target.lng).then(geo=>{
+          if(cancelled) return;
+          setRevealZones(zs2=>zs2.map(z=>{
+            if(z.id!==target.id) return z;
+            if(geo) return {...z, water:geo.water, rivers:geo.rivers, forest:geo.forest, fetchedRadius:1300, fetchPending:false};
+            return {...z, fetchPending:false}; // offline/failed — interval below will retry
+          }));
+        });
+        return zs.map(z=>z.id===target.id?{...z,fetchPending:true}:z);
+      });
+    };
+    tryFetch();
+    const interval=setInterval(tryFetch, 30000);
+    return ()=>{ cancelled=true; clearInterval(interval); };
+  },[revealZones.length]);
 
   // Restore cloud session — refresh silently if access token expired
   useEffect(()=>{
@@ -3180,7 +3299,7 @@ export default function AscendApp(){
   const enableDevMode = () => {
     setDevMode(true);
     setCh({name:"Dev",totalXP:0,title:"Seeker",stats:{vit:0,str:0,wil:0,hrt:0,voi:0,wis:0,ali:0}});
-    setSessions([]); setJEnt([]); setPins([]); setActivities([]); setChaptersRead([]); setLibReadAt({});
+    setSessions([]); setJEnt([]); setPins([]); setRevealZones([]); setActivities([]); setChaptersRead([]); setLibReadAt({});
     setTypes(TYPES); setLibrary(Object.fromEntries(TYPES.map(t=>[t.id,[]])));
     setCompletedChapters([]); setHasAnchored(false);
     setOnboarding("brand"); setScr(null); setAnch(false);
@@ -3191,6 +3310,7 @@ export default function AscendApp(){
     setCh(migrateCh(Pr.ch)??{name:"",totalXP:0,title:"Seeker",stats:{vit:0,str:0,wil:0,hrt:0,voi:0,wis:0,ali:0},_statsFmt:"xp"});
     setSessions(Pr.sessions??INIT_S); setJEnt(Pr.jEnt??[]);
     setPins(Pr.pins??[]);
+    setRevealZones(Pr.revealZones??[]);
     setTypes(Pr.types??TYPES); setLibrary(Pr.library??Object.fromEntries(TYPES.map(t=>[t.id,[]])));
     setCompletedChapters(Pr.completedChapters??[1]); setHasAnchored(Pr.hasAnchored??false);
     setTheme(Pr.theme??"forest"); setOnboarding(Pr.onboardingDone?"done":"brand");
@@ -3250,6 +3370,7 @@ export default function AscendApp(){
       if(data.sessions) setSessions(data.sessions);
       if(data.jEnt) setJEnt(data.jEnt);
       if(data.pins) setPins(data.pins);
+      if(data.revealZones) setRevealZones(data.revealZones);
       if(data.activities) setActivities(data.activities);
       if(data.chaptersRead) setChaptersRead(data.chaptersRead);
       if(data.libReadAt) setLibReadAt(data.libReadAt);
@@ -3267,7 +3388,7 @@ export default function AscendApp(){
     localStorage.removeItem(STORAGE_KEY);
     try { window.storage?.delete?.(STORAGE_KEY)?.catch?.(()=>{}); } catch {}
     setCh({name:"",totalXP:0,title:"Seeker",stats:{vit:0,str:0,wil:0,hrt:0,voi:0,wis:0,ali:0}});
-    setSessions([]); setJEnt([]); setPins([]);
+    setSessions([]); setJEnt([]); setPins([]); setRevealZones([]);
     setTypes(TYPES); setLibrary(Object.fromEntries(TYPES.map(t=>[t.id,[]])));
     setCompletedChapters([]); setHasAnchored(false);
     setTheme("forest"); applyTheme("forest");
@@ -3281,7 +3402,7 @@ export default function AscendApp(){
   /* Build the current snapshot. Kept in a ref so the flush handler always
      sees the latest without re-binding listeners. */
   const blob = {
-    v:1, tab, fontScale, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library,
+    v:1, tab, fontScale, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, revealZones,
     completedChapters, hasAnchored, theme, guidedSession, anchInitType, onboardingDone: onboarding==="done",
   };
   const blobRef = useRef(blob);
@@ -3293,7 +3414,7 @@ export default function AscendApp(){
     const json = JSON.stringify(blobRef.current);
     const t = setTimeout(()=>writeStorage(json), 250);
     return ()=>clearTimeout(t);
-  },[hydrated, devMode, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType]);
+  },[hydrated, devMode, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, revealZones]);
 
   /* ── FLUSH: write immediately when the page is hidden or unloaded ── */
   useEffect(()=>{
@@ -3323,6 +3444,7 @@ export default function AscendApp(){
         if(P2.sessions) setSessions(P2.sessions);
         if(P2.jEnt) setJEnt(P2.jEnt);
         if(P2.pins) setPins(P2.pins);
+        if(P2.revealZones) setRevealZones(P2.revealZones);
         if(P2.activities) setActivities(P2.activities);
         if(P2.chaptersRead) setChaptersRead(P2.chaptersRead);
         if(P2.libReadAt) setLibReadAt(P2.libReadAt);
@@ -3389,7 +3511,11 @@ export default function AscendApp(){
       });
       if(navigator.geolocation){
         navigator.geolocation.getCurrentPosition(
-          pos=>setPins(p=>[...p,makePin(pos.coords.latitude,pos.coords.longitude)]),
+          pos=>{
+            const {latitude:lat,longitude:lng}=pos.coords;
+            setPins(p=>[...p,makePin(lat,lng)]);
+            setRevealZones(zs=>updateRevealZones(zs, lat, lng));
+          },
           ()=>setPins(p=>[...p,makePin(null,null)]),
           {timeout:8000, maximumAge:0, enableHighAccuracy:true}
         );
@@ -3658,7 +3784,7 @@ export default function AscendApp(){
         <div style={{flex:1,overflowY:"auto",paddingBottom:"118px"}}>
           <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities}/></div>
           <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>setCompletedChapters(p=>[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}/></div>
-          <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins}/></div>
+          <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones}/></div>
           <div style={{display:tab==="library"?"block":"none"}}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)}/></div>
         </div>
 
