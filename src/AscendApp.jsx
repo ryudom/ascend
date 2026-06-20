@@ -2277,7 +2277,7 @@ function pointInPolygonPx(px, py, poly){
   }
   return inside;
 }
-function scatterTreePoints(polyPx, spacing=11, maxTrees=90){
+function scatterTreePoints(polyPx, spacing=10, maxTrees=120){
   if(polyPx.length<3) return [];
   const xs=polyPx.map(p=>p.x), ys=polyPx.map(p=>p.y);
   const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
@@ -2299,14 +2299,10 @@ function TreeIcon({cx,cy,color}){
   return (
     <g transform={`translate(${cx},${cy})`} stroke={color} strokeWidth="0.4" strokeLinecap="round" fill="none">
       <line x1="0" y1="-7" x2="0" y2="2"/>
-      <line x1="0" y1="-6" x2="1" y2="-5"/>
-      <line x1="0" y1="-6" x2="-1" y2="-5"/>
-      <line x1="0" y1="-4" x2="1.6" y2="-3"/>
-      <line x1="0" y1="-4" x2="-1.6" y2="-3"/>
-      <line x1="0" y1="-2" x2="2.1" y2="-1"/>
-      <line x1="0" y1="-2" x2="-2.1" y2="-1"/>
-      <line x1="0" y1="0" x2="2.6" y2="1"/>
-      <line x1="0" y1="0" x2="-2.6" y2="1"/>
+      <line x1="0" y1="-5" x2="1.4" y2="-6"/>
+      <line x1="0" y1="-3" x2="-1.8" y2="-4.2"/>
+      <line x1="0" y1="-1" x2="2.2" y2="-2.2"/>
+      <line x1="0" y1="1" x2="-2.6" y2="-0.2"/>
     </g>
   );
 }
