@@ -2268,6 +2268,43 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
    Zones grow with repeated visits (centroid-averaged center, +50m per return
    within radius+100m, capped at 1km). Geometry is fetched once per zone at a
    generous 1.3km radius so later growth never needs a second network call. */
+/* ─── Simple forest rendering helpers — scatter tiny tree glyphs inside a polygon ─── */
+function pointInPolygonPx(px, py, poly){
+  let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const xi=poly[i].x, yi=poly[i].y, xj=poly[j].x, yj=poly[j].y;
+    if(((yi>py)!==(yj>py)) && (px < (xj-xi)*(py-yi)/((yj-yi)||1e-9)+xi)) inside=!inside;
+  }
+  return inside;
+}
+function scatterTreePoints(polyPx, spacing=18, maxTrees=40){
+  if(polyPx.length<3) return [];
+  const xs=polyPx.map(p=>p.x), ys=polyPx.map(p=>p.y);
+  const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
+  const pts=[];
+  let row=0;
+  for(let y=minY; y<=maxY; y+=spacing){
+    let col=0;
+    for(let x=minX; x<=maxX; x+=spacing){
+      // deterministic jitter (no Math.random) so trees don't reshuffle on re-render
+      const jx=x+(((row*7+col*13)%5)-2)*1.6, jy=y+(((row*11+col*3)%5)-2)*1.6;
+      if(pointInPolygonPx(jx,jy,polyPx)){ pts.push({x:jx,y:jy}); if(pts.length>=maxTrees) return pts; }
+      col++;
+    }
+    row++;
+  }
+  return pts;
+}
+function TreeIcon({cx,cy,color}){
+  return (
+    <g transform={`translate(${cx},${cy})`}>
+      <path d="M0,-7 L2.3,-2.3 L-2.3,-2.3 Z" fill={color}/>
+      <path d="M0,-4 L3,2 L-3,2 Z" fill={color}/>
+      <rect x="-0.6" y="2" width="1.2" height="1.6" fill="rgba(90,70,45,0.7)"/>
+    </g>
+  );
+}
+
 function haversineM(lat1,lng1,lat2,lng2){
   const R=6371000, toRad=d=>d*Math.PI/180;
   const dLat=toRad(lat2-lat1), dLng=toRad(lng2-lng1);
@@ -2371,6 +2408,17 @@ function MapTab({ pins, revealZones=[] }){
   const rings=[1,2,3].map(n=>({r:ringPx*n, label:fmtM((ringMeters*n)/zoom)}));
   const placesCount=pins.filter(p=>p.id&&!p.id.startsWith("seed")).length;
 
+  // Group geo-pins by nearest reveal zone (same matching rule zones use for growth).
+  // Each zone shows one full marker (its most recent pin) plus small dots for the rest,
+  // so a heavily-visited spot doesn't turn into a cluttered pile of overlapping markers.
+  const pinZoneId = renderPins.map(p=>{
+    if(p.lat==null||p.lng==null) return null;
+    for(const z of revealZones){ if(haversineM(z.lat,z.lng,p.lat,p.lng) <= z.radius+100) return z.id; }
+    return null;
+  });
+  const zonePrimaryIdx = {};
+  renderPins.forEach((p,i)=>{ const zid=pinZoneId[i]; if(zid!=null) zonePrimaryIdx[zid]=i; }); // last write wins = most recent pin
+
   const handleLocate=()=>{
     if(!navigator.geolocation){setLocatePulse(true);setTimeout(()=>setLocatePulse(false),1200);return;}
     setLocating(true);
@@ -2445,14 +2493,17 @@ function MapTab({ pins, revealZones=[] }){
               const c=projectPoint(z.lat,z.lng);
               const cx=(c.rx/100)*mapW, cy=(c.ry/100)*mapH, r=z.radius/mPerPx;
               const toPx=pt=>{ const p=projectPoint(pt.lat,pt.lng); return `${(p.rx/100)*mapW},${(p.ry/100)*mapH}`; };
+              const toPxNum=pt=>{ const p=projectPoint(pt.lat,pt.lng); return {x:(p.rx/100)*mapW, y:(p.ry/100)*mapH}; };
               return (
                 <g key={z.id}>
                   {/* faint boundary marking revealed ground, even where there's no water/forest */}
                   <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(163,192,137,0.12)" strokeWidth="0.5" strokeDasharray="2,3"/>
                   <g clipPath={`url(#zclip-${z.id})`}>
-                    {(z.forest||[]).map((ring,i)=>(
-                      <polygon key={`f${i}`} points={ring.map(toPx).join(" ")} fill="rgba(95,145,75,0.32)" stroke="rgba(125,175,100,0.4)" strokeWidth="0.6"/>
-                    ))}
+                    {(z.forest||[]).flatMap((ring,i)=>
+                      scatterTreePoints(ring.map(toPxNum)).map((t,ti)=>(
+                        <TreeIcon key={`f${i}-t${ti}`} cx={t.x} cy={t.y} color="rgba(125,175,100,0.85)"/>
+                      ))
+                    )}
                     {(z.water||[]).map((ring,i)=>(
                       <polygon key={`w${i}`} points={ring.map(toPx).join(" ")} fill="rgba(70,115,165,0.42)" stroke="rgba(110,160,215,0.5)" strokeWidth="0.7"/>
                     ))}
@@ -2475,20 +2526,40 @@ function MapTab({ pins, revealZones=[] }){
             {locatePulse&&<div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",width:"40px",height:"40px",borderRadius:"50%",border:`1px solid ${C.sageB}`,opacity:0.4}}/>}
             <div style={{width:"7px",height:"7px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 ${locatePulse?"16px":"8px"} rgba(163,192,137,${locatePulse?"0.9":"0.7"})`,transition:"box-shadow .3s"}}/>
           </div>
-          {/* Pins */}
-          {renderPins.map((p,i)=>(
-            <div key={i} onMouseEnter={()=>setHoveredPin(p.id??i)} onMouseLeave={()=>setHoveredPin(null)} onClick={e=>{e.stopPropagation();setHoveredPin(v=>v===(p.id??i)?null:(p.id??i));}}
-              style={{position:"absolute",left:`${p.rx}%`,top:`${p.ry}%`,transform:"translate(-50%,-50%)",display:"flex",flexDirection:"column",alignItems:"center",gap:"3px",cursor:"pointer",zIndex:hoveredPin===(p.id??i)?5:1}}>
-              <svg width="13" height="13" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill={hoveredPin===(p.id??i)?"rgba(163,192,137,0.22)":"rgba(163,192,137,0.12)"} stroke={C.sageB} strokeWidth="0.6"/><line x1="7" y1="5" x2="7" y2="9" stroke={C.sageB} strokeWidth="0.7"/><line x1="5" y1="7" x2="9" y2="7" stroke={C.sageB} strokeWidth="0.7"/></svg>
-              {hoveredPin===(p.id??i)&&(
-                <div style={{position:"absolute",bottom:"calc(100% + 7px)",left:"50%",transform:`translateX(-50%) scale(${1/zoom})`,transformOrigin:"center bottom",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
-                  <div style={{...body("11px",C.cream),marginBottom:"2px"}}>{p.tag||"Anchored"}</div>
-                  <div style={{...body("10px",C.muted)}}>{p.date?p.date.match(/^\d{4}-\d{2}-\d{2}$/)?new Date(p.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):p.date:""}{p.duration?` · ${p.duration} min`:""}</div>
+          {/* Pins — one full marker per zone (most recent visit), others as small dots */}
+          {renderPins.map((p,i)=>{
+            const zid=pinZoneId[i];
+            const isSecondary = zid!=null && zonePrimaryIdx[zid]!==i;
+            const key=p.id??i;
+            const isOpen = hoveredPin===key;
+            if(isSecondary){
+              return (
+                <div key={i} onClick={e=>{e.stopPropagation();setHoveredPin(v=>v===key?null:key);}}
+                  style={{position:"absolute",left:`${p.rx}%`,top:`${p.ry}%`,transform:"translate(-50%,-50%)",cursor:"pointer",zIndex:isOpen?5:1}}>
+                  <div style={{width:"6px",height:"6px",borderRadius:"50%",background:isOpen?C.sageB:"rgba(163,192,137,0.45)",border:`0.5px solid ${isOpen?C.sageB:"rgba(163,192,137,0.6)"}`,transition:"all .15s"}}/>
+                  {isOpen&&(
+                    <div style={{position:"absolute",bottom:"calc(100% + 7px)",left:"50%",transform:`translateX(-50%) scale(${1/zoom})`,transformOrigin:"center bottom",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
+                      <div style={{...body("11px",C.cream),marginBottom:"2px"}}>{p.tag||"Anchored"}</div>
+                      <div style={{...body("10px",C.muted)}}>{p.date?p.date.match(/^\d{4}-\d{2}-\d{2}$/)?new Date(p.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):p.date:""}{p.duration?` · ${p.duration} min`:""}</div>
+                    </div>
+                  )}
                 </div>
-              )}
-              {p.tag&&hoveredPin!==(p.id??i)&&<div style={{background:"rgba(13,20,15,0.85)",border:`0.5px solid ${C.bord}`,borderRadius:"3px",padding:"1px 5px",...body("8px",C.sage),whiteSpace:"nowrap"}}>{p.tag}</div>}
-            </div>
-          ))}
+              );
+            }
+            return (
+              <div key={i} onMouseEnter={()=>setHoveredPin(key)} onMouseLeave={()=>setHoveredPin(null)} onClick={e=>{e.stopPropagation();setHoveredPin(v=>v===key?null:key);}}
+                style={{position:"absolute",left:`${p.rx}%`,top:`${p.ry}%`,transform:"translate(-50%,-50%)",display:"flex",flexDirection:"column",alignItems:"center",gap:"3px",cursor:"pointer",zIndex:isOpen?5:1}}>
+                <svg width="13" height="13" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill={isOpen?"rgba(163,192,137,0.22)":"rgba(163,192,137,0.12)"} stroke={C.sageB} strokeWidth="0.6"/><line x1="7" y1="5" x2="7" y2="9" stroke={C.sageB} strokeWidth="0.7"/><line x1="5" y1="7" x2="9" y2="7" stroke={C.sageB} strokeWidth="0.7"/></svg>
+                {isOpen&&(
+                  <div style={{position:"absolute",bottom:"calc(100% + 7px)",left:"50%",transform:`translateX(-50%) scale(${1/zoom})`,transformOrigin:"center bottom",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
+                    <div style={{...body("11px",C.cream),marginBottom:"2px"}}>{p.tag||"Anchored"}</div>
+                    <div style={{...body("10px",C.muted)}}>{p.date?p.date.match(/^\d{4}-\d{2}-\d{2}$/)?new Date(p.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):p.date:""}{p.duration?` · ${p.duration} min`:""}</div>
+                  </div>
+                )}
+                {p.tag&&!isOpen&&<div style={{background:"rgba(13,20,15,0.85)",border:`0.5px solid ${C.bord}`,borderRadius:"3px",padding:"1px 5px",...body("8px",C.sage),whiteSpace:"nowrap"}}>{p.tag}</div>}
+              </div>
+            );
+          })}
         </div>
 
         {/* Fixed controls (not part of pannable canvas) */}
@@ -3227,6 +3298,7 @@ export default function AscendApp(){
   const [ch,setCh]=useState(migrateCh(P.ch) ?? {name:"",totalXP:0,title:"Seeker",stats:{vit:0,str:0,wil:0,hrt:0,voi:0,wis:0,ali:0},_statsFmt:"xp"});
   const [pins,setPins]=useState(P.pins ?? []);
   const [revealZones,setRevealZones]=useState(P.revealZones ?? []);
+  const [zonesMigrated,setZonesMigrated]=useState(P.zonesMigrated ?? false);
   const [completedChapters,setCompletedChapters]=useState(P.completedChapters ?? [1]);
   const [hasAnchored,setHasAnchored]=useState(P.hasAnchored ?? false);
   const [devMode,setDevMode]=useState(false);
@@ -3241,6 +3313,18 @@ export default function AscendApp(){
     const s=document.getElementById("splash");
     if(s){ s.style.transition="opacity 0.6s"; s.style.opacity="0"; setTimeout(()=>s?.remove(),650); }
   },[]);
+
+  // One-time migration — fold any pins created before reveal zones existed into zones.
+  // Runs once ever, gated by a flag, so it never re-runs and never double-counts.
+  useEffect(()=>{
+    if(zonesMigrated) return;
+    const geoPins=pins.filter(p=>p.lat!=null&&p.lng!=null);
+    if(geoPins.length===0){ setZonesMigrated(true); return; }
+    let zs=[];
+    geoPins.forEach(p=>{ zs=updateRevealZones(zs, p.lat, p.lng); });
+    setRevealZones(zs);
+    setZonesMigrated(true);
+  },[]); // eslint-disable-line
 
   // Fetch real water/forest geometry for any reveal zone that doesn't have it yet.
   // Retries on an interval so a zone created offline picks up data once online.
@@ -3299,7 +3383,7 @@ export default function AscendApp(){
   const enableDevMode = () => {
     setDevMode(true);
     setCh({name:"Dev",totalXP:0,title:"Seeker",stats:{vit:0,str:0,wil:0,hrt:0,voi:0,wis:0,ali:0}});
-    setSessions([]); setJEnt([]); setPins([]); setRevealZones([]); setActivities([]); setChaptersRead([]); setLibReadAt({});
+    setSessions([]); setJEnt([]); setPins([]); setRevealZones([]); setZonesMigrated(true); setActivities([]); setChaptersRead([]); setLibReadAt({});
     setTypes(TYPES); setLibrary(Object.fromEntries(TYPES.map(t=>[t.id,[]])));
     setCompletedChapters([]); setHasAnchored(false);
     setOnboarding("brand"); setScr(null); setAnch(false);
@@ -3311,6 +3395,7 @@ export default function AscendApp(){
     setSessions(Pr.sessions??INIT_S); setJEnt(Pr.jEnt??[]);
     setPins(Pr.pins??[]);
     setRevealZones(Pr.revealZones??[]);
+    setZonesMigrated(Pr.zonesMigrated??false);
     setTypes(Pr.types??TYPES); setLibrary(Pr.library??Object.fromEntries(TYPES.map(t=>[t.id,[]])));
     setCompletedChapters(Pr.completedChapters??[1]); setHasAnchored(Pr.hasAnchored??false);
     setTheme(Pr.theme??"forest"); setOnboarding(Pr.onboardingDone?"done":"brand");
@@ -3370,7 +3455,18 @@ export default function AscendApp(){
       if(data.sessions) setSessions(data.sessions);
       if(data.jEnt) setJEnt(data.jEnt);
       if(data.pins) setPins(data.pins);
-      if(data.revealZones) setRevealZones(data.revealZones);
+      if(data.revealZones){
+        setRevealZones(data.revealZones);
+        setZonesMigrated(true);
+      } else if(data.pins){
+        // Backup predates reveal zones — rebuild them from its pins right now,
+        // regardless of whether this session already ran its own migration.
+        const geoPins=data.pins.filter(p=>p.lat!=null&&p.lng!=null);
+        let zs=[];
+        geoPins.forEach(p=>{ zs=updateRevealZones(zs, p.lat, p.lng); });
+        setRevealZones(zs);
+        setZonesMigrated(true);
+      }
       if(data.activities) setActivities(data.activities);
       if(data.chaptersRead) setChaptersRead(data.chaptersRead);
       if(data.libReadAt) setLibReadAt(data.libReadAt);
@@ -3388,7 +3484,7 @@ export default function AscendApp(){
     localStorage.removeItem(STORAGE_KEY);
     try { window.storage?.delete?.(STORAGE_KEY)?.catch?.(()=>{}); } catch {}
     setCh({name:"",totalXP:0,title:"Seeker",stats:{vit:0,str:0,wil:0,hrt:0,voi:0,wis:0,ali:0}});
-    setSessions([]); setJEnt([]); setPins([]); setRevealZones([]);
+    setSessions([]); setJEnt([]); setPins([]); setRevealZones([]); setZonesMigrated(true);
     setTypes(TYPES); setLibrary(Object.fromEntries(TYPES.map(t=>[t.id,[]])));
     setCompletedChapters([]); setHasAnchored(false);
     setTheme("forest"); applyTheme("forest");
@@ -3402,7 +3498,7 @@ export default function AscendApp(){
   /* Build the current snapshot. Kept in a ref so the flush handler always
      sees the latest without re-binding listeners. */
   const blob = {
-    v:1, tab, fontScale, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, revealZones,
+    v:1, tab, fontScale, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, revealZones, zonesMigrated,
     completedChapters, hasAnchored, theme, guidedSession, anchInitType, onboardingDone: onboarding==="done",
   };
   const blobRef = useRef(blob);
@@ -3414,7 +3510,7 @@ export default function AscendApp(){
     const json = JSON.stringify(blobRef.current);
     const t = setTimeout(()=>writeStorage(json), 250);
     return ()=>clearTimeout(t);
-  },[hydrated, devMode, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, revealZones]);
+  },[hydrated, devMode, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, revealZones, zonesMigrated]);
 
   /* ── FLUSH: write immediately when the page is hidden or unloaded ── */
   useEffect(()=>{
@@ -3445,6 +3541,7 @@ export default function AscendApp(){
         if(P2.jEnt) setJEnt(P2.jEnt);
         if(P2.pins) setPins(P2.pins);
         if(P2.revealZones) setRevealZones(P2.revealZones);
+        if(P2.zonesMigrated!==undefined) setZonesMigrated(P2.zonesMigrated);
         if(P2.activities) setActivities(P2.activities);
         if(P2.chaptersRead) setChaptersRead(P2.chaptersRead);
         if(P2.libReadAt) setLibReadAt(P2.libReadAt);
