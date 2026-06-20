@@ -2277,7 +2277,7 @@ function pointInPolygonPx(px, py, poly){
   }
   return inside;
 }
-function scatterTreePoints(polyPx, spacing=18, maxTrees=40){
+function scatterTreePoints(polyPx, spacing=10, maxTrees=140){
   if(polyPx.length<3) return [];
   const xs=polyPx.map(p=>p.x), ys=polyPx.map(p=>p.y);
   const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
@@ -2287,7 +2287,7 @@ function scatterTreePoints(polyPx, spacing=18, maxTrees=40){
     let col=0;
     for(let x=minX; x<=maxX; x+=spacing){
       // deterministic jitter (no Math.random) so trees don't reshuffle on re-render
-      const jx=x+(((row*7+col*13)%5)-2)*1.6, jy=y+(((row*11+col*3)%5)-2)*1.6;
+      const jx=x+(((row*7+col*13)%5)-2)*0.9, jy=y+(((row*11+col*3)%5)-2)*0.9;
       if(pointInPolygonPx(jx,jy,polyPx)){ pts.push({x:jx,y:jy}); if(pts.length>=maxTrees) return pts; }
       col++;
     }
@@ -2298,9 +2298,9 @@ function scatterTreePoints(polyPx, spacing=18, maxTrees=40){
 function TreeIcon({cx,cy,color}){
   return (
     <g transform={`translate(${cx},${cy})`}>
-      <path d="M0,-7 L2.3,-2.3 L-2.3,-2.3 Z" fill={color}/>
-      <path d="M0,-4 L3,2 L-3,2 Z" fill={color}/>
-      <rect x="-0.6" y="2" width="1.2" height="1.6" fill="rgba(90,70,45,0.7)"/>
+      <path d="M0,-6 L1.1,-4 L0.4,-4 L1.7,-2 L0.6,-2 L2.1,0.3 L0.6,0.3 L0,2 L-0.6,0.3 L-2.1,0.3 L-0.6,-2 L-1.7,-2 L-0.4,-4 L-1.1,-4 Z"
+        fill="none" stroke={color} strokeWidth="0.45" strokeLinejoin="round"/>
+      <line x1="0" y1="-6" x2="0" y2="2" stroke={color} strokeWidth="0.35"/>
     </g>
   );
 }
@@ -2496,12 +2496,10 @@ function MapTab({ pins, revealZones=[] }){
               const toPxNum=pt=>{ const p=projectPoint(pt.lat,pt.lng); return {x:(p.rx/100)*mapW, y:(p.ry/100)*mapH}; };
               return (
                 <g key={z.id}>
-                  {/* faint boundary marking revealed ground, even where there's no water/forest */}
-                  <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(163,192,137,0.12)" strokeWidth="0.5" strokeDasharray="2,3"/>
                   <g clipPath={`url(#zclip-${z.id})`}>
                     {(z.forest||[]).flatMap((ring,i)=>
                       scatterTreePoints(ring.map(toPxNum)).map((t,ti)=>(
-                        <TreeIcon key={`f${i}-t${ti}`} cx={t.x} cy={t.y} color="rgba(125,175,100,0.85)"/>
+                        <TreeIcon key={`f${i}-t${ti}`} cx={t.x} cy={t.y} color="rgba(125,175,100,0.4)"/>
                       ))
                     )}
                     {(z.water||[]).map((ring,i)=>(
