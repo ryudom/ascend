@@ -2612,6 +2612,7 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
   const [filter,setFilter]=useState("All");
   const [selected,setSelected]=useState(null); // full entry object or null
   const sections=["Anchors","Capacities","Centers","Practices"];
+  const [collapsed,setCollapsed]=useState({});
   const filters=["All",...sections];
 
   // Anchor type map for practice entries
@@ -2714,10 +2715,15 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
         {filters.map(f=><Pill key={f} on={filter===f} onClick={()=>setFilter(f)}>{f}</Pill>)}
       </div>
 
-      {bySec.map(({s,items})=>(
+      {bySec.map(({s,items})=>{
+        const isCollapsed=!!collapsed[s];
+        return (
         <div key={s} style={{marginBottom:"22px"}}>
-          <div style={{...dsp("9px",C.muted,400,"0.18em"),marginBottom:"8px"}}>{s.toUpperCase()}</div>
-          {items.map(e=>{
+          <button onClick={()=>setCollapsed(p=>({...p,[s]:!p[s]}))} style={{display:"flex",alignItems:"center",gap:"6px",width:"100%",background:"none",border:"none",cursor:"pointer",padding:0,marginBottom:isCollapsed?0:"8px"}}>
+            <span style={{...dsp("9px",C.muted,400,"0.18em")}}>{s.toUpperCase()}</span>
+            <span style={{color:C.dim,fontSize:"9px",transform:isCollapsed?"rotate(-90deg)":"none",transition:"transform .2s"}}>▾</span>
+          </button>
+          {!isCollapsed && items.map(e=>{
             const sc=STAT_COLORS[e.sc]||C.sageB;
             const hasAction=e.id in ANCHOR_TYPE;
             return (
@@ -2725,7 +2731,7 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
                 <div style={{display:"flex",alignItems:"center",gap:"12px",padding:"13px 14px",background:"transparent"}}>
                   <div style={{width:"3px",alignSelf:"stretch",background:sc,borderRadius:"2px",flexShrink:0}}/>
                   <div style={{flex:1}}>
-                    <div style={{display:"flex",alignItems:"center",gap:"7px"}}>`
+                    <div style={{display:"flex",alignItems:"center",gap:"7px"}}>
                       <div style={{...body("14px",C.cream)}}>{e.title}</div>
                       {hasAction&&<div style={{fontSize:"9px",color:C.dim,border:`0.5px solid ${C.bord}`,padding:"1px 5px",borderRadius:"3px",fontFamily:"Cinzel,serif",letterSpacing:"0.06em"}}>ANCHOR</div>}
                     </div>
@@ -2737,7 +2743,8 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
             );
           })}
         </div>
-      ))}
+        );
+      })}
 
       {/* Locked section previews */}
       {locked.length>0 && filter==="All" && (()=>{
@@ -3866,7 +3873,7 @@ export default function AscendApp(){
             </button>
             <div>
               <div style={{...dsp("16px",C.gold,500,"0.14em")}}>{ch.name}</div>
-              <div style={{...dsp("8px",C.muted,400,"0.18em"),marginTop:"1px"}}>{levelToTitle(levelFromTotalXP(ch.totalXP??0)).toUpperCase()} · PRESENCE LVL {levelFromTotalXP(ch.totalXP??0)}</div>
+              <div style={{...dsp("8px",C.muted,400,"0.18em"),marginTop:"1px"}}>PRESENCE LVL {levelFromTotalXP(ch.totalXP??0)}</div>
             </div>
           </div>
           {(()=>{const L=levelFromTotalXP(ch.totalXP??0),cur=(ch.totalXP??0)-totalXPForLevel(L),nxt=xpForNextLevel(L);return(
