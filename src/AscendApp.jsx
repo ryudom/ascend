@@ -33,8 +33,10 @@ const TYPES = [
   {id:"sitting",label:"Sit"},{id:"standing",label:"Stand"},{id:"walking",label:"Walk"},
 ];
 const STAT_MAP = {
-  sitting:{vit:1,wis:1,ali:1}, standing:{str:1,wil:1,ali:1}, walking:{wil:1,hrt:1,str:1},
-  serving:{wil:1,hrt:1}, default:{wil:1},
+  sitting:{wis:1,vit:1}, standing:{str:1,ali:1}, walking:{wil:1,hrt:1},
+  serving:{wil:1,hrt:1},
+  train:{str:1,vit:1}, restore:{hrt:1,voi:1},
+  default:{wil:1},
 };
 const STATS = [
   {k:"str", l:"Root",        s:"STR"},
@@ -49,6 +51,411 @@ const STATE_TAGS = ["Grounded","Clear","Energized","Connected","Open","Alive","R
 const MOODS = ["Unsettled","Neutral","Calm","Clear","Grounded","Open"];
 const BODY  = ["Tense","Tired","Neutral","Relaxed","Alive","Still"];
 const TRACKERS = ["Breaths","Steps","Reps","Custom"];
+
+/* ════════════════════════════════════════════════════════════════════════
+   ASCEND — CLASS SYSTEM (v1)
+   Pure design data consumed by AscendApp.jsx.
+
+   Unlock gate: Presence Level >= 10 AND Act I complete (final chapter "Making
+   Contact"). At the gate the player chooses one of three classes, then performs
+   that class's enforced Foundation Trial (3 × 3-min sessions, each stat-tagged),
+   which opens the class's practice/skill chain. Quests unlock skills one at a
+   time; quest N reveals skill N. No class XP in v1 — the quest chain IS the
+   progression. No titles in v1.
+
+   Skill targets:
+     - "practiceType" + "activity" → unlocks a logged activity under a practice
+       type (Train is a new type; some skills attach under existing Sit/Stand/Walk)
+     - "journal" → unlocks a journal add-on (Tend for Healer, Inquire for Sage)
+     - "epilogue" → revealed after the chain completes (e.g. Cold Exposure)
+   ════════════════════════════════════════════════════════════════════════ */
+
+const CLASS_UNLOCK_LEVEL = 10;
+
+/* The Act I chapter whose completion satisfies the "Act I complete" gate. */
+const ACT1_FINAL_CHAPTER = 7; // "Making Contact" / final Act I chapter
+const CHANT_UNLOCK_CHAPTER = 5; // unlocks after "The Living World"
+
+/* Chant — a universal voice modifier, foundational, not class-gated.
+   Sits before the three centers: available to everyone once Ch.5 completes. */
+const CHANT_QUEST = {
+  id: "chant_unlock",
+  title: "Find Your Voice",
+  myth: "Sit, Stand, Walk — three doors into stillness, three ways the body learns presence. There is a fourth thing, older than any of them, that travels through all three without needing a door of its own: the voice.\n\nEvery culture that has ever practiced stillness has, at some point, discovered the same thing — that sound, repeated and let go of expectation, deepens the silence rather than breaking it. A single tone, held without performance. A word, repeated until it stops being a word and becomes only vibration. This is not new. It may be older than language itself — humans were almost certainly humming before they had names for anything.\n\nChant is not its own practice. It travels with you — into Sit, into Stand, into Walk — asking nothing except that you let a sound rise and stay with it a while. Some days it will be a hum. Some days a single repeated word. Some days nothing more than a long, slow exhale with a little voice riding on top of it.\n\nTry it once, in whichever stillness you already know. Let a sound rise. Don't perform it. Just let it be there.\n\nChant unlocked. Find it under Activities the next time you Sit, Stand, or Walk.",
+  libId: "lib_chant",
+  criteria: "Practice with Chant (any session).",
+};
+const CHANT_LIBRARY_STUB = {
+  id: "lib_chant", unlock: 0, section: "Path Skills", title: "Find Your Voice",
+  pathId: "foundation", pathName: "Foundation", skillUnlockQuest: "chant_unlock",
+  sc: "voi",
+  body: ["Practical instruction and detail for Chant will live here. For now: hum, tone, or repeat a single word softly while sitting, standing, or walking. No performance required — just a sound, held loosely, riding alongside the breath."],
+  practice: "",
+};
+
+const CLASSES = [
+  {
+    id: "warrior",
+    name: "Warrior",
+    verb: "Train",
+    blurb: "Cultivate strength, courage, discipline, and embodied action.",
+    primaryStats: ["str", "wil", "vit"],
+    accent: "#b06a52",
+    /* Class-specific Foundation Trial — 3 enforced 3-min sessions. */
+    trial: [
+      { type: "sitting",  label: "Sit",   minutes: 3, stat: "vit" },
+      { type: "standing", label: "Stand", minutes: 3, stat: "str" },
+      { type: "walking",  label: "Walk",  minutes: 3, stat: "wil" },
+    ],
+  },
+  {
+    id: "healer",
+    name: "Healer",
+    verb: "Restore",
+    blurb: "Cultivate compassion, connection, restoration, and care.",
+    primaryStats: ["hrt", "voi", "wil"],
+    accent: "#6b9e8e",
+    trial: [
+      { type: "sitting",  label: "Sit",   minutes: 3, stat: "hrt" },
+      { type: "standing", label: "Stand", minutes: 3, stat: "voi" },
+      { type: "walking",  label: "Walk",  minutes: 3, stat: "wil" },
+    ],
+  },
+  {
+    id: "sage",
+    name: "Sage",
+    verb: "Observe",
+    blurb: "Cultivate wisdom, clarity, perception, and understanding.",
+    primaryStats: ["wis", "ali", "voi"],
+    accent: "#7c8fb0",
+    trial: [
+      { type: "sitting",  label: "Sit",   minutes: 3, stat: "wis" },
+      { type: "standing", label: "Stand", minutes: 3, stat: "ali" },
+      { type: "walking",  label: "Walk",  minutes: 3, stat: "voi" },
+    ],
+  },
+];
+
+const CLASS_BY_ID = Object.fromEntries(CLASSES.map(c => [c.id, c]));
+
+/* ── QUEST CHAINS ──────────────────────────────────────────────────────────
+   Each quest:
+     id, title, myth (full quest prose), libId (library entry it links to),
+     unlocks: [{kind, ...}]  — what completing the quest opens
+        kind "activity"  → {practiceType, name, stat}
+        kind "journal"   → {feature:"tend"|"inquire"}
+        kind "practiceType" → {practiceType} (first quest opens the new type)
+     criteria: short human-readable completion requirement (mechanics wired in app)
+   The first quest of each chain is the Foundation Trial gate itself.
+   Library prose is intentionally a one-line stub for now (fill later). */
+
+const QUEST_CHAINS = {
+  warrior: [
+    {
+      id: "w_trial",
+      title: "Warrior Trial",
+      isTrial: true,
+      myth: "Every path begins the same way: not with a technique, but with a vow.\n\nBefore you train, before you strike, before you learn anything that looks like power — you sit, you stand, you walk. Three minutes each. The body has its own way of agreeing to a thing, deeper than the mind's. This is that agreement, spoken in the only language the body trusts: presence, held on purpose.\n\nBut this trial asks one thing more. As you practice each form, bring your attention to a specific place in the body — and on the Ascend screen, after the timer, choose that center as where your awareness landed.\n\nSit, and rest your attention in the belly — the seat of vitality, the fire that fuels all effort.\nStand, and bring it to the root — the legs, the ground, the base of all strength.\nWalk, and let it settle in the solar plexus — the seat of will, the engine of forward motion.\n\nThree forms. Three centers. One vow. Walk through it, and the path of the Warrior opens.",
+      libId: "lib_w_trial",
+      criteria: "Complete the Warrior Foundation Trial: 3-min Sit, Stand, Walk.",
+      unlocks: [{ kind: "practiceType", practiceType: "train" }],
+    },
+    {
+      id: "w_strength",
+      title: "Strength Training",
+      myth: "You have chosen the path of iron.\n\nThere is no shortcut here, no secret technique waiting to spare you the work. The Warrior is not made in a single trial — they are forged, the way iron is forged: heated, struck, cooled, struck again, until what was soft becomes something that holds its shape under pressure. Discipline is the fire. Repetition is the hammer. What you build today, you will need tomorrow.\n\nThe body remembers what the mind forgets.\n\nThree movements. No equipment. No excuse.\n\nPushups. Squats. Core.\n\nForm first. Speed later. A hundred sloppy reps teach the body nothing but sloppiness. Perfect practice makes perfect — not just practice.",
+      libId: "lib_w_strength",
+      criteria: "Accumulate 100 pushups, 100 squats, and complete Core sessions.",
+      unlocks: [
+        { kind: "activity", practiceType: "train", name: "Pushups", stat: "str", target: 100, unit: "reps" },
+        { kind: "activity", practiceType: "train", name: "Squats",  stat: "str", target: 100, unit: "reps" },
+        { kind: "activity", practiceType: "train", name: "Core",    stat: "vit", target: 50, unit: "reps" },
+      ],
+    },
+    {
+      id: "w_run",
+      title: "Light Footed",
+      myth: "Iron that does not move is only weight.\n\nThe Warrior trains not just to be strong, but to carry that strength somewhere — and nothing reveals the will faster than the road. Long before the legs give out, the mind asks to stop. This is the secret runners learn and few others ever discover: the body rarely quits first. It is given permission.\n\nRunning is the truest test the Warrior has. No opponent, no weight, no technique to hide behind — only you, the ground, and the question of how far you're willing to go before you let yourself stop.\n\nTen kilometers. Not all at once — earn it in pieces, one stretch of ground at a time, until the distance is behind you.\n\nRun unlocked. Find it in your Walking practice.",
+      libId: "lib_w_run",
+      criteria: "Accumulate 10 km of running.",
+      unlocks: [{ kind: "activity", practiceType: "walking", name: "Run", stat: "wil", target: 10, unit: "km" }],
+    },
+    {
+      id: "w_horse",
+      title: "Horse Stance",
+      myth: "The tree does not rise by growing tall first.\n\nIt rises because it rooted first — deep, unseen, patient — and only then did the trunk dare to climb. Horse Stance is the Warrior's root. Before the punch, before the kick, before any form takes shape, there is this: legs bent, spine still, weight sunk into the earth like something that has always belonged there.\n\nPower does not begin at the fist. It begins at the feet, and travels up through a body that has learned to stand its ground. A strike thrown from a shaking stance is a strike thrown from nowhere. Hold the root, and everything built on top of it — every punch, every kick, every form still to come — inherits that strength.\n\nThis is the quietest trial yet. No motion. No reps. Only stillness, and the discipline to stay in it.\n\nHorse Stance unlocked. Find it in your Standing practice.",
+      libId: "lib_w_horse",
+      criteria: "Accumulate held time in Horse Stance.",
+      unlocks: [{ kind: "activity", practiceType: "standing", name: "Horse Stance", stat: "str" }],
+    },
+    {
+      id: "w_punch",
+      title: "Punch",
+      myth: "The root holds. Now it speaks.\n\nEverything Horse Stance built lives in this moment — the legs that learned to sink, the spine that learned to stand. A punch is not thrown by the arm. The arm is only where the power finally arrives, after traveling up through ground, through legs, through hips that turn like a door swinging open. Hit with the arm alone, and you hit with nothing. Hit with the whole body behind it, and even a small fist carries the weight of everything beneath it.\n\nThis is why the stance came first. A strike thrown from a shaking root is a strike thrown from nowhere.\n\nForm first. Speed later. The fist that lands clean is built long before it ever moves.",
+      libId: "lib_w_punch",
+      criteria: "Complete Punch training.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Punch", stat: "str" }],
+    },
+    {
+      id: "w_kick",
+      title: "Kick",
+      myth: "The root learned to speak through the fist. Now it must speak standing on one leg.\n\nA kick asks more of the root than a punch ever did. Half the base is gone — one leg lifted, balance narrowed to a single point of contact with the earth — and still the power must travel the same path: up from the ground, through the hip, out through the limb. Chamber the knee before you fire. The more it bends, the more it gathers, the way a bow gathers force before the string is loosed.\n\nFlexibility is not decoration here. A tight hip is a closed door — the kick that should travel in a full arc becomes a tap, all that gathered power with nowhere to go. Open the hip, and the same leg that nearly stumbled becomes the most honest test of the root yet: can it hold, even when there's almost nothing left to stand on?",
+      libId: "lib_w_kick",
+      criteria: "Complete Kick training.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Kick", stat: "str" }],
+    },
+    {
+      id: "w_footwork",
+      title: "Footwork",
+      myth: "Until now, the root has held still. Now it must learn to move without ever leaving.\n\nThere is an old saying: stillness in movement, movement in stillness. The beginner believes these are opposites — that to move, you must give up your ground, and to hold your ground, you must stay still. The Warrior learns otherwise. True footwork loses nothing. The root does not empty when the foot lifts. It simply moves to where it is needed next.\n\nAnother saying: one leg full, the other empty — learn to tell them apart, always. At every moment, one leg carries the weight and one is free to move. Confuse the two, and you are unstable no matter how still you appear. Know them clearly, and you can move through anything without ever losing your footing.\n\nThe old masters who could not be pushed were not simply heavy or strong. Even mid-stride, they remained an extension of the ground beneath them, not something standing apart from it.\n\nThis is not stillness traded for speed. It is stillness that has learned to travel.",
+      libId: "lib_w_footwork",
+      criteria: "Complete Footwork training.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Footwork", stat: "wil" }],
+    },
+    {
+      id: "w_flow",
+      title: "Martial Flow",
+      isCapstone: true,
+      myth: "Punch. Kick. Footwork. Three things, learned one at a time, each its own small mountain.\n\nNow they stop being three things.\n\nThere is a word for what happens next: Mushin. No mind. Not the absence of thought, but the absence of the gap between thought and action — the moment a strike no longer needs to be decided before it's thrown. The body already knows. It has known since the first sloppy pushup, the first hundred meters, the first held breath in Horse Stance. All of it was leading here, even when none of it looked like this.\n\nThis is strange: the deeper the flow, the quieter the body becomes. Heartbeat slows. The face softens. What looks, from outside, like power, feels, from inside, like rest.\n\nYou cannot force this. You can only become someone it's willing to happen to.",
+      libId: "lib_w_flow",
+      criteria: "Complete Martial Flow sessions.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Martial Flow", stat: "wil" }],
+    },
+    /* Epilogue — revealed after the chain completes, not a numbered quest. */
+    {
+      id: "w_cold",
+      title: "Cold Exposure",
+      isEpilogue: true,
+      myth: "You have built the body. Now you are given something harder: presence with nothing to do.\n\nEvery skill before this asked you to generate something — a rep, a stride, a strike. Cold asks the opposite. It asks you to stay, while something difficult happens to you, and not flee. This is the final face of \"presence under pressure\" — not power, but stillness inside discomfort.\n\nCold Exposure is a condition you can carry into any practice — sit in it, stand in it, walk in it. Seek it where you can find it: a cold shower, an early swim, the morning air.",
+      libId: "lib_w_cold",
+      criteria: "Practice with Cold Exposure (any session).",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Cold Exposure", stat: "wil" }],
+    },
+  ],
+
+  healer: [
+    {
+      id: "h_trial",
+      title: "Healer Trial",
+      isTrial: true,
+      myth: "Every path begins the same way: not with a technique, but with a vow.\n\nBefore you tend, before you listen, before you offer anything to anyone — you sit, you stand, you walk. Three minutes each. The body has its own way of agreeing to a thing, deeper than the mind's. This is that agreement, spoken in the only language the body trusts: presence, held on purpose.\n\nBut this trial asks one thing more. As you practice each form, bring your attention to a specific place in the body — and on the Ascend screen, after the timer, choose that center as where your awareness landed.\n\nSit, and rest your attention in the chest — the heart, the seat of compassion and connection.\nStand, and bring it to the throat — the voice, the channel through which care reaches others.\nWalk, and let it settle in the solar plexus — the will, the resolve to keep showing up.\n\nThree forms. Three centers. One vow. Walk through it, and the path of the Healer opens.",
+      libId: "lib_h_trial",
+      criteria: "Complete the Healer Foundation Trial: 3-min Sit, Stand, Walk.",
+      unlocks: [{ kind: "practiceType", practiceType: "restore" }],
+    },
+    {
+      id: "h_heart",
+      title: "Heart Listening",
+      myth: "You have chosen the path of the open heart.\n\nThere is an old truth, found in nearly every healing tradition that has ever existed: the healer is not someone untouched by pain. It is someone who has been touched by it, and turned toward it instead of away. The ones who can sit beside another's grief without flinching are, almost always, the ones who have grieved. The wound is not what disqualifies you from this path. It is what qualifies you.\n\nEvery healer carries a wound. Not as failure. Not as something to hide until it's fixed. The wound is where the listening begins — because a heart that has never ached has nothing to recognize when it meets someone else's ache.\n\nThis path does not ask you to heal yourself first, then help others. It asks something stranger: that you turn toward your own heart with the same attention you would one day offer someone in pain. Listen to what's there. Not to fix it. Not yet. Just to hear it, fully, the way you'd want to be heard.\n\nYou cannot offer a presence you've never once given yourself.",
+      libId: "lib_h_heart",
+      criteria: "Practice Heart Listening.",
+      unlocks: [{ kind: "activity", practiceType: "restore", name: "Heart Listening", stat: "hrt" }],
+    },
+    {
+      id: "h_forgive",
+      title: "Forgiveness & Gratitude",
+      myth: "You listened, and you found something. Maybe an old hurt. Maybe a grudge you didn't know you were still carrying. Maybe anger at someone who never apologized, or at yourself, for something you've never once let yourself off the hook for.\n\nListening alone does not release it. You can hear a wound clearly for years and still carry it. Something more is needed — not forgetting, not pretending the harm didn't happen, but a deliberate act of setting the weight down. Forgiveness does not excuse what happened. It simply refuses to keep paying for it twice.\n\nAnd there is a reason gratitude belongs beside it, not after it. Across nearly every tradition that has ever practiced forgiveness, the same second movement appears: once the weight is set down, attention turns toward what remains. What is still good. What was never taken. Release without gratitude is only half the work — an emptying with nothing to fill the space it leaves behind.\n\nName what you're releasing. Then name what you're grateful for. Let both be true in the same breath.",
+      libId: "lib_h_forgive",
+      criteria: "Practice Forgiveness & Gratitude.",
+      unlocks: [{ kind: "activity", practiceType: "restore", name: "Forgiveness & Gratitude", stat: "hrt" }],
+    },
+    {
+      id: "h_tension",
+      title: "Tension Release",
+      myth: "Some of what the body carries was never yours to begin with. The shoulders that climbed toward the ears, the jaw clenched in your sleep — these often started as a grudge, a hurt, a held breath, long before they became habit. Now that you've begun setting some of that weight down, the body has room to follow.\n\nThree doors into the same room. Breath, slow and deliberate, telling the nervous system it's safe to stand down. Stretch, lengthening what's grown tight from years of bracing. Massage, a hand returning to a sore place, asking the muscle to soften rather than guard. None of them complicated. None of them requiring expertise — only attention, and a willingness to be slow.\n\nYou cannot release what you have never once noticed you were holding. Find the knot. Breathe into it, stretch around it, or press gently into it — whichever door is open today.",
+      libId: "lib_h_tension",
+      criteria: "Practice Tension Release.",
+      unlocks: [{ kind: "activity", practiceType: "restore", name: "Tension Release", stat: "vit" }],
+    },
+    {
+      id: "h_voice",
+      title: "Voice Work",
+      myth: "The weight has been set down. The body has begun to soften. Something in you is lighter than it was a few quests ago — and lightness, like grief, wants a way out into the air.\n\nHum. Not to perform, not to sound a certain way — simply to let a tone rise and feel where it lands. The voice travels further than most people realize. It moves down through the throat, into the chest, out through the ear and back to the part of you that governs calm. What forgiveness released in silence, the voice can finish releasing out loud.\n\nThis is the truth strange enough to be ancient: there is hardly a tradition on earth that did not, at some point, discover that the human voice itself heals. Long before instruments. Long before words had meaning, there was breath, finding a tone, and a body that listened.\n\nHum. Chant. Let a single sound rise and see what it touches.",
+      libId: "lib_h_voice",
+      criteria: "Practice Voice Work.",
+      unlocks: [{ kind: "activity", practiceType: "restore", name: "Voice Work", stat: "voi" }],
+    },
+    {
+      id: "h_listen",
+      title: "Deep Listening",
+      myth: "Everything so far has been practiced alone. This is the first time it's asked of you with someone else in the room.\n\nThe instinct will be to fix. Someone shares their pain, and something in you reaches for a solution, a reassurance, anything to close the gap before it grows uncomfortable. Resist it. No one in pain is asking to be repaired. They are asking to be heard — fully, without your own thoughts crowding the space meant for theirs.\n\nThis is why the path began with you, and why it asked you to release what you were carrying before it asked you to hold someone else's. A heart still gripping its own grievance will flinch at someone else's, or worse, make it about its own. Empty yourself. Leave space. Let their words land before you decide what they mean.\n\nYou already practiced this when no one was watching. Now you'll discover whether it was real.\n\nTend unlocked. Mark it in your journal whenever you hold space for someone.",
+      libId: "lib_h_listen",
+      criteria: "Practice Deep Listening; mark a Tend entry.",
+      unlocks: [
+        { kind: "activity", practiceType: "restore", name: "Deep Listening", stat: "hrt" },
+        { kind: "journal", feature: "tend" },
+      ],
+    },
+    {
+      id: "h_service",
+      title: "Service",
+      myth: "Heart Listening turned you toward yourself. Tension Release, Voice Work tended what you found there. Deep Listening turned that same attention toward someone else. Service is what you do with hands, not just presence — when listening isn't enough, and something in the world actually needs doing.\n\nThere's an old question worth asking honestly: is any service truly selfless? You will likely feel something when you help — lighter, more useful, closer to the person you're becoming. That isn't a flaw in the act. It's simply true, and pretending otherwise helps no one. The danger isn't feeling good when you serve. The danger is needing someone else's need in order to feel good about yourself at all. Serve because it's needed, not because you require it to feel whole.\n\nOne genuine act. Not performed, not announced. Something that actually helps, given to someone who actually needed it.\n\nMark it in your Tend journal.",
+      libId: "lib_h_service",
+      criteria: "Perform an act of Service; mark a Tend entry.",
+      unlocks: [{ kind: "activity", practiceType: "restore", name: "Service", stat: "wil" }],
+    },
+    {
+      id: "h_union",
+      title: "Union",
+      isCapstone: true,
+      myth: "Every skill on this path has had a direction. Inward, toward your own heart. Outward, toward another's. This last one points further than either.\n\nThere is no name precise enough for what people reach toward here — call it the divine, call it the field, call it the simple fact that nothing alive exists alone. Every healing tradition that has ever existed eventually points past the self entirely, toward something the self did not create and cannot fully explain. You do not have to name it. You only have to stop insisting you are separate from it.\n\nThis is not an act, the way Service was an act. It is closer to ceasing — laying down the belief that you are the source of what moves through you. You were never the well. You were only ever the cup.\n\nSit with this. Let whatever wants to move through you, move. Direct it nowhere. Simply let it pass through, and notice that you are still here afterward, unharmed, maybe a little less alone than before.",
+      libId: "lib_h_union",
+      criteria: "Practice Union.",
+      unlocks: [{ kind: "activity", practiceType: "restore", name: "Union", stat: "ali" }],
+    },
+  ],
+
+  sage: [
+    {
+      id: "s_trial",
+      title: "Sage Trial",
+      isTrial: true,
+      myth: "Every path begins the same way: not with a technique, but with a vow.\n\nBefore you observe, before you inquire, before you see anything clearly — you sit, you stand, you walk. Three minutes each. The body has its own way of agreeing to a thing, deeper than the mind's. This is that agreement, spoken in the only language the body trusts: presence, held on purpose.\n\nBut this trial asks one thing more. As you practice each form, bring your attention to a specific place — and on the Ascend screen, after the timer, choose that center as where your awareness landed.\n\nSit, and rest your attention in the head — the seat of clarity, where seeing begins.\nStand, and bring it to the crown — alignment, the still point above the noise.\nWalk, and let it settle in the throat — the voice, where inner understanding meets the world.\n\nThree forms. Three centers. One vow. Walk through it, and the path of the Sage opens.",
+      libId: "lib_s_trial",
+      criteria: "Complete the Sage Foundation Trial: 3-min Sit, Stand, Walk.",
+      unlocks: [{ kind: "reflect" }],
+    },
+    {
+      id: "s_reflect",
+      title: "Reflect",
+      myth: "You have chosen the path of the open question.\n\nThere is an inscription carved above an ancient temple, older than most of what still stands: know thyself. Not \"master the world.\" Not \"win the argument.\" Just this — turn toward your own experience and actually look. It has been called the beginning of wisdom for a reason nobody has improved on in over two thousand years. Wisdom doesn't start with answers. It starts here, with a question pointed inward, and the humility to admit you don't already know what it will find.\n\nHere is the strange part: you have already been doing this, or you're about to start. Every time you return from stillness and someone asks what you noticed, you'll be practicing the Sage's first and oldest skill. The path doesn't begin with mastering something new. It begins with a question, asked sincerely, after every return.\n\nWhat did you notice? Don't rush to answer. Let the question sit a moment before you reach for words.",
+      libId: "lib_s_reflect",
+      criteria: "Complete a Reflect entry after a session.",
+      unlocks: [{ kind: "reflect" }],
+    },
+    {
+      id: "s_sound",
+      title: "Observe Sound",
+      myth: "Sound arrives whether you ask for it or not. A car passing. A door somewhere closing. The hum beneath the silence that's never quite silent. This is hearing, and it happens to you automatically, the same way breathing does.\n\nListening is different. Listening is a choice.\n\nHere is the strange discovery waiting at the end of this practice: sound itself carries no meaning. A voice raised in anger and a voice raised in joy are, for a fraction of a second, simply waves moving through air — identical in kind, different only in what your mind does with them afterward. The meaning isn't in the sound. It's added, quietly, between your ear and your understanding, by everything you already believe.\n\nSit. Let your ears open to whatever is actually here — not the sounds you expect, the ones that are. Notice how each one arrives, holds its shape briefly, and passes. Nothing stays. Not even the loudest thing in the room.\n\nObserve Sound unlocked. Find it in your Sitting practice.",
+      libId: "lib_s_sound",
+      criteria: "Practice Observe Sound.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Sound", stat: "wis" }],
+    },
+    {
+      id: "s_thought",
+      title: "Observe Thought",
+      myth: "A thought arrives, fully formed, demanding to be believed. This is normal. It is also optional.\n\nThinking is participation — climbing into the thought, letting it carry you wherever it's going. Observing is something else entirely: stepping back, becoming an audience to the mind's own theater, watching the thought the way you'd watch a wave rise and fall, without climbing in to ride it.\n\nHere is the proof, if proof is needed: the mind can only hold one thought at a time, one word following another, like a single voice speaking in a small room. But you can take in a hundred things at once — every sound, every color, the weight of your own body, all of it simultaneous. Whatever is doing that noticing is larger than any single thought passing through it. You are not the voice in the small room. You are the much larger thing listening to it.\n\nLet a thought arise. Don't follow it. Just watch it appear, and watch it go.\n\nObserve Thought unlocked. Find it in your Sitting practice.",
+      libId: "lib_s_thought",
+      criteria: "Practice Observe Thought.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Thought", stat: "wis" }],
+    },
+    {
+      id: "s_emotion",
+      title: "Observe Emotion",
+      myth: "A feeling arrives. So far, nothing has gone wrong. Feelings arriving is simply what it means to be alive.\n\nWhat usually happens next is this: on top of the first feeling, a second one gets added — judgment about the feeling, fear that it will never end, the belief that you shouldn't be feeling it at all. The first arrow is the emotion itself. The second arrow, the one that does most of the damage, is everything you throw at yourself afterward for having felt it.\n\nThere is a small shift in language that does real work here. Not \"I am angry,\" but \"I am feeling anger.\" The second phrasing makes room — it names the feeling without becoming it, the same way you've already learned to watch a thought without climbing inside it. Try this, and something strange happens: the feeling that seemed unbearable starts to move. Resisted, it stays. Witnessed plainly, it passes, the way every wave eventually does.\n\nLet a feeling rise. Name it without flinching. Watch what it does when nobody fights it.\n\nObserve Emotion unlocked. Find it in your Sitting practice.",
+      libId: "lib_s_emotion",
+      criteria: "Practice Observe Emotion.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Emotion", stat: "wis" }],
+    },
+    {
+      id: "s_body",
+      title: "Observe Body",
+      myth: "There is another way to meet a held breath, a tight shoulder, a stomach in knots — one that asks nothing of you but attention.\n\nHealer's path teaches you to release tension. This is different, and worth knowing the difference: not loosening, not softening, not asking the body to do anything at all. Just noticing exactly what's there, with the same curiosity you'd bring to weather passing overhead. A tight jaw. A flutter in the chest. Cold feet. None of it needs fixing right now. It only needs to be seen clearly.\n\nSomething strange tends to happen when a sensation is met this way, with nothing demanded of it. Sometimes it shifts on its own, the way drowsiness can loosen its grip the moment you actually look at it instead of fighting to stay awake. Sometimes it simply stays, and that's fine too. Every sensation in the body rises and falls in its own time. None of them are permanent, even the ones that feel like they will last forever.\n\nScan slowly. Notice what's there. Change nothing. Just see.\n\nObserve Body unlocked. Find it in your Sitting practice.",
+      libId: "lib_s_body",
+      criteria: "Practice Observe Body.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Body", stat: "wis" }],
+    },
+    {
+      id: "s_attention",
+      title: "Observe Attention",
+      myth: "Sound, thought, emotion, body. Four objects, four practices, and through all of them, one thing has remained constant: something was doing the watching.\n\nNow turn that same attention toward itself. Not toward a new object this time — toward the noticing itself. Who is aware? Where does this awareness seem to live? Don't search for an answer. There isn't one waiting to be found, only the strange, quiet fact of being conscious at all, met directly instead of taken for granted.\n\nBe careful here. The mind will try to make a thing out of the watcher — a self standing behind the self, then another behind that one, a hall of mirrors with no end. This is not the practice. The practice is simpler and stranger: just notice that noticing is happening, the way you'd notice an unmoved sky behind clouds that never stop moving. The clouds change constantly. The sky has never once moved.\n\nDon't try to find the watcher. Just notice that something is watching.\n\nObserve Attention unlocked. Find it in your Sitting practice.",
+      libId: "lib_s_attention",
+      criteria: "Practice Observe Attention.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Attention", stat: "ali" }],
+    },
+    {
+      id: "s_inquire",
+      title: "Inquire",
+      isCapstone: true,
+      myth: "Six practices, six lenses. Sound. Thought. Emotion. Body. Attention. Reflection on each. None of them, on their own, asked you to conclude anything. They only asked you to look.\n\nThis is different. Inquiry takes everything you've learned to notice and turns it into a question sharp enough to cut. Not \"what did I notice\" — that was Reflect, gentle and open. This is closer to a blade, used carefully, on yourself.\n\nFive questions to begin. Sit with one at a time. Don't rush to answer — let the question work on you before you try to work on it.\n\nThese are not solved once and set aside. They are returned to — today, and again in a month, and again in a year, when the same question will likely show you something new. Each one you sit with marks itself differently in your journal from now on, set apart from the rest, a thread you can pull at any time and follow back through everything you've sat with.\n\nInquire unlocked. Find your new Inquiry entries in the journal.",
+      libId: "lib_s_inquire",
+      criteria: "Answer all five Inquiry questions in the journal.",
+      /* Inquire's quest completes only when all five seed questions answered. */
+      inquireQuestions: [
+        "What am I resisting?",
+        "What assumption am I making?",
+        "What am I attached to?",
+        "What am I defending?",
+        "Is this true?",
+      ],
+      unlocks: [{ kind: "journal", feature: "inquire" }],
+    },
+  ],
+};
+
+/* Convenience: the verb shown for each unlocked practice type. */
+const PRACTICE_TYPE_LABEL = {
+  train: "Train",
+  restore: "Restore",
+};
+
+/* Barebone library entries — stubs to fill out later.
+   Keyed by libId referenced from each quest. */
+const CLASS_LIBRARY_STUBS = (() => {
+  const out = {};
+  Object.values(QUEST_CHAINS).forEach(chain => {
+    chain.forEach(q => {
+      out[q.libId] = {
+        id: q.libId,
+        title: q.title,
+        body: "— Library entry coming soon. Practical instruction and detail for " +
+              q.title + " will live here. —",
+      };
+    });
+  });
+  return out;
+})();
+
+/* Helper: is the class system unlockable for this player? */
+function classGateMet(presenceLevel, completedChapters) {
+  const actDone = Array.isArray(completedChapters) &&
+                  completedChapters.includes(ACT1_FINAL_CHAPTER);
+  return presenceLevel >= CLASS_UNLOCK_LEVEL && actDone;
+}
+
+/* ── PROGRESSIVE CONTROL UNLOCKS ──────────────────────────────────────────
+   Anchor/Ascend controls reveal as Act I chapters are reached. A control tied
+   to chapter N becomes available once chapter N is active — i.e. chapter N-1 is
+   complete (mirrors the Library's chapterActive logic). The first session, before
+   any chapter is complete, shows only the guide text and the Ascend button. */
+const CONTROL_UNLOCK_CHAPTER = {
+  modifiers: 2,   // Align/Relax/Breathe header + (future) modifier controls
+  pause:     2,   // pause button during a session
+  pin:       3,   // pin this session on the map
+  practiceType: 4,// Sit / Stand / Walk type picker
+  activities: 5,  // Activities picker (Chant + class skills live here)
+  centers:   6,   // "where did your attention land" center selection
+};
+function controlUnlocked(name, completedChapters=[]) {
+  const ch = CONTROL_UNLOCK_CHAPTER[name];
+  if(ch==null) return true;
+  // available once chapter `ch` is active: chapter ch-1 complete (or ch itself)
+  return completedChapters.includes(ch-1) || completedChapters.includes(ch);
+}
+function anchorUnlocks(completedChapters=[]) {
+  return {
+    modifiers:    controlUnlocked("modifiers", completedChapters),
+    pause:        controlUnlocked("pause", completedChapters),
+    pin:          controlUnlocked("pin", completedChapters),
+    practiceType: controlUnlocked("practiceType", completedChapters),
+    activities:   controlUnlocked("activities", completedChapters),
+    centers:      controlUnlocked("centers", completedChapters),
+  };
+}
+
+/* Helper: fresh class-system state attached to player. */
+function freshClassState() {
+  return {
+    unlocked: false,      // gate met & acknowledged
+    activeClass: null,    // "warrior" | "healer" | "sage"
+    chosenClasses: [],    // supports future multiclass; order chosen
+    trialProgress: {},    // { warrior: {sitting:bool, standing:bool, walking:bool}, ... }
+    questProgress: {},    // { questId: true } once a quest is complete
+    inquireAnswered: {},  // { "What am I resisting?": true, ... }
+    epilogueRevealed: {}, // { warrior: bool } once chain complete
+  };
+}
+
 
 /* ── XP / LEVEL MATH ───────────────────────────────────────────────────────
    totalXPForLevel(L) = 0.36·L³
@@ -99,7 +506,7 @@ function migrateCh(ch){
 
 function rewards(typeId, sessionXP, activeActivities=[]){
   const baseStats = STAT_MAP[typeId]||STAT_MAP.sitting;
-  const baseCount = Math.max(Object.keys(baseStats).length, 3);
+  const baseCount = Math.max(Object.keys(baseStats).length, 1);
   const denom = baseCount + activeActivities.length;
   const sg={};
   Object.entries(baseStats).forEach(([k,v])=>{
@@ -595,7 +1002,7 @@ function playGong(ctx){
   }catch(e){}
 }
 
-function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting" }){
+function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting", reflectUnlocked=false, unlockedPracticeTypes=[], unlocks={modifiers:true,pause:true,pin:true,practiceType:true,activities:true,centers:true}, guideCues=null }){
   const [phase,setPhase]       = useState("active");
   const [running,setRunning]   = useState(startImmediately);
   const [t,setT]               = useState(0);
@@ -610,6 +1017,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
   const [awarenessLanding,setAwarenessLanding] = useState([]); // array of region ids
   const [feelOpen,setFeelOpen] = useState(false);
   const [activeActIds,setActiveActIds] = useState([]);
+  const [actCounts,setActCounts] = useState({}); // { activityId: enteredCountString }
   const [actDrop,setActDrop]   = useState(false);
   const [creatingAct,setCreatingAct] = useState(false);
   const [newActName,setNewActName] = useState("");
@@ -623,9 +1031,13 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
   const CORE = [{id:"sitting",label:"Sit"},{id:"standing",label:"Stand"},{id:"walking",label:"Walk"}];
   const isCore = id => CORE.some(c=>c.id===id);
 
-  // All types available in the dropdown (built-in extras + user-added)
+  // All types available in the dropdown (built-in extras + unlocked class types + user-added)
+  const CLASS_TYPE_DEFS = { train:{id:"train",label:"Train"}, restore:{id:"restore",label:"Restore"} };
+  const classTypeRows = (unlockedPracticeTypes||[])
+    .filter(id=>CLASS_TYPE_DEFS[id]).map(id=>CLASS_TYPE_DEFS[id]);
   const dropdownTypes = [
     ...EXTRA_TYPES,
+    ...classTypeRows,
     ...types.filter(tp=>!isCore(tp.id) && !EXTRA_TYPES.some(e=>e.id===tp.id)),
   ];
 
@@ -634,9 +1046,17 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
   const typeLabel = (allTypes.find(tp=>tp.id===pType)||CORE[0]).label;
   const dur = Math.max(1,Math.floor(elapsed/60));
   const xp = Math.floor(elapsed / 10);  // 1 XP per 10 s
-  const activeActivities = activities.filter(a=>activeActIds.includes(a.id));
+  /* Every activity is scoped to the practice type it was created/unlocked
+     under — shows only when it matches the current session type, or is "any". */
+  const activityVisible = (a) => {
+    if(!a.practiceType || a.practiceType==="any") return true;
+    return a.practiceType===pType;
+  };
+  const activeActivities = activities.filter(a=>activeActIds.includes(a.id) && activityVisible(a));
   const { sg } = rewards(pType, xp, activeActivities);
   const selectedIsExtra = !isCore(pType);
+
+  const visibleActivities = activities.filter(activityVisible);
 
   useEffect(()=>{
     if(!running) return;
@@ -652,7 +1072,12 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
 
   const finish = () => { setRunning(false); if(elapsed<10){ onClose(); return; } if(skipReview) onDone({quickAnchor:true,elapsed}); else setPhase("review"); };
   const ret = () => {
-    onDone({type:typeLabel,typeId:pType,duration:dur,elapsed,activeActivities,tags,reflection:refl,pinSession,pinTag,awarenessLanding});
+    const loggedCounts = {};
+    activeActivities.forEach(act=>{
+      const v = parseFloat(actCounts[act.id]);
+      if(!isNaN(v) && v>0) loggedCounts[act.id]=v;
+    });
+    onDone({type:typeLabel,typeId:pType,duration:dur,elapsed,activeActivities,tags,reflection:refl,pinSession,pinTag,awarenessLanding,loggedCounts});
   };
   const submitNew = () => {
     const nt=newType.trim(); if(!nt) return;
@@ -669,15 +1094,24 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
           <div style={{padding:"18px 22px 0",flexShrink:0}}>
             <span style={{...dsp("11px",C.sage,400,"0.22em")}}>ANCHOR</span>
           </div>
-          <div style={{textAlign:"center",padding:"20px 0 4px"}}>
-            <span style={{...dsp("15px",C.cream,400,"0.14em")}}>Align <span style={{color:C.gold}}>·</span> Relax <span style={{color:C.gold}}>·</span> Breathe</span>
-          </div>
+          {unlocks.modifiers && (
+            <div style={{textAlign:"center",padding:"20px 0 4px"}}>
+              <span style={{...dsp("15px",C.cream,400,"0.14em")}}>Align <span style={{color:C.gold}}>·</span> Relax <span style={{color:C.gold}}>·</span> Breathe</span>
+            </div>
+          )}
           <div style={{display:"flex",justifyContent:"center",padding:"10px 0 2px"}}>
             <SpiralCircle t={t} running={running}/>
           </div>
 
-          {/* Guided arrival cues */}
-          {guidedSession && running && (()=>{
+          {/* Guided arrival cues — first-session guide text replaces the normal cues */}
+          {guideCues ? (()=>{
+            const cue = guideCues.find(c=>elapsed>=c.s && (c.e==null || elapsed<c.e)) || guideCues[guideCues.length-1];
+            return (
+              <div style={{textAlign:"center",padding:"14px 26px 10px",minHeight:"44px"}}>
+                <span key={cue.s} style={{...body("15px",cue.gold?C.goldB:C.cream),fontStyle:"italic",lineHeight:"1.8",display:"block",animation:"fadeRise 1.2s ease both"}}>{cue.text}</span>
+              </div>
+            );
+          })() : guidedSession && running && (()=>{
             const CUES=[
               {s:0,  e:9,  text:"Feel the weight of the body."},
               {s:9,  e:18, text:"Let the crown rise."},
@@ -695,7 +1129,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
           <div style={{textAlign:"center"}}>
             {/* Timer row: elapsed + alarm bell */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"14px"}}>
-              <div style={{...dsp("22px",W(running?0.3:0.22),400,"0.08em")}}>{sec(elapsed)}</div>
+              <div style={{...dsp("15px",W(running?0.3:0.22),400,"0.08em")}}>{sec(elapsed)}</div>
               <button onClick={()=>{ setAlarmOpen(v=>!v); unlockAudio(audioCtxRef); }} title="Set alarm" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",background:"none",border:"none",cursor:"pointer",padding:"4px",opacity:alarmOpen?1:0.7}}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                   <path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 002 2z" fill={alarmFired?C.gold:alarmSecs?C.sageB:C.muted}/>
@@ -754,12 +1188,15 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
               </div>
             )}
 
+            {unlocks.pause && (
             <div style={{display:"flex",justifyContent:"center",marginTop:"14px"}}>
               <button onClick={()=>{setRunning(r=>!r); unlockAudio(audioCtxRef);}} style={{padding:"9px 24px",background:"rgba(163,192,137,0.08)",border:"none",borderRadius:"3px",cursor:"pointer",...dsp("11px",C.sageB,400,"0.2em")}}>{running?"PAUSE":(elapsed>0?"RESUME":"START")}</button>
             </div>
+            )}
           </div>
 
           {/* Session type — SL style */}
+          {unlocks.practiceType && (
           <div style={{padding:"26px 22px 0"}}>
             <SL title="Practice" right={
               <div style={{position:"relative"}}>
@@ -792,8 +1229,10 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
               </div>
             }/>
           </div>
+          )}
 
           {/* Activities dropdown */}
+          {unlocks.activities && (
           <div style={{padding:"20px 22px 0"}}>
             <SL title="Activities" right={
               <div style={{position:"relative"}}>
@@ -802,8 +1241,8 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 </button>
                 {actDrop && (
                   <div style={{position:"absolute",bottom:"100%",right:0,minWidth:"200px",background:C.surf2,border:`0.5px solid ${C.sageB}`,borderRadius:"8px",zIndex:50,padding:"6px 0",boxShadow:`0 8px 24px rgba(0,0,0,0.5)`,marginBottom:"6px",maxHeight:"240px",overflowY:"auto"}}>
-                    {activities.length===0 && !creatingAct && <div style={{...body("12px",C.dim),padding:"10px 14px",fontStyle:"italic"}}>No activities yet</div>}
-                    {activities.map(act=>{
+                    {visibleActivities.length===0 && !creatingAct && <div style={{...body("12px",C.dim),padding:"10px 14px",fontStyle:"italic"}}>No activities for this practice</div>}
+                    {visibleActivities.map(act=>{
                       const sc=STAT_COLORS[act.stat]||C.sageB;
                       const isActive=activeActIds.includes(act.id);
                       return (
@@ -827,7 +1266,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                           );})}
                         </div>
                         <div style={{display:"flex",gap:"6px"}}>
-                          <button onClick={()=>{if(newActName.trim()){addActivity(newActName.trim(),newActStat);}setCreatingAct(false);setNewActName("");setNewActStat("str");}} style={{flex:1,padding:"5px",background:"rgba(163,192,137,0.1)",border:`0.5px solid ${C.sageB}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.sageB,400,"0.1em")}}>SAVE</button>
+                          <button onClick={()=>{if(newActName.trim()){addActivity(newActName.trim(),newActStat,pType);}setCreatingAct(false);setNewActName("");setNewActStat("str");}} style={{flex:1,padding:"5px",background:"rgba(163,192,137,0.1)",border:`0.5px solid ${C.sageB}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.sageB,400,"0.1em")}}>SAVE</button>
                           <button onClick={()=>{setCreatingAct(false);setNewActName("");setNewActStat("str");}} style={{padding:"5px 10px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.muted,400,"0.1em")}}>✕</button>
                         </div>
                       </div>
@@ -852,7 +1291,24 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 })}
               </div>
             )}
+            {/* Count rows for target-tracked activities: + | count | +10 */}
+            {activeActIds.map(id=>{
+              const act=activities.find(a=>a.id===id);
+              if(!act || !act.target) return null;
+              const sc=STAT_COLORS[act.stat]||C.sageB;
+              const entered = actCounts[id]??0;
+              const bump=(n)=>setActCounts(p=>({...p,[id]:Math.max(0,(parseInt(p[id])||0)+n)}));
+              return (
+                <div key={"cnt_"+id} style={{display:"flex",alignItems:"center",gap:"10px",marginTop:"10px"}}>
+                  <span style={{...body("13px",C.cream),flex:1}}>{act.name}</span>
+                  <button onClick={()=>bump(1)} style={{width:"30px",height:"30px",borderRadius:"6px",background:sc+"18",border:`0.5px solid ${sc}66`,color:sc,fontSize:"16px",lineHeight:"1",cursor:"pointer"}}>+</button>
+                  <span style={{minWidth:"34px",textAlign:"center",...body("15px",C.cream)}}>{entered}</span>
+                  <button onClick={()=>bump(10)} style={{minWidth:"40px",height:"30px",borderRadius:"6px",background:sc+"18",border:`0.5px solid ${sc}66`,color:sc,fontSize:"12px",lineHeight:"1",cursor:"pointer",padding:"0 6px"}}>+10</button>
+                </div>
+              );
+            })}
           </div>
+          )}
         </div>
 
         {/* ASCEND — absolute at bottom, same position as nav anchor button */}
@@ -889,6 +1345,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
           </div>
 
 
+          {unlocks.centers && (
           <div style={{textAlign:"left",marginBottom:"22px"}}>
             <div style={{...dsp("9px",C.muted,400,"0.18em"),marginBottom:"11px"}}>WHERE DID AWARENESS LAND?</div>
             {/* Row 1 — the three centers */}
@@ -928,22 +1385,16 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
             </div>
             {awarenessLanding.length>0&&<div style={{...body("10px",C.dim),fontStyle:"italic",marginTop:"7px",textAlign:"center"}}>30% redirected to {awarenessLanding.length===1?awarenessLanding[0]:`${awarenessLanding.length} centers`}</div>}
           </div>
+          )}
 
-          <div style={{marginBottom:"18px"}}>
-            <button onClick={()=>setFeelOpen(o=>!o)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",cursor:"pointer",padding:"0 0 8px"}}>
-              <span style={{...dsp("9px",C.muted,400,"0.18em")}}>HOW DO YOU FEEL?{tags.length?` · ${tags[0]}`:""}</span>
-              <span style={{color:C.muted,fontSize:"9px",display:"inline-block",transform:feelOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform .2s"}}>▼</span>
-            </button>
-            {feelOpen && <div style={{display:"flex",flexWrap:"wrap",gap:"6px",paddingBottom:"4px"}}>
-              {STATE_TAGS.map(tg=><Pill key={tg} on={tags.includes(tg)} glow onClick={()=>setTags(p=>p.includes(tg)?p.filter(x=>x!==tg):[...p,tg])}>{tg}</Pill>)}
-            </div>}
-          </div>
-
+          {reflectUnlocked && (
           <div style={{textAlign:"left",marginBottom:"16px"}}>
-            <div style={{...dsp("9px",C.muted,400,"0.18em"),marginBottom:"8px"}}>ADD NOTE</div>
+            <div style={{...dsp("9px",C.muted,400,"0.18em"),marginBottom:"8px"}}>REFLECT</div>
             <textarea value={refl} onChange={e=>setRefl(e.target.value)} placeholder="What did you notice?" rows={2} style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("14px"),padding:"10px",resize:"none",boxSizing:"border-box",outline:"none",lineHeight:"1.6",caretColor:C.sageB}}/>
           </div>
+          )}
 
+          {unlocks.pin && (<>
           <button
             onClick={()=>setPinSession(p=>!p)}
             style={{width:"100%",display:"flex",alignItems:"center",gap:"12px",padding:"11px 14px",background:pinSession?"rgba(163,192,137,0.08)":"transparent",border:`0.5px solid ${pinSession?C.sageB:C.bord}`,borderRadius:"6px",cursor:"pointer",marginBottom:pinSession?"10px":"0",transition:"all .2s",textAlign:"left"}}
@@ -972,6 +1423,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
               <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"5px"}}>e.g. nature spot, meditation cushion, rooftop…</div>
             </div>
           )}
+          </>)}
         </div>
 
         {/* SAVE — same position as anchor/ascend button */}
@@ -1326,7 +1778,7 @@ function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacit
                 </div>
               );
             })()}
-            {STATS.map(({k,l,s})=>{
+            {[...STATS].reverse().map(({k,l,s})=>{
               const val = levelFromTotalXP(ch.stats[k]||0);
               const pct = val/100;
               return (
@@ -1805,6 +2257,21 @@ const LIBRARY_ENTRIES = [
       "Walking practice integrates the body and the world. What was cultivated in stillness becomes available in motion. This is the bridge between formal practice and daily life."
     ],
     practice:"10 minutes without a destination or device. Establish alignment before you begin walking. Let the pace be slower than normal. Feel the contact of each step. Notice when the mind leaves and return to the body each time." },
+
+  /* ── PATH SKILLS (barebone stubs — fill detailed instruction later) ── */
+  CHANT_LIBRARY_STUB,
+  ...Object.entries(QUEST_CHAINS).flatMap(([cid,chain]) =>
+    chain.filter(q=>!q.isTrial).map(q=>({
+      id:q.libId, unlock:0, section:"Path Skills",
+      pathId:cid, pathName:(CLASS_BY_ID[cid]?.name)||"",
+      skillUnlockQuest:q.id,
+      title:q.title,
+      sub:(CLASS_BY_ID[cid]?.name)||"",
+      sc:(CLASS_BY_ID[cid]?.primaryStats?.[0])||"wis",
+      body:[ "Practical instruction and detail for "+q.title+" will live here. This entry is a placeholder for now — the quest carries the myth; this carries the how." ],
+      practice:"",
+    }))
+  ),
 ];
 
 const ANCHOR_SUBQUESTS = [
@@ -1833,37 +2300,321 @@ const CHAPTER_QUESTS = {
   7: { label:"Tend the fires",       desc:"Read each Center. Complete a 10-minute session in each — awareness landing on that center." },
 };
 
-function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=[], chaptersRead=[], onMarkRead, libReadAt={}, pins=[], chStats={}, onOpenAnchor=()=>{}, onGoToLib=()=>{} }){
+/* ════════════════════════ CLASS SYSTEM — UI ════════════════════════════════ */
+
+/* The "Choose Your Path" screen, shown when the gate is met and no class chosen.
+   Picking a class sets it active and drops the player into the Foundation Trial. */
+function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onReturn=()=>{} }){
+  const [sel,setSel]=useState(null);
+  return (
+    <div style={{padding:"4px 4px 20px"}}>
+      <div style={{...dsp("13px",C.gold,400,"0.16em"),marginBottom:"6px"}}>CHOOSE YOUR PATH</div>
+      <div style={{...body("14px",C.muted),lineHeight:"1.6",marginBottom:"20px",fontStyle:"italic"}}>
+        You have returned to yourself. Now choose how you will cultivate. This is a direction, not a cage — you may walk a different path later, and your progress on this one will be waiting when you return.
+      </div>
+      {CLASSES.map(c=>{
+        const isOpen = sel===c.id;
+        const isActive = activeClass===c.id;
+        const walked = alreadyChosen.includes(c.id) && !isActive;
+        return (
+          <div key={c.id}
+            onClick={()=>setSel(isOpen?null:c.id)}
+            style={{border:`0.5px solid ${isOpen?c.accent:isActive?c.accent+"88":C.bord}`,background:isOpen?"rgba(255,255,255,0.03)":C.surf,
+              borderRadius:"7px",padding:"14px 16px",marginBottom:"10px",cursor:"pointer",transition:"all .2s"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+              <div style={{...dsp("17px",C.cream,500,"0.04em")}}>{c.name}</div>
+              <div style={{...dsp("10px",c.accent,400,"0.14em")}}>{c.verb.toUpperCase()}{isActive?" · ACTIVE":walked?" · WALKED":""}</div>
+            </div>
+            <div style={{...body("13px",C.muted),marginTop:"5px",lineHeight:"1.5"}}>{c.blurb}</div>
+            {isOpen && (
+              <>
+                <div style={{...body("13px",C.txt),lineHeight:"1.75",marginTop:"14px",marginBottom:"6px",fontStyle:"italic"}}>
+                  {(QUEST_CHAINS[c.id]?.[0]?.myth||"").split("\n\n")[0]}
+                </div>
+                <div style={{display:"flex",gap:"10px",marginTop:"10px",marginBottom:"4px"}}>
+                  {c.trial.map(st=>{
+                    const sm=STATS.find(s=>s.k===st.stat);
+                    return <span key={st.type} style={{...dsp("8px",c.accent,400,"0.1em")}}>{st.label.toUpperCase()} · {sm?.s}</span>;
+                  })}
+                </div>
+                {!isActive && (
+                  <button onClick={(e)=>{e.stopPropagation();onChoose(c.id);}}
+                    style={{marginTop:"12px",width:"100%",padding:"11px",background:"rgba(255,255,255,0.04)",
+                      border:`0.5px solid ${c.accent}`,color:c.accent,...dsp("10px",undefined,400,"0.14em"),
+                      cursor:"pointer",borderRadius:"6px"}}>
+                    WALK THE PATH OF THE {c.name.toUpperCase()}
+                  </button>
+                )}
+                {isActive && (
+                  <button onClick={(e)=>{e.stopPropagation();onReturn();}}
+                    style={{marginTop:"12px",width:"100%",padding:"11px",background:"rgba(255,255,255,0.04)",
+                      border:`0.5px solid ${c.accent}`,color:c.accent,...dsp("10px",undefined,400,"0.14em"),
+                      cursor:"pointer",borderRadius:"6px"}}>
+                    RETURN TO YOUR PATH
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* Foundation Trial — three enforced 3-min sessions, each stat-tagged.
+   Tapping a trial step opens the Anchor at that practice type. Completion of
+   all three (tracked via trialProgress) is required before the chain opens. */
+function FoundationTrial({ classId, trialProgress={}, onOpenTrial, devMode=false, onDevSkipTrial=()=>{}, onBackToChoice=()=>{} }){
+  const cls = CLASS_BY_ID[classId];
+  if(!cls) return null;
+  const prog = trialProgress[classId]||{};
+  const trialQuest = (QUEST_CHAINS[classId]||[]).find(q=>q.isTrial);
+  const paras = (trialQuest?.myth||"").split("\n\n");
+  return (
+    <div style={{padding:"4px 4px 12px"}}>
+      <button onClick={onBackToChoice} style={{background:"none",border:"none",cursor:"pointer",...body("12px",C.dim),marginBottom:"12px",padding:0}}>← Choose a different path</button>
+      <div style={{...dsp("12px",cls.accent,400,"0.14em"),marginBottom:"10px"}}>{cls.name.toUpperCase()}'S TRIAL</div>
+      {paras.map((p,i)=>(
+        <div key={i} style={{...body("14px",C.txt),lineHeight:"1.75",marginBottom:"12px",whiteSpace:"pre-line"}}>{p}</div>
+      ))}
+      {cls.trial.map(step=>{
+        const done = !!prog[step.type];
+        const statMeta = STATS.find(s=>s.k===step.stat);
+        return (
+          <button key={step.type} onClick={()=>!done&&onOpenTrial(step.type)}
+            style={{display:"flex",alignItems:"center",gap:"12px",width:"100%",textAlign:"left",
+              background:"none",border:"none",padding:"9px 0",cursor:done?"default":"pointer"}}>
+            <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,
+              background:done?"rgba(163,192,137,0.12)":"transparent",
+              border:`1px solid ${done?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {done?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<PresenceMark size={12} color={C.dim} sw={1}/>}
+            </div>
+            <div style={{flex:1}}>
+              <div style={{...body("14px",done?C.cream:C.muted)}}>{step.label} · 3 min</div>
+              <div style={{...dsp("9px",done?cls.accent:C.dim,400,"0.1em")}}>{statMeta?.s}</div>
+            </div>
+            {!done && <span style={{...body("11px",cls.accent)}}>Begin →</span>}
+          </button>
+        );
+      })}
+      {devMode && (
+        <button onClick={()=>onDevSkipTrial(classId)}
+          style={{marginTop:"12px",padding:"7px 12px",background:"none",border:`0.5px dashed rgba(180,100,100,0.5)`,
+            color:"rgba(180,100,100,0.85)",fontFamily:"monospace",fontSize:"9px",letterSpacing:"0.1em",
+            cursor:"pointer",borderRadius:"5px"}}>DEV · SKIP TRIAL</button>
+      )}
+    </div>
+  );
+}
+
+/* The class questline — a vertical chain like the Act I chapters, but separate.
+   Quests unlock one at a time; each quest opens a reader showing its myth, a
+   library link, and (where relevant) tappable Inquiry questions. */
+function questProgressLine(q, activities){
+  const targetUnlocks = (q.unlocks||[]).filter(u=>u.kind==="activity" && u.target);
+  if(targetUnlocks.length===0) return q.criteria;
+  return targetUnlocks.map(u=>{
+    const act = activities.find(a=>a.name===u.name);
+    const count = act?.count||0;
+    return `${u.name}: ${count}/${u.target}${u.unit?" "+u.unit:""}`;
+  }).join(" · ");
+}
+
+function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epilogueRevealed={}, activities=[],
+                             onOpenQuest, onOpenLib }){
+  const cls = CLASS_BY_ID[classId];
+  if(!cls) return null;
+  const chain = QUEST_CHAINS[classId]||[];
+  /* Trial quest is handled separately; numbered quests start after it. */
+  const numbered = chain.filter(q=>!q.isTrial && !q.isEpilogue);
+  const epilogue = chain.find(q=>q.isEpilogue);
+  const isDone = q => !!questProgress[q.id];
+  /* A quest is active if it's the first not-yet-done quest in order. */
+  const firstActiveIdx = numbered.findIndex(q=>!isDone(q));
+  const chainComplete = firstActiveIdx===-1;
+
+  const stateOf = (q,i) => isDone(q) ? "complete" : (i===firstActiveIdx ? "active" : "locked");
+
+  return (
+    <div style={{padding:"8px 0 4px"}}>
+      <SL title={`${cls.name} · ${cls.verb}`}/>
+      {numbered.map((q,i)=>{
+        const st = stateOf(q,i);
+        const complete=st==="complete", active=st==="active";
+        return (
+          <div key={q.id} style={{display:"flex",gap:"12px"}}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",paddingTop:"14px"}}>
+              <div style={{width:"12px",height:"12px",borderRadius:"50%",flexShrink:0,
+                border:`1.5px solid ${complete?cls.accent:active?C.sageB:C.dim}`,
+                boxShadow:active?`0 0 8px ${cls.accent}55`:"none",
+                display:"flex",alignItems:"center",justifyContent:"center"}}>
+                {complete&&<div style={{width:"5px",height:"5px",borderRadius:"50%",background:cls.accent}}/>}
+              </div>
+              {i<numbered.length-1 && <div style={{width:"1px",flex:1,minHeight:"22px",background:complete?`${cls.accent}55`:C.bord,marginTop:"4px"}}/>}
+            </div>
+            <div onClick={()=>{ if(active||complete) onOpenQuest(q.id); }}
+              style={{flex:1,background:complete?"rgba(255,255,255,0.02)":active?C.surf:"transparent",
+                border:`0.5px solid ${complete?`${cls.accent}44`:active?C.sageB:C.bord}`,borderRadius:"6px",
+                padding:"11px 14px",cursor:(active||complete)?"pointer":"default",opacity:active||complete?1:0.4,
+                marginBottom:"8px",transition:"all .2s"}}>
+              <div style={{...dsp("8px",complete?cls.accent:active?C.sageB:C.muted,400,"0.16em"),marginBottom:"3px"}}>
+                {complete?"COMPLETE":active?"ACTIVE":"LOCKED"}{q.isCapstone?" · CAPSTONE":""}
+              </div>
+              <div style={{...body("15px",C.cream)}}>{q.title}</div>
+              {active && <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{questProgressLine(q,activities)}</div>}
+            </div>
+          </div>
+        );
+      })}
+      {/* Epilogue, revealed once the chain completes */}
+      {epilogue && chainComplete && (
+        <div style={{marginTop:"10px",borderTop:`0.5px solid ${C.bord}`,paddingTop:"14px"}}>
+          <div onClick={()=>onOpenQuest(epilogue.id)}
+            style={{background:C.surf,border:`0.5px solid ${cls.accent}66`,borderRadius:"6px",padding:"11px 14px",cursor:"pointer"}}>
+            <div style={{...dsp("8px",cls.accent,400,"0.16em"),marginBottom:"3px"}}>EPILOGUE</div>
+            <div style={{...body("15px",C.cream)}}>{epilogue.title}</div>
+            <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{questProgressLine(epilogue,activities)}</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Quest reader — shows a single class quest's myth, a library link, a complete
+   button, and for Inquire, the five tappable questions with checkmarks. */
+function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=false, activities=[],
+                            onBack, onComplete, onOpenLib, onOpenInquire }){
+  const cls = CLASS_BY_ID[classId];
+  const q = (QUEST_CHAINS[classId]||[]).find(x=>x.id===questId);
+  if(!cls || !q) return null;
+  const accent = cls.accent;
+  const paras = (q.myth||"").split("\n\n");
+  const isInquire = !!q.inquireQuestions;
+  const allAnswered = isInquire && q.inquireQuestions.every(qq=>inquireAnswered[qq]);
+  const targetUnlocks = (q.unlocks||[]).filter(u=>u.kind==="activity" && u.target);
+  const hasTargets = targetUnlocks.length>0;
+  const targetsMet = hasTargets && targetUnlocks.every(u=>{
+    const act=activities.find(a=>a.name===u.name);
+    return act && (act.count||0) >= u.target;
+  });
+
+  return (
+    <Overlay title={q.title} onBack={onBack}>
+      <div style={{...dsp("9px",accent,400,"0.16em"),marginBottom:"14px"}}>
+        {cls.name.toUpperCase()} · {cls.verb.toUpperCase()}
+      </div>
+      {paras.map((p,i)=>(
+        <div key={i} style={{...body("15px",C.txt),lineHeight:"1.8",marginBottom:"14px"}}>{p}</div>
+      ))}
+
+      {/* Inquire questions */}
+      {isInquire && (
+        <div style={{marginTop:"8px",marginBottom:"18px"}}>
+          {q.inquireQuestions.map(qq=>{
+            const ans = !!inquireAnswered[qq];
+            return (
+              <button key={qq} onClick={()=>onOpenInquire(qq)}
+                style={{display:"flex",alignItems:"center",gap:"12px",width:"100%",textAlign:"left",
+                  background:"none",border:"none",padding:"9px 0",cursor:"pointer"}}>
+                <div style={{width:"24px",height:"24px",borderRadius:"50%",flexShrink:0,
+                  background:ans?"rgba(163,192,137,0.12)":"transparent",
+                  border:`1px solid ${ans?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  {ans&&<span style={{color:C.sageB,fontSize:"12px"}}>✓</span>}
+                </div>
+                <div style={{...body("15px",ans?C.cream:C.muted),fontStyle:"italic"}}>{qq}</div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Live progress for count-based quests (e.g. Pushups 62/100) */}
+      {hasTargets && !questDone && (
+        <div style={{marginBottom:"16px"}}>
+          {targetUnlocks.map(u=>{
+            const act=activities.find(a=>a.name===u.name);
+            const count=act?.count||0;
+            const pct=Math.min(100,Math.round(count/u.target*100));
+            return (
+              <div key={u.name} style={{marginBottom:"10px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",...body("12px",C.muted),marginBottom:"4px"}}>
+                  <span>{u.name}</span><span>{count}/{u.target} {u.unit||""}</span>
+                </div>
+                <div style={{height:"4px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${pct}%`,background:accent,transition:"width .3s"}}/>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Library link */}
+      <button onClick={()=>onOpenLib(q.libId)}
+        style={{display:"block",marginTop:"6px",marginBottom:"16px",background:"none",border:"none",
+          ...body("13px",accent),fontStyle:"italic",cursor:"pointer",padding:0}}>
+        Full instruction in the Library →
+      </button>
+
+      {/* Completion */}
+      {questDone ? (
+        <div style={{...dsp("10px",C.sageB,400,"0.14em"),padding:"10px 0"}}>✓ COMPLETE</div>
+      ) : isInquire ? (
+        <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
+          {allAnswered ? "All questions answered." : "Answer all five questions to complete this quest."}
+        </div>
+      ) : hasTargets ? (
+        <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
+          {targetsMet ? "Targets reached — completing…" : "Log your practice after each session to track progress."}
+        </div>
+      ) : (
+        <button onClick={onComplete}
+          style={{marginTop:"4px",padding:"11px 22px",background:"rgba(163,192,137,0.1)",
+            border:`0.5px solid ${C.sageB}`,color:C.sageB,...dsp("9px",undefined,400,"0.14em"),
+            cursor:"pointer",borderRadius:"6px"}}>
+          MARK COMPLETE
+        </button>
+      )}
+    </Overlay>
+  );
+}
+
+
+function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}, hasAnchored, sessions=[], chaptersRead=[], onMarkRead, libReadAt={}, pins=[], chStats={}, onOpenAnchor=()=>{}, onGoToLib=()=>{},
+  classGateOpen=false, classState=null, onChooseClass=()=>{}, trialComplete=()=>false, onOpenClassQuest=()=>{}, devMode=false, onDevSkipTrial=()=>{},
+  questCollapsed=false, setQuestCollapsed=()=>{}, classCollapsed=false, setClassCollapsed=()=>{},
+  chantGateOpen=false, chantUnlocked=false, setOpenChantQuest=()=>{}, activities=[] }){
   const [view,setView]               = useState("overview");
+  const [questLine,setQuestLine]     = useState("main"); // "main" | "chant" | "path"
+  const [autoSurfaced,setAutoSurfaced] = useState({}); // {chant:true, path:true} once auto-shown
+  const [viewingChoice,setViewingChoice] = useState(false); // browsing path choice even with one active
+  const lpTimerRef = useRef(null);
+  const lpFiredRef = useRef(false);
   const [readingN,setReadingN]       = useState(null);
+
+  /* Auto-surface a newly-available questline in the switcher (once each). */
+  useEffect(()=>{
+    const pNew = classGateOpen && (!classState || !classState.activeClass);
+    const cNew = chantGateOpen && !chantUnlocked;
+    if(pNew && !autoSurfaced.path){
+      setQuestLine("path"); setAutoSurfaced(p=>({...p,path:true}));
+    } else if(cNew && !autoSurfaced.chant && !autoSurfaced.path){
+      setQuestLine("chant"); setAutoSurfaced(p=>({...p,chant:true}));
+    }
+  },[classGateOpen, chantGateOpen, chantUnlocked, classState, autoSurfaced]);
+
+  /* Voice drops out of the switcher the moment it's unlocked — if the player
+     is currently looking at it, return them to Main rather than stranding them. */
+  useEffect(()=>{
+    if(questLine==="chant" && chantUnlocked) setQuestLine("main");
+  },[chantUnlocked, questLine]);
   const [scene,setScene]             = useState(0);
   const [paraPage,setParaPage]       = useState(0);
   const [fade,setFade]               = useState(true);
   const [onQuestScreen,setOnQuestScreen] = useState(false);
   const [skyDrift,setSkyDrift]       = useState(0); // 0..3.5 day-cycle position for ch.1 backdrop
-  const [crawlDone,setCrawlDone]     = useState(false);
-  const crawlRef = useRef(null);
-  const crawlUserScrolled = useRef(false);
-
-  // Chapter 1 "crawl" — gentle auto-scroll of the full narrative; stops at the end
-  useEffect(()=>{
-    if(!(view==="read" && readingN===1 && !onQuestScreen)) return;
-    setCrawlDone(false);
-    crawlUserScrolled.current=false;
-    let raf;
-    const SPEED=0.32; // px per frame (~19px/s) — slow, readable
-    const tick=()=>{
-      const el=crawlRef.current;
-      if(el){
-        const maxScroll=el.scrollHeight-el.clientHeight;
-        if(el.scrollTop >= maxScroll-2){ setCrawlDone(true); return; }
-        if(!crawlUserScrolled.current){ el.scrollTop += SPEED; }
-      }
-      raf=requestAnimationFrame(tick);
-    };
-    const startTimer=setTimeout(()=>{ raf=requestAnimationFrame(tick); }, 900);
-    return ()=>{ clearTimeout(startTimer); cancelAnimationFrame(raf); };
-  },[view,readingN,onQuestScreen]);
 
   // One-way night→dawn ramp for the mountain backdrop, then hold at full dawn
   useEffect(()=>{
@@ -1910,11 +2661,6 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
   };
 
   const advance = () => {
-    if(readingN===1){
-      // Chapter 1 is a single crawl — finishing it goes straight to the quest screen
-      fadeGo(()=>{ setOnQuestScreen(true); if(onMarkRead) onMarkRead(readingN); });
-      return;
-    }
     const scenes = CHAPTER_SCENES[readingN]||[];
     const body = scenes[scene]?.body||[];
     const pp = scenes[scene]?.perPage || 2;
@@ -1976,21 +2722,8 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
           {isAlreadyComplete && <span style={{...body("11px",C.sage),marginLeft:"auto",fontStyle:"italic"}}>✓ Complete</span>}
         </div>
 
-        <div ref={readingN===1?crawlRef:null} onScroll={readingN===1?(()=>{crawlUserScrolled.current=true;}):undefined} style={{position:"relative",zIndex:2,flex:1,padding:"8px 26px 0",overflowY:"auto",opacity:fade?1:0,transition:"opacity 0.5s ease"}}>
+        <div style={{position:"relative",zIndex:2,flex:1,padding:"8px 26px 0",overflowY:"auto",opacity:fade?1:0,transition:"opacity 0.5s ease"}}>
           {!onQuestScreen ? (
-            readingN===1 ? (
-              /* Chapter 1 — Star Wars style crawl, all scenes in one column */
-              <div style={{paddingTop:"40vh",paddingBottom:"30vh"}}>
-                {scenes.map((sc,si)=>(
-                  <div key={si} style={{marginBottom:"40px"}}>
-                    <div style={{...dsp("10px",mood.accent,400,"0.22em"),marginBottom:"18px",textAlign:"center"}}>{sc.label?.toUpperCase()}</div>
-                    {(sc.body||[]).map((p,i)=>(
-                      <p key={i} style={{...body("16px",C.cream),lineHeight:"2.0",marginBottom:"18px",fontStyle:"italic",textAlign:"center",textShadow:"0 1px 8px rgba(4,6,14,0.7)"}}>{p}</p>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            ) : (
             <>
               <div style={{position:"relative",zIndex:1}}>
               <div style={{...dsp("10px",mood.accent,400,"0.22em"),marginBottom:"20px"}}>{scenes[scene]?.label?.toUpperCase()}</div>
@@ -2001,7 +2734,6 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
               )); })()}
               </div>
             </>
-            )
           ) : (
             /* Quest screen */
             <div>
@@ -2156,19 +2888,6 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
 
         {/* Pinned bottom bar — only in narrative mode */}
         {!onQuestScreen && (
-          readingN===1 ? (
-            <div style={{position:"relative",zIndex:2,padding:"12px 26px 28px",background:`linear-gradient(transparent,${mood.bg1}ee 40%)`,flexShrink:0}}>
-              {crawlDone ? (
-                <button onClick={advance} style={{width:"100%",padding:"13px",background:"rgba(163,192,137,0.1)",border:`0.5px solid ${C.sageB}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.sageB,400,"0.18em"),animation:"fadeRise 0.8s ease both"}}>
-                  THE QUEST →
-                </button>
-              ) : (
-                <button onClick={()=>{ if(crawlRef.current){ crawlRef.current.scrollTop=crawlRef.current.scrollHeight; setCrawlDone(true);} }} style={{width:"100%",padding:"13px",background:"transparent",border:`0.5px solid ${C.bord}`,cursor:"pointer",borderRadius:"6px",...dsp("10px",C.dim,400,"0.16em")}}>
-                  SKIP →
-                </button>
-              )}
-            </div>
-          ) : (
           <div style={{position:"relative",zIndex:2,padding:"12px 26px 28px",background:`linear-gradient(transparent,${mood.bg1}ee 30%)`,flexShrink:0}}>
             <div style={{display:"flex",gap:"6px",justifyContent:"center",marginBottom:"14px"}}>
               {scenes.flatMap((sc,si)=>
@@ -2183,7 +2902,6 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
               {(scene<scenes.length-1||(scene===scenes.length-1&&paraPage<Math.ceil((scenes[scene]?.body?.length||1)/(scenes[scene]?.perPage||2))-1))?"CONTINUE →":"THE QUEST →"}
             </button>
           </div>
-          )
         )}
       </div>
     );
@@ -2193,30 +2911,94 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
   const activeN = CHAPTER_META.find(c=>getState(c.n)==="active")?.n || 1;
   const activeMeta = CHAPTER_META.find(c=>c.n===activeN);
 
+  // Switcher entries — Main always present; Voice and Path appear as they unlock.
+  const pathActive = classState && classState.activeClass && trialComplete(classState.activeClass);
+  const pathNew = classGateOpen && (!classState || !classState.activeClass); // gate open, not yet chosen
+  const chantNew = chantGateOpen && !chantUnlocked;
+  const switcherItems = [
+    { id:"main", label:"Main Story", show:true,
+      state: "active" },
+    { id:"chant", label:"Voice", show: chantGateOpen && !chantUnlocked,
+      state: chantNew ? "new" : "" },
+    { id:"path", label: pathActive ? (CLASS_BY_ID[classState.activeClass]?.name||"Path") : "Choose Your Path",
+      show: classGateOpen, state: pathNew ? "new" : (pathActive ? "" : "") },
+  ].filter(x=>x.show);
+
+  const heroTitle = questLine==="chant" ? "Voice"
+    : questLine==="path" ? (pathActive ? (CLASS_BY_ID[classState.activeClass]?.name+" Path") : "Choose Your Path")
+    : "Main Quest";
+  const heroSub = questLine==="chant" ? "The oldest practice"
+    : questLine==="path" ? (pathActive ? CLASS_BY_ID[classState.activeClass]?.verb : "Your direction of cultivation")
+    : `Act I · Chapter ${activeN}`;
+
   return (
     <div>
       <div style={{position:"relative"}}>
         <RidgelineScene h={190}/>
         <div style={{position:"absolute",inset:0,background:`linear-gradient(to bottom, rgba(13,20,15,0) 35%, ${C.bg} 100%)`}}/>
         <div style={{position:"absolute",top:"14px",left:"20px"}}>
-          <span style={{...dsp("13px",C.cream,400,"0.16em")}}>MAIN QUEST</span>
+          <span style={{...dsp("13px",C.cream,400,"0.16em")}}>QUEST</span>
         </div>
         <div style={{position:"absolute",bottom:"14px",left:"20px",right:"20px"}}>
-          <div style={{...dsp("11px",C.gold,400,"0.18em"),marginBottom:"4px"}}>ACT I · CHAPTER {activeN}</div>
-          <div style={{...dsp("22px",C.cream,500,"0.04em"),textShadow:"0 2px 12px rgba(0,0,0,0.6)"}}>{activeMeta?.title}</div>
+          <div style={{...dsp("11px",C.gold,400,"0.18em"),marginBottom:"4px"}}>{heroSub}</div>
+          <div style={{...dsp("22px",C.cream,500,"0.04em"),textShadow:"0 2px 12px rgba(0,0,0,0.6)"}}>{questLine==="main"?activeMeta?.title:heroTitle}</div>
         </div>
       </div>
 
+      {/* ── Questline switcher ── */}
+      {switcherItems.length>1 && (
+        <div style={{display:"flex",gap:"8px",padding:"14px 20px 4px",flexWrap:"wrap"}}>
+          {switcherItems.map(it=>{
+            const sel=questLine===it.id;
+            const accent = it.id==="path"&&pathActive ? (CLASS_BY_ID[classState.activeClass]?.accent||C.sageB) : C.sageB;
+            return (
+              <button key={it.id} onClick={()=>setQuestLine(it.id)}
+                style={{position:"relative",padding:"7px 14px",borderRadius:"7px",cursor:"pointer",
+                  background:sel?"rgba(163,192,137,0.12)":C.surf,
+                  border:`0.5px solid ${sel?accent:C.bord}`,
+                  ...dsp("10px",sel?C.cream:C.muted,400,"0.08em")}}>
+                {it.label}
+                {it.state==="new" && (
+                  <span style={{position:"absolute",top:"-6px",right:"-6px",background:C.gold,color:C.bg,
+                    fontSize:"7px",fontFamily:"Cinzel,serif",letterSpacing:"0.1em",padding:"2px 5px",borderRadius:"8px"}}>NEW</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div style={{padding:"8px 20px 28px"}}>
+        {questLine==="main" && <>
         <div style={{...body("14px",C.muted),lineHeight:"1.6",marginBottom:"20px",fontStyle:"italic"}}>The personal climb — from seeing the situation clearly to no longer walking it alone.</div>
 
-        <SL title="Chapters"/>
-        {CHAPTER_META.map((c,i)=>{
+        <button onClick={()=>setQuestCollapsed(v=>!v)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",cursor:"pointer",padding:"0 0 10px"}}>
+          <span style={{...dsp("11px",C.gold,400,"0.16em")}}>CHAPTERS</span>
+          <span style={{...body("13px",C.muted),transform:questCollapsed?"rotate(-90deg)":"none",transition:"transform .2s"}}>▾</span>
+        </button>
+        {!questCollapsed && CHAPTER_META.map((c,i)=>{
           const st=getState(c.n);
           const complete=st==="complete";
           const active=st==="active";
+          const locked=!active&&!complete;
           const qDone=questComplete(c.n);
           const quest=CHAPTER_QUESTS[c.n];
+
+          // Dev-only: tap a locked chapter to unlock it (complete c.n-1);
+          // long-press (550ms) any chapter to toggle its own completion.
+          const devUnlock = () => { if(!completedChapters.includes(c.n-1)) onCompleteChapter(c.n-1); };
+          const devToggleComplete = () => onToggleChapter(c.n);
+          const onPressStart = () => {
+            if(!devMode) return;
+            lpFiredRef.current=false;
+            lpTimerRef.current=setTimeout(()=>{ lpFiredRef.current=true; devToggleComplete(); },550);
+          };
+          const onPressEnd = () => {
+            if(!devMode) return;
+            clearTimeout(lpTimerRef.current);
+            if(!lpFiredRef.current && locked) devUnlock();
+          };
+
           return (
             <div key={c.n} style={{display:"flex",gap:"12px"}}>
               <div style={{display:"flex",flexDirection:"column",alignItems:"center",paddingTop:"14px"}}>
@@ -2234,7 +3016,9 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
 
               <div
                 onClick={()=>{ if(active||complete) openChapter(c.n); }}
-                style={{flex:1,background:complete?"rgba(201,168,76,0.04)":active?C.surf:"transparent",border:`0.5px solid ${complete?C.goldDim:active?C.sageB:C.bord}`,borderRadius:"6px",padding:"11px 14px",cursor:(active||complete)?"pointer":"default",opacity:active||complete?1:0.4,marginBottom:"8px",transition:"all .2s"}}
+                onMouseDown={devMode?onPressStart:undefined} onMouseUp={devMode?onPressEnd:undefined} onMouseLeave={devMode?()=>clearTimeout(lpTimerRef.current):undefined}
+                onTouchStart={devMode?onPressStart:undefined} onTouchEnd={devMode?onPressEnd:undefined}
+                style={{flex:1,background:complete?"rgba(201,168,76,0.04)":active?C.surf:"transparent",border:`0.5px solid ${complete?C.goldDim:active?C.sageB:devMode?"rgba(180,100,100,0.4)":C.bord}`,borderRadius:"6px",padding:"11px 14px",cursor:(active||complete||devMode)?"pointer":"default",opacity:active||complete?1:devMode?0.7:0.4,marginBottom:"8px",transition:"all .2s"}}
               >
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                   <div style={{flex:1}}>
@@ -2252,13 +3036,65 @@ function QuestTab({ completedChapters, onCompleteChapter, hasAnchored, sessions=
                         <span style={{...body("11px",qDone?C.sage:C.dim),fontStyle:"italic"}}>{quest.label}</span>
                       </div>
                     )}
+                    {devMode && locked && (
+                      <div style={{...body("10px","rgba(180,100,100,0.85)"),fontStyle:"italic",marginTop:"6px",fontFamily:"monospace"}}>DEV · tap to unlock · hold to complete</div>
+                    )}
+                    {devMode && !locked && (
+                      <div style={{...body("10px","rgba(180,100,100,0.85)"),fontStyle:"italic",marginTop:"6px",fontFamily:"monospace"}}>DEV · hold to {complete?"un-complete":"complete"}</div>
+                    )}
                   </div>
-                  {(active||complete)&&<span style={{...body("12px",complete?C.gold:C.sageB),marginLeft:"8px",flexShrink:0}}>{complete?"↩ Revisit":"Read →"}</span>}
+                  {(active||complete)&&<span style={{...body("12px",complete?C.gold:C.sageB),marginLeft:"8px",flexShrink:0}}>{complete?"↩ Revisit":(c.n===1?"START HERE →":"Read →")}</span>}
                 </div>
               </div>
             </div>
           );
         })}
+        </>}
+
+        {/* ── VOICE (Chant) — its own questline view ── */}
+        {questLine==="chant" && chantGateOpen && (
+          <div style={{paddingTop:"4px"}}>
+            <div style={{...body("14px",C.muted),lineHeight:"1.6",marginBottom:"20px",fontStyle:"italic"}}>The oldest practice — voice carried into stillness, available on any path.</div>
+            {chantUnlocked ? (
+              <div style={{background:"rgba(255,255,255,0.02)",border:`0.5px solid ${C.sageB}44`,borderRadius:"6px",padding:"11px 14px"}}>
+                <div style={{...dsp("8px",C.sageB,400,"0.16em"),marginBottom:"3px"}}>COMPLETE</div>
+                <div style={{...body("15px",C.cream)}}>{CHANT_QUEST.title}</div>
+                <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>Chant is yours. Find it under Activities in any practice.</div>
+              </div>
+            ) : (
+              <div onClick={()=>setOpenChantQuest(true)}
+                style={{background:C.surf,border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"11px 14px",cursor:"pointer"}}>
+                <div style={{...dsp("8px",C.sageB,400,"0.16em"),marginBottom:"3px"}}>ACTIVE</div>
+                <div style={{...body("15px",C.cream)}}>{CHANT_QUEST.title}</div>
+                <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{CHANT_QUEST.criteria}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── PATH — its own questline view, full tab ── */}
+        {questLine==="path" && classGateOpen && classState && (
+          <div style={{paddingTop:"4px"}}>
+            {(!classState.activeClass || viewingChoice) ? (
+              <ClassChoiceScreen
+                onChoose={(cid)=>{ onChooseClass(cid); setViewingChoice(false); }}
+                onReturn={()=>setViewingChoice(false)}
+                alreadyChosen={classState.chosenClasses||[]}
+                activeClass={classState.activeClass}/>
+            ) : !trialComplete(classState.activeClass) ? (
+              <FoundationTrial classId={classState.activeClass} trialProgress={classState.trialProgress}
+                onOpenTrial={(t)=>onOpenAnchor(t)} devMode={devMode} onDevSkipTrial={onDevSkipTrial}
+                onBackToChoice={()=>setViewingChoice(true)}/>
+            ) : (
+              <>
+                <button onClick={()=>setViewingChoice(true)} style={{background:"none",border:"none",cursor:"pointer",...body("12px",C.dim),marginBottom:"14px",padding:0}}>← Walk a different path</button>
+                <ClassQuestSection classId={classState.activeClass} questProgress={classState.questProgress}
+                  inquireAnswered={classState.inquireAnswered} epilogueRevealed={classState.epilogueRevealed}
+                  activities={activities} onOpenQuest={onOpenClassQuest} onOpenLib={onGoToLib}/>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2299,10 +3135,10 @@ function TreeIcon({cx,cy,color}){
   return (
     <g transform={`translate(${cx},${cy})`} stroke={color} strokeWidth="0.4" strokeLinecap="round" fill="none">
       <line x1="0" y1="-7" x2="0" y2="2"/>
-      <line x1="0" y1="-5" x2="1.4" y2="-6"/>
-      <line x1="0" y1="-3" x2="-1.8" y2="-4.2"/>
-      <line x1="0" y1="-1" x2="2.2" y2="-2.2"/>
-      <line x1="0" y1="1" x2="-2.6" y2="-0.2"/>
+      <line x1="0" y1="-4" x2="1.6" y2="-3"/>
+      <line x1="0" y1="-4" x2="-1.6" y2="-3"/>
+      <line x1="0" y1="-1" x2="2.6" y2="0"/>
+      <line x1="0" y1="-1" x2="-2.6" y2="0"/>
     </g>
   );
 }
@@ -2536,7 +3372,10 @@ function MapTab({ pins, revealZones=[] }){
               return (
                 <div key={i} onClick={e=>{e.stopPropagation();setHoveredPin(v=>v===key?null:key);}}
                   style={{position:"absolute",left:`${p.rx}%`,top:`${p.ry}%`,transform:"translate(-50%,-50%)",cursor:"pointer",zIndex:isOpen?5:1}}>
-                  <div style={{width:"6px",height:"6px",borderRadius:"50%",background:isOpen?C.sageB:"rgba(163,192,137,0.45)",border:`0.5px solid ${isOpen?C.sageB:"rgba(163,192,137,0.6)"}`,transition:"all .15s"}}/>
+                  <svg width="9" height="9" viewBox="0 0 9 9">
+                    <line x1="4.5" y1="1" x2="4.5" y2="8" stroke={isOpen?C.sageB:"rgba(163,192,137,0.55)"} strokeWidth="1" strokeLinecap="round"/>
+                    <line x1="1" y1="4.5" x2="8" y2="4.5" stroke={isOpen?C.sageB:"rgba(163,192,137,0.55)"} strokeWidth="1" strokeLinecap="round"/>
+                  </svg>
                   {isOpen&&(
                     <div style={{position:"absolute",bottom:"calc(100% + 7px)",left:"50%",transform:`translateX(-50%) scale(${1/zoom})`,transformOrigin:"center bottom",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
                       <div style={{...body("11px",C.cream),marginBottom:"2px"}}>{p.tag||"Anchored"}</div>
@@ -2606,13 +3445,36 @@ function LibCard({ title, sub, prog, swatch }){
     </div>
   );
 }
-function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters=[], onOpenAnchor=()=>{}, openEntryId=null, onClearOpenEntry=()=>{} }){
+function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters=[], onOpenAnchor=()=>{}, openEntryId=null, onClearOpenEntry=()=>{}, collapsed={}, setCollapsed=()=>{}, classState=null, chantUnlocked=false }){
   const chapterActive = n => completedChapters.includes(n-1) || completedChapters.includes(n);
-  const entryUnlocked = e => !e.unlock || chapterActive(e.unlock);
+  /* A path-skill entry unlocks once its unlocking quest is complete (or, for the
+     first quest of a chain, once that path's trial is done). Chant uses its own flag. */
+  const pathSkillUnlocked = (e) => {
+    if(e.skillUnlockQuest==="chant_unlock") return chantUnlocked;
+    if(!classState) return false;
+    /* the entry's quest must be complete, OR it's the first numbered quest and
+       the trial is done (since the first quest's skill unlocks with the trial) */
+    if(classState.questProgress?.[e.skillUnlockQuest]) return true;
+    const chain = QUEST_CHAINS[e.pathId]||[];
+    const numbered = chain.filter(q=>!q.isTrial && !q.isEpilogue);
+    const firstId = numbered[0]?.id;
+    if(e.skillUnlockQuest===firstId){
+      const cls=CLASS_BY_ID[e.pathId];
+      const prog=classState.trialProgress?.[e.pathId]||{};
+      return cls && cls.trial.every(st=>prog[st.type]);
+    }
+    /* a skill is available once its quest is ACTIVE — i.e. the previous quest is done */
+    const idx = numbered.findIndex(q=>q.id===e.skillUnlockQuest);
+    if(idx>0) return !!classState.questProgress?.[numbered[idx-1].id];
+    return false;
+  };
+  const entryUnlocked = e => {
+    if(e.section==="Path Skills") return pathSkillUnlocked(e);
+    return !e.unlock || chapterActive(e.unlock);
+  };
   const [filter,setFilter]=useState("All");
   const [selected,setSelected]=useState(null); // full entry object or null
-  const sections=["Anchors","Capacities","Centers","Practices"];
-  const [collapsed,setCollapsed]=useState({});
+  const sections=["Anchors","Capacities","Centers","Practices","Path Skills"];
   const filters=["All",...sections];
 
   // Anchor type map for practice entries
@@ -2717,13 +3579,35 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
 
       {bySec.map(({s,items})=>{
         const isCollapsed=!!collapsed[s];
+        /* Path Skills get sub-grouped by path (Foundation / Warrior / Healer / Sage) */
+        const pathOrder=["Foundation","Warrior","Healer","Sage"];
+        const subGroups = s==="Path Skills"
+          ? pathOrder.map(pn=>({pn,its:items.filter(e=>e.pathName===pn)})).filter(g=>g.its.length>0)
+          : null;
         return (
         <div key={s} style={{marginBottom:"22px"}}>
           <button onClick={()=>setCollapsed(p=>({...p,[s]:!p[s]}))} style={{display:"flex",alignItems:"center",gap:"6px",width:"100%",background:"none",border:"none",cursor:"pointer",padding:0,marginBottom:isCollapsed?0:"8px"}}>
             <span style={{...dsp("9px",C.muted,400,"0.18em")}}>{s.toUpperCase()}</span>
             <span style={{color:C.dim,fontSize:"9px",transform:isCollapsed?"rotate(-90deg)":"none",transition:"transform .2s"}}>▾</span>
           </button>
-          {!isCollapsed && items.map(e=>{
+          {!isCollapsed && subGroups && subGroups.map(({pn,its})=>(
+            <div key={pn} style={{marginBottom:"14px"}}>
+              <div style={{...dsp("8px",C.dim,400,"0.16em"),marginBottom:"6px",paddingLeft:"2px"}}>{pn.toUpperCase()}</div>
+              {its.map(e=>{
+                const sc=STAT_COLORS[e.sc]||C.sageB;
+                return (
+                  <div key={e.id} onClick={()=>openEntry(e)} style={{marginBottom:"8px",borderRadius:"8px",border:`0.5px solid ${C.bord}`,overflow:"hidden",cursor:"pointer"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:"12px",padding:"13px 14px"}}>
+                      <div style={{width:"3px",alignSelf:"stretch",background:sc,borderRadius:"2px",flexShrink:0}}/>
+                      <div style={{flex:1}}><div style={{...body("14px",C.cream)}}>{e.title}</div></div>
+                      <span style={{color:C.dim,fontSize:"12px"}}>›</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+          {!isCollapsed && !subGroups && items.map(e=>{
             const sc=STAT_COLORS[e.sc]||C.sageB;
             const hasAction=e.id in ANCHOR_TYPE;
             return (
@@ -2748,9 +3632,11 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
 
       {/* Locked section previews */}
       {locked.length>0 && filter==="All" && (()=>{
-        const lockedSecs=[...new Set(locked.map(e=>e.section))];
+        /* chapter-gated locked sections (exclude Path Skills, which gate on path progress) */
+        const chapterLocked = locked.filter(e=>e.section!=="Path Skills");
+        const lockedSecs=[...new Set(chapterLocked.map(e=>e.section))];
         return lockedSecs.map(s=>{
-          const chap=locked.find(e=>e.section===s)?.unlock;
+          const chap=chapterLocked.find(e=>e.section===s)?.unlock;
           const chapName=CHAPTER_META.find(c=>c.n===chap)?.title||`Chapter ${chap}`;
           return (
             <div key={s} style={{marginBottom:"14px",opacity:0.35}}>
@@ -2763,21 +3649,79 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
           );
         });
       })()}
+
+      {/* Path Skills locked teaser — only when none unlocked yet */}
+      {filter==="All" && !LIBRARY_ENTRIES.some(e=>e.section==="Path Skills"&&entryUnlocked(e)) && (
+        <div style={{marginBottom:"14px",opacity:0.35}}>
+          <div style={{...dsp("9px",C.muted,400,"0.18em"),marginBottom:"8px"}}>PATH SKILLS</div>
+          <div style={{padding:"12px 14px",border:`0.5px solid ${C.bord}`,borderRadius:"8px",display:"flex",alignItems:"center",gap:"10px"}}>
+            <span style={{color:C.dim,fontSize:"14px"}}>🔒</span>
+            <div style={{...body("12px",C.dim),fontStyle:"italic"}}>Unlocks as you walk a path</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function JournalScreen({ onBack, onSave, onEntryChange }){
+function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, tendUnlocked=false, inquireUnlocked=false }){
   const [mood,setMood]=useState(null),[bdy,setBdy]=useState(null),[entry,setEntry]=useState(""),[saved,setSaved]=useState(false);
-  const save=()=>{ if(!entry.trim())return; const date=new Date().toISOString().slice(0,10); onSave({text:entry.trim(),mood,body:bdy,date}); setSaved(true); setTimeout(()=>{setEntry("");setMood(null);setBdy(null);setSaved(false);},1100); };
+  /* mode: "normal" | "inquire" | "tend"; inquire auto-selected if pre-filled */
+  const [mode,setMode]=useState(pendingInquiry?"inquire":"normal");
+  const [question,setQuestion]=useState(pendingInquiry||"");
+  const [tendKind,setTendKind]=useState(null); // "Deep Listening" | "Service"
+  useEffect(()=>{ if(pendingInquiry){ setMode("inquire"); setQuestion(pendingInquiry); } },[pendingInquiry]);
+
+  const canSave = entry.trim() && (mode!=="inquire" || question.trim());
+  const save=()=>{
+    if(!canSave) return;
+    const date=new Date().toISOString().slice(0,10);
+    const e={text:entry.trim(),mood,body:bdy,date};
+    if(mode==="inquire"){ e.tag="inquire"; e.question=question.trim(); }
+    else if(mode==="tend"){ e.tag="tend"; e.tendKind=tendKind||"Deep Listening"; }
+    onSave(e);
+    setSaved(true);
+    setTimeout(()=>{setEntry("");setMood(null);setBdy(null);setSaved(false);},1100);
+  };
+
+  const modeTabs=[["normal","Entry"]];
+  if(inquireUnlocked) modeTabs.push(["inquire","Inquire"]);
+  if(tendUnlocked) modeTabs.push(["tend","Tend"]);
+
   return (
     <Overlay title="Journal" onBack={onBack}>
-      <SL title="How are you right now?"/>
-      <div style={{marginBottom:"14px"}}><div style={{...body("12px",C.muted),marginBottom:"7px"}}>Mood</div><Chips opts={MOODS} sel={mood} onSel={setMood}/></div>
-      <div style={{marginBottom:"22px"}}><div style={{...body("12px",C.muted),marginBottom:"7px"}}>Body</div><Chips opts={BODY} sel={bdy} onSel={setBdy}/></div>
-      <SL title="Entry"/>
-      <textarea value={entry} onChange={e=>{setEntry(e.target.value);setSaved(false);onEntryChange&&onEntryChange(e.target.value);}} placeholder="What do you notice right now?" rows={7} style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("15px"),padding:"12px",resize:"none",boxSizing:"border-box",outline:"none",lineHeight:"1.7",caretColor:C.sageB}}/>
-      <button onClick={save} style={{marginTop:"10px",padding:"10px 20px",background:entry.trim()&&!saved?"rgba(163,192,137,0.12)":"transparent",border:`0.5px solid ${entry.trim()&&!saved?C.sageB:C.bord}`,color:entry.trim()&&!saved?C.sageB:C.muted,...dsp("9px",undefined,400,"0.14em"),cursor:"pointer",borderRadius:"6px"}}>{saved?"✓ SAVED":"SAVE ENTRY"}</button>
+      {modeTabs.length>1 && (
+        <div style={{display:"flex",background:C.surf,borderRadius:"6px",border:`0.5px solid ${C.bord}`,marginBottom:"16px",overflow:"hidden"}}>
+          {modeTabs.map(([id,l])=>(
+            <button key={id} onClick={()=>setMode(id)} style={{flex:1,padding:"9px",border:"none",cursor:"pointer",background:mode===id?"rgba(163,192,137,0.1)":"transparent",borderBottom:mode===id?`1.5px solid ${C.sageB}`:"1.5px solid transparent",...dsp("9px",mode===id?C.sageB:C.muted,400,"0.12em")}}>{l.toUpperCase()}</button>
+          ))}
+        </div>
+      )}
+
+      {mode==="inquire" && (
+        <div style={{marginBottom:"16px"}}>
+          <div style={{...body("12px",C.muted),marginBottom:"7px"}}>The question you're sitting with</div>
+          <input value={question} onChange={e=>setQuestion(e.target.value)} placeholder="What am I resisting?"
+            style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.cream,...body("15px"),padding:"11px 12px",boxSizing:"border-box",outline:"none",fontStyle:"italic",caretColor:C.sageB}}/>
+        </div>
+      )}
+
+      {mode==="tend" && (
+        <div style={{marginBottom:"16px"}}>
+          <div style={{...body("12px",C.muted),marginBottom:"7px"}}>What kind of moment?</div>
+          <Chips opts={["Deep Listening","Service"]} sel={tendKind} onSel={setTendKind}/>
+        </div>
+      )}
+
+      {mode==="normal" && <>
+        <SL title="How are you right now?"/>
+        <div style={{marginBottom:"14px"}}><div style={{...body("12px",C.muted),marginBottom:"7px"}}>Mood</div><Chips opts={MOODS} sel={mood} onSel={setMood}/></div>
+        <div style={{marginBottom:"22px"}}><div style={{...body("12px",C.muted),marginBottom:"7px"}}>Body</div><Chips opts={BODY} sel={bdy} onSel={setBdy}/></div>
+      </>}
+
+      <SL title={mode==="inquire"?"Sit with it. Then answer.":mode==="tend"?"Reflect":"Entry"}/>
+      <textarea value={entry} onChange={e=>{setEntry(e.target.value);setSaved(false);onEntryChange&&onEntryChange(e.target.value);}} placeholder={mode==="inquire"?"Let the question work on you before you work on it…":mode==="tend"?"What happened? What did you notice?":"What do you notice right now?"} rows={7} style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("15px"),padding:"12px",resize:"none",boxSizing:"border-box",outline:"none",lineHeight:"1.7",caretColor:C.sageB}}/>
+      <button onClick={save} style={{marginTop:"10px",padding:"10px 20px",background:canSave&&!saved?"rgba(163,192,137,0.12)":"transparent",border:`0.5px solid ${canSave&&!saved?C.sageB:C.bord}`,color:canSave&&!saved?C.sageB:C.muted,...dsp("9px",undefined,400,"0.14em"),cursor:"pointer",borderRadius:"6px"}}>{saved?"✓ SAVED":"SAVE ENTRY"}</button>
     </Overlay>
   );
 }
@@ -3285,7 +4229,7 @@ export default function AscendApp(){
   const [chaptersRead,setChaptersRead]=useState(P.chaptersRead??[]);
   const [libReadAt,setLibReadAt]=useState(P.libReadAt??{});
   const [activities,setActivities]=useState(P.activities??[]);
-  const addActivity=(name,stat)=>setActivities(p=>[...p,{id:`act_${Date.now()}_${Math.random().toString(36).substr(2,4)}`,name,stat}]);
+  const addActivity=(name,stat,practiceType)=>setActivities(p=>[...p,{id:`act_${Date.now()}_${Math.random().toString(36).substr(2,4)}`,name,stat,practiceType}]);
   const deleteActivity=id=>setActivities(p=>p.filter(a=>a.id!==id));
   // onboarding: "brand" | "intro" | "done"
   const [onboarding,setOnboarding]=useState(P.onboardingDone ? "done" : "brand");
@@ -3306,7 +4250,17 @@ export default function AscendApp(){
   const [pins,setPins]=useState(P.pins ?? []);
   const [revealZones,setRevealZones]=useState(P.revealZones ?? []);
   const [zonesMigrated,setZonesMigrated]=useState(P.zonesMigrated ?? false);
-  const [completedChapters,setCompletedChapters]=useState(P.completedChapters ?? [1]);
+  const [libCollapsed,setLibCollapsed]=useState(P.libCollapsed ?? {});
+  const [completedChapters,setCompletedChapters]=useState(P.completedChapters ?? []);
+  const [classState,setClassState]=useState(P.classState ?? freshClassState());
+  const [chantUnlocked,setChantUnlocked]=useState(P.chantUnlocked ?? false);
+  const [openChantQuest,setOpenChantQuest]=useState(false);
+  const [questCollapsed,setQuestCollapsed]=useState(P.questCollapsed ?? false);
+  const [classCollapsed,setClassCollapsed]=useState(P.classCollapsed ?? false);
+  /* Which class quest is open in the reader, if any: {classId, questId} */
+  const [openClassQuest,setOpenClassQuest]=useState(null);
+  /* Pending inquiry question to pre-fill the journal with, if any. */
+  const [pendingInquiry,setPendingInquiry]=useState(null);
   const [hasAnchored,setHasAnchored]=useState(P.hasAnchored ?? false);
   const [devMode,setDevMode]=useState(false);
   const [theme,setTheme]=useState(P.theme ?? "navy");
@@ -3392,7 +4346,7 @@ export default function AscendApp(){
     setCh({name:"Dev",totalXP:0,title:"Seeker",stats:{vit:0,str:0,wil:0,hrt:0,voi:0,wis:0,ali:0}});
     setSessions([]); setJEnt([]); setPins([]); setRevealZones([]); setZonesMigrated(true); setActivities([]); setChaptersRead([]); setLibReadAt({});
     setTypes(TYPES); setLibrary(Object.fromEntries(TYPES.map(t=>[t.id,[]])));
-    setCompletedChapters([]); setHasAnchored(false);
+    setCompletedChapters([]); setHasAnchored(false); setClassState(freshClassState()); setChantUnlocked(false);
     setOnboarding("brand"); setScr(null); setAnch(false);
   };
   const disableDevMode = () => {
@@ -3403,8 +4357,9 @@ export default function AscendApp(){
     setPins(Pr.pins??[]);
     setRevealZones(Pr.revealZones??[]);
     setZonesMigrated(Pr.zonesMigrated??false);
+    setLibCollapsed(Pr.libCollapsed??{});
     setTypes(Pr.types??TYPES); setLibrary(Pr.library??Object.fromEntries(TYPES.map(t=>[t.id,[]])));
-    setCompletedChapters(Pr.completedChapters??[1]); setHasAnchored(Pr.hasAnchored??false);
+    setCompletedChapters(Pr.completedChapters??[]); setHasAnchored(Pr.hasAnchored??false);
     setTheme(Pr.theme??"forest"); setOnboarding(Pr.onboardingDone?"done":"brand");
     setScr(null); setAnch(false);
   };
@@ -3474,6 +4429,7 @@ export default function AscendApp(){
         setRevealZones(zs);
         setZonesMigrated(true);
       }
+      if(data.libCollapsed) setLibCollapsed(data.libCollapsed);
       if(data.activities) setActivities(data.activities);
       if(data.chaptersRead) setChaptersRead(data.chaptersRead);
       if(data.libReadAt) setLibReadAt(data.libReadAt);
@@ -3493,7 +4449,7 @@ export default function AscendApp(){
     setCh({name:"",totalXP:0,title:"Seeker",stats:{vit:0,str:0,wil:0,hrt:0,voi:0,wis:0,ali:0}});
     setSessions([]); setJEnt([]); setPins([]); setRevealZones([]); setZonesMigrated(true);
     setTypes(TYPES); setLibrary(Object.fromEntries(TYPES.map(t=>[t.id,[]])));
-    setCompletedChapters([]); setHasAnchored(false);
+    setCompletedChapters([]); setHasAnchored(false); setClassState(freshClassState()); setChantUnlocked(false);
     setTheme("forest"); applyTheme("forest");
     setOnboarding("brand"); setTab("quest"); setScr(null); setAnch(false);
   };
@@ -3505,8 +4461,8 @@ export default function AscendApp(){
   /* Build the current snapshot. Kept in a ref so the flush handler always
      sees the latest without re-binding listeners. */
   const blob = {
-    v:1, tab, fontScale, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, revealZones, zonesMigrated,
-    completedChapters, hasAnchored, theme, guidedSession, anchInitType, onboardingDone: onboarding==="done",
+    v:1, tab, fontScale, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, revealZones, zonesMigrated, libCollapsed,
+    completedChapters, hasAnchored, theme, guidedSession, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, onboardingDone: onboarding==="done",
   };
   const blobRef = useRef(blob);
   blobRef.current = blob;
@@ -3517,7 +4473,7 @@ export default function AscendApp(){
     const json = JSON.stringify(blobRef.current);
     const t = setTimeout(()=>writeStorage(json), 250);
     return ()=>clearTimeout(t);
-  },[hydrated, devMode, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, revealZones, zonesMigrated]);
+  },[hydrated, devMode, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, revealZones, zonesMigrated, libCollapsed]);
 
   /* ── FLUSH: write immediately when the page is hidden or unloaded ── */
   useEffect(()=>{
@@ -3549,6 +4505,7 @@ export default function AscendApp(){
         if(P2.pins) setPins(P2.pins);
         if(P2.revealZones) setRevealZones(P2.revealZones);
         if(P2.zonesMigrated!==undefined) setZonesMigrated(P2.zonesMigrated);
+        if(P2.libCollapsed) setLibCollapsed(P2.libCollapsed);
         if(P2.activities) setActivities(P2.activities);
         if(P2.chaptersRead) setChaptersRead(P2.chaptersRead);
         if(P2.libReadAt) setLibReadAt(P2.libReadAt);
@@ -3575,13 +4532,139 @@ export default function AscendApp(){
 
   const addType=name=>{const id="c_"+Date.now();setTypes(p=>[...p,{id,label:name}]);setLibrary(p=>({...p,[id]:[]}));return id;};
 
+  /* ── CLASS SYSTEM HANDLERS ──────────────────────────────────────────────── */
+  const presenceLevel = levelFromTotalXP(ch.totalXP??0);
+  const classGateOpen = devMode || classGateMet(presenceLevel, completedChapters);
+  const chantGateOpen = devMode || completedChapters.includes(CHANT_UNLOCK_CHAPTER);
+
+  const completeChant = () => {
+    setChantUnlocked(true);
+    setActivities(p=> p.some(a=>a.name==="Chant") ? p : [...p,{
+      id:"chant_voi", name:"Chant", stat:"voi", classSkill:true, practiceType:"any",
+    }]);
+  };
+
+  /* Apply a quest's unlocks (activities, journal features, practice types)
+     immediately — this is called the moment a quest becomes ACTIVE, not when
+     it's completed, so the player can practice the skill the quest asks about. */
+  const applyQuestUnlocks = (quest) => {
+    if(!quest?.unlocks) return;
+    quest.unlocks.forEach(u=>{
+      if(u.kind==="activity"){
+        setActivities(p=> p.some(a=>a.name===u.name) ? p : [...p,{
+          id:`cls_${u.name.replace(/\s+/g,'_').toLowerCase()}`,
+          name:u.name, stat:u.stat, classSkill:true, practiceType:u.practiceType,
+          count:0, target: u.target ?? null, unit: u.unit ?? null,
+        }]);
+      }
+      /* kind:"journal" (tend/inquire) and kind:"practiceType" are read directly
+         off questProgress/trialComplete elsewhere — no extra state needed here. */
+    });
+  };
+
+  const findQuest = (questId) => {
+    for(const cid of Object.keys(QUEST_CHAINS)){
+      const q=QUEST_CHAINS[cid].find(x=>x.id===questId);
+      if(q) return q;
+    }
+    return null;
+  };
+
+  /* Call once a class's trial completes — applies the FIRST numbered quest's
+     unlocks immediately, since that quest is now active. */
+  const activateFirstQuest = (classId) => {
+    const first = (QUEST_CHAINS[classId]||[]).find(q=>!q.isTrial && !q.isEpilogue);
+    if(first) applyQuestUnlocks(first);
+  };
+
+  const chooseClass = (classId) => setClassState(cs=>({
+    ...cs,
+    unlocked:true,
+    activeClass:classId,
+    chosenClasses: cs.chosenClasses.includes(classId)?cs.chosenClasses:[...cs.chosenClasses,classId],
+    trialProgress:{...cs.trialProgress, [classId]: cs.trialProgress[classId]||{}},
+  }));
+
+  /* Trial step recorded when a qualifying session finishes (see handleDone).
+     The moment all three trial steps are done, the chain's first quest
+     becomes active — apply its unlocks right then. */
+  const markTrialStep = (classId, sessionType) => {
+    const wasComplete = trialComplete(classId);
+    setClassState(cs=>{
+      const prog={...(cs.trialProgress[classId]||{}), [sessionType]:true};
+      return {...cs, trialProgress:{...cs.trialProgress, [classId]:prog}};
+    });
+    if(!wasComplete){
+      const cls=CLASS_BY_ID[classId];
+      const willBeComplete = cls && cls.trial.every(step=>
+        step.type===sessionType ? true : !!(classState.trialProgress[classId]||{})[step.type]
+      );
+      if(willBeComplete) activateFirstQuest(classId);
+    }
+  };
+
+  const trialComplete = (classId) => {
+    const cls=CLASS_BY_ID[classId]; if(!cls) return false;
+    const prog=classState.trialProgress[classId]||{};
+    return cls.trial.every(step=>prog[step.type]);
+  };
+
+  const completeClassQuest = (questId) => {
+    const quest = findQuest(questId);
+    setClassState(cs=>({ ...cs, questProgress:{...cs.questProgress, [questId]:true} }));
+    /* the moment this quest completes, the NEXT quest in its chain becomes
+       active — apply its unlocks now, immediately, not on its own completion */
+    if(quest){
+      const chainId = Object.keys(QUEST_CHAINS).find(cid=>QUEST_CHAINS[cid].includes(quest));
+      const chain = QUEST_CHAINS[chainId]||[];
+      const numbered = chain.filter(q=>!q.isTrial && !q.isEpilogue);
+      const idx = numbered.findIndex(q=>q.id===questId);
+      const next = numbered[idx+1];
+      if(next) applyQuestUnlocks(next);
+      /* epilogue becomes active once the chain (last numbered quest) completes */
+      if(idx===numbered.length-1){
+        const epilogue = chain.find(q=>q.isEpilogue);
+        if(epilogue) applyQuestUnlocks(epilogue);
+      }
+    }
+  };
+
+  const recordInquiry = (question) => setClassState(cs=>{
+    const answered={...cs.inquireAnswered, [question]:true};
+    /* auto-complete the Inquire quest once all five are answered */
+    const sage=QUEST_CHAINS.sage.find(q=>q.inquireQuestions);
+    const qp={...cs.questProgress};
+    if(sage && sage.inquireQuestions.every(qq=>answered[qq])) qp[sage.id]=true;
+    return {...cs, inquireAnswered:answered, questProgress:qp};
+  });
+
+  /* Dev-only: mark all three trial steps complete to jump to the quest chain. */
+  const onDevSkipTrial = (classId) => {
+    setClassState(cs=>{
+      const cls=CLASS_BY_ID[classId]; if(!cls) return cs;
+      const prog={}; cls.trial.forEach(st=>{ prog[st.type]=true; });
+      return {...cs, trialProgress:{...cs.trialProgress, [classId]:prog}};
+    });
+    activateFirstQuest(classId);
+  };
+
+  /* Practice types (Train / Restore) become selectable once that class's trial
+     is complete — the trial quest's unlock is the practice type itself. */
+  const unlockedClassPracticeTypes = (classState?.chosenClasses||[])
+    .filter(cid=>trialComplete(cid))
+    .flatMap(cid=>{
+      const trialQ=(QUEST_CHAINS[cid]||[]).find(q=>q.isTrial);
+      return (trialQ?.unlocks||[]).filter(u=>u.kind==="practiceType").map(u=>u.practiceType);
+    });
+
   const awardJournalXP = () => setCh(p=>{
     const st={...p.stats};
     ["hrt","voi","wis"].forEach(k=>{ st[k]=(st[k]||0)+3; });
     return {...p,stats:st,totalXP:(p.totalXP??0)+3};
   });
 
-  const handleDone=({type,typeId,duration,elapsed:elapsedSecs,activeActivities=[],tags,reflection,pinSession,pinTag,quickAnchor,awarenessLanding})=>{
+  const handleDone=({type,typeId,duration,elapsed:elapsedSecs,activeActivities=[],tags,reflection,pinSession,pinTag,quickAnchor,awarenessLanding,loggedCounts={}})=>{
+    const wasFirstSession = !hasAnchored;
     const isA=quickAnchor||!type;
     /* sessions < 10 s are discarded silently */
     if(!isA && (elapsedSecs??0) < 10){ setAnch(false); return; }
@@ -3604,6 +4687,39 @@ export default function AscendApp(){
     const s={type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),activities:activities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg,awarenessLanding:lands};
     setSessions(p=>[s,...p]);
     setHasAnchored(true);
+    /* Accumulate any logged reps/distance onto the activity's running count,
+       and auto-complete the owning quest once every target activity is met. */
+    if(Object.keys(loggedCounts).length>0){
+      const updatedActivities = activities.map(a=>
+        loggedCounts[a.id]!=null ? {...a, count:(a.count||0)+loggedCounts[a.id]} : a
+      );
+      setActivities(updatedActivities);
+      /* find any active, not-yet-complete quest whose target activities (by
+         name) are now all at/above their target, and mark it complete */
+      Object.keys(QUEST_CHAINS).forEach(cid=>{
+        QUEST_CHAINS[cid].forEach(q=>{
+          if(classState.questProgress?.[q.id]) return; // already done
+          const targetUnlocks = (q.unlocks||[]).filter(u=>u.kind==="activity" && u.target);
+          if(targetUnlocks.length===0) return;
+          const allMet = targetUnlocks.every(u=>{
+            const act = updatedActivities.find(a=>a.name===u.name);
+            return act && (act.count||0) >= u.target;
+          });
+          if(allMet) completeClassQuest(q.id);
+        });
+      });
+    }
+    /* Foundation Trial: a qualifying ≥3-min sit/stand/walk advances the active
+       class's trial while it's still in progress. */
+    if(!isA && classState.activeClass && (elapsedSecs||0)>=180 &&
+       ["sitting","standing","walking"].includes(typeId)){
+      const ac=classState.activeClass;
+      if(!trialComplete(ac)){
+        const cls=CLASS_BY_ID[ac];
+        const needs=cls?.trial?.some(st=>st.type===typeId && !(classState.trialProgress[ac]||{})[st.type]);
+        if(needs) markTrialStep(ac, typeId);
+      }
+    }
     if(!hasAnchored && guidedSession) setGuidedSession(false); // auto-off after first session
     if(pinSession){
       const _date=new Date().toISOString().slice(0,10);
@@ -3631,7 +4747,8 @@ export default function AscendApp(){
       const totalXP=(p.totalXP??0)+xpE;
       return{...p,stats:st,totalXP};
     });
-    if(pinSession) setTab("map");
+    if(wasFirstSession) setTab("quest");      // first session → land on Quest tab (what next)
+    else if(pinSession) setTab("map");
     setAnch(false);
   };
 
@@ -3695,11 +4812,8 @@ export default function AscendApp(){
   /* ── BRAND SCREEN ── */
   if(onboarding==="brand"){
     const devSkip = () => {
-      if(!devMode) enableDevMode(); // enter dev mode (resets all state, no saves)
-      setCompletedChapters([1,2]);
-      setHasAnchored(true);
+      if(!devMode) enableDevMode(); // enter dev mode as a true blank slate
       setOnboarding("done");
-      setTab("character");
     };
     return (
       <div style={outerWrap}>
@@ -3739,8 +4853,15 @@ export default function AscendApp(){
               onClose={()=>completeIntro(null)}
               onDone={completeIntro}
               types={types} library={library} setLibrary={setLibrary}
-              addType={addType} startImmediately={anchorImmediate}
+              addType={addType} startImmediately={true}
               skipReview={false}
+              unlocks={{modifiers:false,pause:false,pin:false,practiceType:false,activities:false,centers:false}}
+              guideCues={[
+                {s:0,  e:5,  text:"Sit comfortably."},
+                {s:5,  e:10, text:"Let your eyes soften or close."},
+                {s:10, e:50, text:"This is your time to simply be here, breathing, for as long as feels right."},
+                {s:50, e:null, text:"Press the Ascend button below when you are finished.", gold:true},
+              ]}
             />
           </div>
         </div>
@@ -3887,9 +5008,10 @@ export default function AscendApp(){
         {/* content — all tabs stay mounted so internal state (quest screen, library entry) persists */}
         <div style={{flex:1,overflowY:"auto",paddingBottom:"118px"}}>
           <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities}/></div>
-          <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>setCompletedChapters(p=>[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}/></div>
+          <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>setCompletedChapters(p=>p.includes(n)?p:[...p,n])} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
+            classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} questCollapsed={questCollapsed} setQuestCollapsed={setQuestCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities}/></div>
           <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones}/></div>
-          <div style={{display:tab==="library"?"block":"none"}}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)}/></div>
+          <div style={{display:tab==="library"?"block":"none"}}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)} collapsed={libCollapsed} setCollapsed={setLibCollapsed} classState={classState} chantUnlocked={chantUnlocked}/></div>
         </div>
 
         {/* floating anchor button */}
@@ -3928,11 +5050,11 @@ export default function AscendApp(){
         <nav style={{position:"absolute",bottom:0,left:0,width:"100%",height:"64px",boxSizing:"border-box",background:C.surf,borderTop:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 0 2px",zIndex:260}}>
           <div style={{display:"flex",flex:1,justifyContent:"space-around",alignItems:"center"}}>
             {NAV.slice(0,2).map(({id,l})=>(
-              <button key={id} onClick={()=>navigateTo(()=>{setTab(id);setAnch(false);if(id==="character")setCapacities(false);})} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",padding:"2px 12px",border:"none",background:"none",cursor:"pointer"}}>
+              <button key={id} onClick={()=>navigateTo(()=>{setTab(id);setAnch(false);if(id==="character")setCapacities(false);})} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",padding:"2px 12px",border:"none",background:"none",cursor:"pointer",flexShrink:0}}>
                 <div style={{height:"37px",display:"flex",alignItems:"center",justifyContent:"center"}}>
                   <NavIcon id={id} color={tab===id?C.gold:C.muted} size={id==="quest"?37:31}/>
                 </div>
-                <span style={{...dsp("8px",tab===id?C.gold:C.muted,400,"0.1em")}}>{l.toUpperCase()}</span>
+                <span style={{fontFamily:"Cinzel,serif",fontSize:"8px",color:tab===id?C.gold:C.muted,fontWeight:400,letterSpacing:"0.08em",whiteSpace:"nowrap"}}>{l.toUpperCase()}</span>
               </button>
             ))}
           </div>
@@ -3940,11 +5062,11 @@ export default function AscendApp(){
           <div style={{width:"88px",flexShrink:0}}/>
           <div style={{display:"flex",flex:1,justifyContent:"space-around",alignItems:"center"}}>
             {NAV.slice(2).map(({id,l})=>(
-              <button key={id} onClick={()=>navigateTo(()=>{setTab(id);setAnch(false);if(id==="character")setCapacities(false);})} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",padding:"2px 12px",border:"none",background:"none",cursor:"pointer"}}>
+              <button key={id} onClick={()=>navigateTo(()=>{setTab(id);setAnch(false);if(id==="character")setCapacities(false);})} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",padding:"2px 12px",border:"none",background:"none",cursor:"pointer",flexShrink:0}}>
                 <div style={{height:"37px",display:"flex",alignItems:"center",justifyContent:"center"}}>
                   <NavIcon id={id} color={tab===id?C.gold:C.muted} size={id==="quest"?37:31}/>
                 </div>
-                <span style={{...dsp("8px",tab===id?C.gold:C.muted,400,"0.1em")}}>{l.toUpperCase()}</span>
+                <span style={{fontFamily:"Cinzel,serif",fontSize:"8px",color:tab===id?C.gold:C.muted,fontWeight:400,letterSpacing:"0.08em",whiteSpace:"nowrap"}}>{l.toUpperCase()}</span>
               </button>
             ))}
           </div>
@@ -3968,10 +5090,44 @@ export default function AscendApp(){
             </div>
           </div>
         )}
-        {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");}} onSave={e=>{setJEnt(p=>[e,...p]);awardJournalXP();setScr(null);setJournalDraft("");}} onEntryChange={setJournalDraft}/>}
+        {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");setPendingInquiry(null);}} onSave={e=>{setJEnt(p=>[e,...p]);awardJournalXP();if(e.tag==="inquire"&&e.question)recordInquiry(e.question);setScr(null);setJournalDraft("");setPendingInquiry(null);}} onEntryChange={setJournalDraft} pendingInquiry={pendingInquiry} tendUnlocked={!!classState?.questProgress?.h_listen} inquireUnlocked={!!(classState?.activeClass==="sage")}/>}
+        {openChantQuest && (
+          <Overlay title={CHANT_QUEST.title} onBack={()=>setOpenChantQuest(false)}>
+            <div style={{...dsp("9px",C.sageB,400,"0.16em"),marginBottom:"14px"}}>FOUNDATION · VOICE</div>
+            {CHANT_QUEST.myth.split("\n\n").map((p,i)=>(
+              <div key={i} style={{...body("15px",C.txt),lineHeight:"1.8",marginBottom:"14px"}}>{p}</div>
+            ))}
+            <button onClick={()=>{setOpenChantQuest(false);setTab("library");setLibOpenId(CHANT_QUEST.libId);}}
+              style={{display:"block",marginTop:"6px",marginBottom:"16px",background:"none",border:"none",
+                ...body("13px",C.sageB),fontStyle:"italic",cursor:"pointer",padding:0}}>
+              Full instruction in the Library →
+            </button>
+            {chantUnlocked ? (
+              <div style={{...dsp("10px",C.sageB,400,"0.14em"),padding:"10px 0"}}>✓ COMPLETE</div>
+            ) : (
+              <button onClick={()=>{completeChant();setOpenChantQuest(false);}}
+                style={{marginTop:"4px",padding:"11px 22px",background:"rgba(163,192,137,0.1)",
+                  border:`0.5px solid ${C.sageB}`,color:C.sageB,...dsp("9px",undefined,400,"0.14em"),
+                  cursor:"pointer",borderRadius:"6px"}}>
+                MARK COMPLETE
+              </button>
+            )}
+          </Overlay>
+        )}
+        {openClassQuest&&<ClassQuestReader classId={openClassQuest.classId} questId={openClassQuest.questId}
+          inquireAnswered={classState?.inquireAnswered||{}} questDone={!!classState?.questProgress?.[openClassQuest.questId]} activities={activities}
+          onBack={()=>setOpenClassQuest(null)}
+          onComplete={()=>{completeClassQuest(openClassQuest.questId);setOpenClassQuest(null);}}
+          onOpenLib={(id)=>{setOpenClassQuest(null);setTab("library");setLibOpenId(id);}}
+          onOpenInquire={(question)=>{setPendingInquiry(question);setOpenClassQuest(null);setScr("journal");}}/>}
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
         {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} anchorImmediate={anchorImmediate} setAnchorImmediate={setAnchorImmediate} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} guidedSession={guidedSession} setGuidedSession={setGuidedSession} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onSignOut={handleSignOut} onVerified={handleVerified}/>}
-        {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={anchorImmediate} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType}/>}
+        {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={anchorImmediate || !anchorUnlocks(completedChapters).pause} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType} reflectUnlocked={!!classState?.questProgress?.s_reflect} unlockedPracticeTypes={unlockedClassPracticeTypes} unlocks={anchorUnlocks(completedChapters)} guideCues={!anchorUnlocks(completedChapters).modifiers ? [
+          {s:0,  e:5,  text:"Sit comfortably."},
+          {s:5,  e:10, text:"Let your eyes soften or close."},
+          {s:10, e:50, text:"This is your time to simply be here, breathing, for as long as feels right."},
+          {s:50, e:null, text:"Press the Ascend button below when you are finished.", gold:true},
+        ] : null}/>}
       </div>
     </div>
   );
