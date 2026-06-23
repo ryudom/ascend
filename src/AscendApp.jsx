@@ -86,8 +86,8 @@ const CHANT_QUEST = {
   criteria: "Practice with Chant (any session).",
 };
 const CHANT_LIBRARY_STUB = {
-  id: "lib_chant", unlock: 0, section: "Path Skills", title: "Find Your Voice",
-  pathId: "foundation", pathName: "Foundation", skillUnlockQuest: "chant_unlock",
+  id: "lib_chant", unlock: 0, section: "Practices", title: "Find Your Voice",
+  sub: "Voice · any practice", skillUnlockQuest: "chant_unlock",
   sc: "voi",
   body: ["Practical instruction and detail for Chant will live here. For now: hum, tone, or repeat a single word softly while sitting, standing, or walking. No performance required — just a sound, held loosely, riding alongside the breath."],
   practice: "",
@@ -320,48 +320,48 @@ const QUEST_CHAINS = {
       title: "Reflect",
       myth: "You have chosen the path of the open question.\n\nThere is an inscription carved above an ancient temple, older than most of what still stands: know thyself. Not \"master the world.\" Not \"win the argument.\" Just this — turn toward your own experience and actually look. It has been called the beginning of wisdom for a reason nobody has improved on in over two thousand years. Wisdom doesn't start with answers. It starts here, with a question pointed inward, and the humility to admit you don't already know what it will find.\n\nHere is the strange part: you have already been doing this, or you're about to start. Every time you return from stillness and someone asks what you noticed, you'll be practicing the Sage's first and oldest skill. The path doesn't begin with mastering something new. It begins with a question, asked sincerely, after every return.\n\nWhat did you notice? Don't rush to answer. Let the question sit a moment before you reach for words.",
       libId: "lib_s_reflect",
-      criteria: "Complete a Reflect entry after a session.",
-      unlocks: [{ kind: "reflect" }],
+      criteria: "Sit for at least 5 minutes, then write a Reflect entry.",
+      unlocks: [{ kind: "reflect", minDuration: 5 }],
     },
     {
       id: "s_sound",
       title: "Observe Sound",
       myth: "Sound arrives whether you ask for it or not. A car passing. A door somewhere closing. The hum beneath the silence that's never quite silent. This is hearing, and it happens to you automatically, the same way breathing does.\n\nListening is different. Listening is a choice.\n\nHere is the strange discovery waiting at the end of this practice: sound itself carries no meaning. A voice raised in anger and a voice raised in joy are, for a fraction of a second, simply waves moving through air — identical in kind, different only in what your mind does with them afterward. The meaning isn't in the sound. It's added, quietly, between your ear and your understanding, by everything you already believe.\n\nSit. Let your ears open to whatever is actually here — not the sounds you expect, the ones that are. Notice how each one arrives, holds its shape briefly, and passes. Nothing stays. Not even the loudest thing in the room.\n\nObserve Sound unlocked. Find it in your Sitting practice.",
       libId: "lib_s_sound",
-      criteria: "Practice Observe Sound.",
-      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Sound", stat: "wis" }],
+      criteria: "Sit with Observe Sound for 10 minutes in one session.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Sound", stat: "wis", target: 10, unit: "minutes", singleSession: true }],
     },
     {
       id: "s_thought",
       title: "Observe Thought",
       myth: "A thought arrives, fully formed, demanding to be believed. This is normal. It is also optional.\n\nThinking is participation — climbing into the thought, letting it carry you wherever it's going. Observing is something else entirely: stepping back, becoming an audience to the mind's own theater, watching the thought the way you'd watch a wave rise and fall, without climbing in to ride it.\n\nHere is the proof, if proof is needed: the mind can only hold one thought at a time, one word following another, like a single voice speaking in a small room. But you can take in a hundred things at once — every sound, every color, the weight of your own body, all of it simultaneous. Whatever is doing that noticing is larger than any single thought passing through it. You are not the voice in the small room. You are the much larger thing listening to it.\n\nLet a thought arise. Don't follow it. Just watch it appear, and watch it go.\n\nObserve Thought unlocked. Find it in your Sitting practice.",
       libId: "lib_s_thought",
-      criteria: "Practice Observe Thought.",
-      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Thought", stat: "wis" }],
+      criteria: "Sit with Observe Thought for 12 minutes in one session.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Thought", stat: "wis", target: 12, unit: "minutes", singleSession: true }],
     },
     {
       id: "s_emotion",
       title: "Observe Emotion",
       myth: "A feeling arrives. So far, nothing has gone wrong. Feelings arriving is simply what it means to be alive.\n\nWhat usually happens next is this: on top of the first feeling, a second one gets added — judgment about the feeling, fear that it will never end, the belief that you shouldn't be feeling it at all. The first arrow is the emotion itself. The second arrow, the one that does most of the damage, is everything you throw at yourself afterward for having felt it.\n\nThere is a small shift in language that does real work here. Not \"I am angry,\" but \"I am feeling anger.\" The second phrasing makes room — it names the feeling without becoming it, the same way you've already learned to watch a thought without climbing inside it. Try this, and something strange happens: the feeling that seemed unbearable starts to move. Resisted, it stays. Witnessed plainly, it passes, the way every wave eventually does.\n\nLet a feeling rise. Name it without flinching. Watch what it does when nobody fights it.\n\nObserve Emotion unlocked. Find it in your Sitting practice.",
       libId: "lib_s_emotion",
-      criteria: "Practice Observe Emotion.",
-      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Emotion", stat: "wis" }],
+      criteria: "Sit with Observe Emotion for 15 minutes in one session.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Emotion", stat: "wis", target: 15, unit: "minutes", singleSession: true }],
     },
     {
       id: "s_body",
       title: "Observe Body",
       myth: "There is another way to meet a held breath, a tight shoulder, a stomach in knots — one that asks nothing of you but attention.\n\nHealer's path teaches you to release tension. This is different, and worth knowing the difference: not loosening, not softening, not asking the body to do anything at all. Just noticing exactly what's there, with the same curiosity you'd bring to weather passing overhead. A tight jaw. A flutter in the chest. Cold feet. None of it needs fixing right now. It only needs to be seen clearly.\n\nSomething strange tends to happen when a sensation is met this way, with nothing demanded of it. Sometimes it shifts on its own, the way drowsiness can loosen its grip the moment you actually look at it instead of fighting to stay awake. Sometimes it simply stays, and that's fine too. Every sensation in the body rises and falls in its own time. None of them are permanent, even the ones that feel like they will last forever.\n\nScan slowly. Notice what's there. Change nothing. Just see.\n\nObserve Body unlocked. Find it in your Sitting practice.",
       libId: "lib_s_body",
-      criteria: "Practice Observe Body.",
-      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Body", stat: "wis" }],
+      criteria: "Sit with Observe Body for 15 minutes in one session.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Body", stat: "wis", target: 15, unit: "minutes", singleSession: true }],
     },
     {
       id: "s_attention",
       title: "Observe Attention",
       myth: "Sound, thought, emotion, body. Four objects, four practices, and through all of them, one thing has remained constant: something was doing the watching.\n\nNow turn that same attention toward itself. Not toward a new object this time — toward the noticing itself. Who is aware? Where does this awareness seem to live? Don't search for an answer. There isn't one waiting to be found, only the strange, quiet fact of being conscious at all, met directly instead of taken for granted.\n\nBe careful here. The mind will try to make a thing out of the watcher — a self standing behind the self, then another behind that one, a hall of mirrors with no end. This is not the practice. The practice is simpler and stranger: just notice that noticing is happening, the way you'd notice an unmoved sky behind clouds that never stop moving. The clouds change constantly. The sky has never once moved.\n\nDon't try to find the watcher. Just notice that something is watching.\n\nObserve Attention unlocked. Find it in your Sitting practice.",
       libId: "lib_s_attention",
-      criteria: "Practice Observe Attention.",
-      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Attention", stat: "ali" }],
+      criteria: "Sit with Observe Attention for 20 minutes in one session.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Attention", stat: "ali", target: 20, unit: "minutes", singleSession: true }],
     },
     {
       id: "s_inquire",
@@ -1006,6 +1006,13 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
   const [phase,setPhase]       = useState("active");
   const [running,setRunning]   = useState(startImmediately);
   const [t,setT]               = useState(0);
+  /* Wall-clock anchoring: tRef.current is the true elapsed seconds at the start
+     of the current "running" segment; runStartRef is when that segment began
+     (Date.now()). Using real timestamps — not accumulated tick counts — means
+     the timer self-corrects after the screen sleeps, the tab is backgrounded,
+     or setInterval gets throttled, instead of silently falling behind. */
+  const tBaseRef = useRef(0);
+  const runStartRef = useRef(null);
   const [pType,setPType]       = useState(initialType);
   const [tags,setTags]         = useState([]);
   const [refl,setRefl]         = useState("");
@@ -1058,10 +1065,52 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
 
   const visibleActivities = activities.filter(activityVisible);
 
+  /* Keep the screen awake while a session is actively running, so longer
+     meditations aren't cut short by the device locking. Silently does nothing
+     on browsers/contexts that don't support the Wake Lock API (e.g. some iOS
+     PWA situations) — the wall-clock timer above still keeps time correctly
+     even if the screen does sleep. */
+  const wakeLockRef = useRef(null);
   useEffect(()=>{
     if(!running) return;
-    const id=setInterval(()=>setT(x=>x+0.1),100);
-    return ()=>clearInterval(id);
+    let active=true;
+    const requestLock = async () => {
+      try{
+        if("wakeLock" in navigator){
+          wakeLockRef.current = await navigator.wakeLock.request("screen");
+        }
+      }catch(e){ /* not supported / denied — fail silently, timer still tracks real time */ }
+    };
+    requestLock();
+    const onVis = () => { if(active && document.visibilityState==="visible" && !wakeLockRef.current) requestLock(); };
+    document.addEventListener("visibilitychange", onVis);
+    return ()=>{
+      active=false;
+      document.removeEventListener("visibilitychange", onVis);
+      try{ wakeLockRef.current?.release?.(); }catch(e){}
+      wakeLockRef.current=null;
+    };
+  },[running]);
+
+  useEffect(()=>{
+    if(!running) return;
+    runStartRef.current = Date.now();
+    const tick = () => {
+      const realElapsed = tBaseRef.current + (Date.now()-runStartRef.current)/1000;
+      setT(realElapsed);
+    };
+    tick();
+    const id=setInterval(tick,250);
+    /* Catch up immediately the moment the tab/screen becomes visible again —
+       don't wait for the next throttled interval tick. */
+    const onVis = () => { if(document.visibilityState==="visible") tick(); };
+    document.addEventListener("visibilitychange", onVis);
+    return ()=>{
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+      // bank the real elapsed time so the next run-segment continues from here
+      tBaseRef.current = tBaseRef.current + (Date.now()-runStartRef.current)/1000;
+    };
   },[running]);
 
   /* Alarm: fire gong + pause when elapsed reaches target */
@@ -1074,8 +1123,14 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
   const ret = () => {
     const loggedCounts = {};
     activeActivities.forEach(act=>{
-      const v = parseFloat(actCounts[act.id]);
-      if(!isNaN(v) && v>0) loggedCounts[act.id]=v;
+      if(act.unit==="minutes"){
+        // duration-based activities log the session's real elapsed time automatically
+        const mins = elapsed/60;
+        if(mins>0) loggedCounts[act.id]=mins;
+      } else {
+        const v = parseFloat(actCounts[act.id]);
+        if(!isNaN(v) && v>0) loggedCounts[act.id]=v;
+      }
     });
     onDone({type:typeLabel,typeId:pType,duration:dur,elapsed,activeActivities,tags,reflection:refl,pinSession,pinTag,awarenessLanding,loggedCounts});
   };
@@ -1089,6 +1144,11 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
     <div style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",background:`radial-gradient(ellipse at 50% 30%, ${C.surf2} 0%, ${C.bg} 65%), linear-gradient(${C.bg2},${C.bg})`,zIndex:300,display:"flex",flexDirection:"column"}}>
 
       {phase==="active" && <>
+        {/* Click-outside backdrop — closes the practice/activity picker if either is open */}
+        {(dropdown||actDrop) && (
+          <div onClick={()=>{setDropdown(false);setActDrop(false);}}
+            style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",zIndex:9,background:"transparent"}}/>
+        )}
         {/* Scrollable content */}
         <div style={{flex:1,overflowY:"auto",paddingBottom:"110px"}}>
           <div style={{padding:"18px 22px 0",flexShrink:0}}>
@@ -1126,11 +1186,14 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
             );
           })()}
 
+          {unlocks.pause && (
           <div style={{textAlign:"center"}}>
-            {/* Timer row: elapsed + alarm bell */}
-            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"14px"}}>
-              <div style={{...dsp("15px",W(running?0.3:0.22),400,"0.08em")}}>{sec(elapsed)}</div>
-              <button onClick={()=>{ setAlarmOpen(v=>!v); unlockAudio(audioCtxRef); }} title="Set alarm" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",background:"none",border:"none",cursor:"pointer",padding:"4px",opacity:alarmOpen?1:0.7}}>
+            {/* Timer row: elapsed + alarm bell — time gets a fixed-width box so the
+                alarm icon never shifts as the digits change width */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",alignItems:"center",gap:"14px"}}>
+              <div/>
+              <div style={{...dsp("15px",W(running?0.3:0.22),400,"0.08em"),minWidth:"86px",textAlign:"center",fontVariantNumeric:"tabular-nums"}}>{sec(elapsed)}</div>
+              <button onClick={()=>{ setAlarmOpen(v=>!v); unlockAudio(audioCtxRef); }} title="Set alarm" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",background:"none",border:"none",cursor:"pointer",padding:"4px",opacity:alarmOpen?1:0.7,justifySelf:"start"}}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                   <path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 002 2z" fill={alarmFired?C.gold:alarmSecs?C.sageB:C.muted}/>
                   <path d="M18 16v-5a6 6 0 00-5-5.91V4a1 1 0 00-2 0v1.09A6 6 0 006 11v5l-2 2v1h16v-1l-2-2z" fill={alarmFired?C.gold:alarmSecs?C.sageB:C.muted} opacity={alarmFired?"1":"0.85"}/>
@@ -1188,12 +1251,12 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
               </div>
             )}
 
-            {unlocks.pause && (
+            {/* Start/Pause */}
             <div style={{display:"flex",justifyContent:"center",marginTop:"14px"}}>
               <button onClick={()=>{setRunning(r=>!r); unlockAudio(audioCtxRef);}} style={{padding:"9px 24px",background:"rgba(163,192,137,0.08)",border:"none",borderRadius:"3px",cursor:"pointer",...dsp("11px",C.sageB,400,"0.2em")}}>{running?"PAUSE":(elapsed>0?"RESUME":"START")}</button>
             </div>
-            )}
           </div>
+          )}
 
           {/* Session type — SL style */}
           {unlocks.practiceType && (
@@ -1291,11 +1354,27 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 })}
               </div>
             )}
-            {/* Count rows for target-tracked activities: + | count | +10 */}
+            {/* Count rows for target-tracked activities: + | count | +10
+                (duration-based activities log automatically from session time
+                and show live progress instead of manual entry) */}
             {activeActIds.map(id=>{
               const act=activities.find(a=>a.id===id);
               if(!act || !act.target) return null;
               const sc=STAT_COLORS[act.stat]||C.sageB;
+              if(act.unit==="minutes"){
+                const liveMin = act.singleSession ? elapsed/60 : (act.count||0) + elapsed/60;
+                const pct = Math.min(100, Math.round(liveMin/act.target*100));
+                return (
+                  <div key={"dur_"+id} style={{marginTop:"10px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",...body("12px",C.muted),marginBottom:"4px"}}>
+                      <span>{act.name}</span><span>{liveMin.toFixed(1)}/{act.target} min{act.singleSession?" · this sitting":""}</span>
+                    </div>
+                    <div style={{height:"4px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${pct}%`,background:sc,transition:"width .3s"}}/>
+                    </div>
+                  </div>
+                );
+              }
               const entered = actCounts[id]??0;
               const bump=(n)=>setActCounts(p=>({...p,[id]:Math.max(0,(parseInt(p[id])||0)+n)}));
               return (
@@ -2304,7 +2383,7 @@ const CHAPTER_QUESTS = {
 
 /* The "Choose Your Path" screen, shown when the gate is met and no class chosen.
    Picking a class sets it active and drops the player into the Foundation Trial. */
-function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onReturn=()=>{} }){
+function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onReturn=()=>{}, questProgress={}, trialComplete=()=>true }){
   const [sel,setSel]=useState(null);
   return (
     <div style={{padding:"4px 4px 20px"}}>
@@ -2316,6 +2395,11 @@ function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onRet
         const isOpen = sel===c.id;
         const isActive = activeClass===c.id;
         const walked = alreadyChosen.includes(c.id) && !isActive;
+        const trialDone = trialComplete(c.id);
+        const chainQuests = (QUEST_CHAINS[c.id]||[]).filter(q=>!q.isTrial && !q.isEpilogue);
+        const doneCount = chainQuests.filter(q=>questProgress[q.id]).length;
+        const progressLabel = !trialDone ? ""
+          : (isActive||walked) ? ` · ${doneCount}/${chainQuests.length}` : "";
         return (
           <div key={c.id}
             onClick={()=>setSel(isOpen?null:c.id)}
@@ -2323,7 +2407,7 @@ function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onRet
               borderRadius:"7px",padding:"14px 16px",marginBottom:"10px",cursor:"pointer",transition:"all .2s"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
               <div style={{...dsp("17px",C.cream,500,"0.04em")}}>{c.name}</div>
-              <div style={{...dsp("10px",c.accent,400,"0.14em")}}>{c.verb.toUpperCase()}{isActive?" · ACTIVE":walked?" · WALKED":""}</div>
+              <div style={{...dsp("10px",c.accent,400,"0.14em")}}>{c.verb.toUpperCase()}{isActive&&trialDone?" · ACTIVE":""}{progressLabel}</div>
             </div>
             <div style={{...body("13px",C.muted),marginTop:"5px",lineHeight:"1.5"}}>{c.blurb}</div>
             {isOpen && (
@@ -2415,6 +2499,7 @@ function questProgressLine(q, activities){
   const targetUnlocks = (q.unlocks||[]).filter(u=>u.kind==="activity" && u.target);
   if(targetUnlocks.length===0) return q.criteria;
   return targetUnlocks.map(u=>{
+    if(u.singleSession) return `${u.name}: one sitting of ${u.target}${u.unit?" "+u.unit:""}`;
     const act = activities.find(a=>a.name===u.name);
     const count = act?.count||0;
     return `${u.name}: ${count}/${u.target}${u.unit?" "+u.unit:""}`;
@@ -2499,6 +2584,8 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
     const act=activities.find(a=>a.name===u.name);
     return act && (act.count||0) >= u.target;
   });
+  const reflectUnlock = (q.unlocks||[]).find(u=>u.kind==="reflect" && u.minDuration);
+  const isReflectQuest = !!reflectUnlock;
 
   return (
     <Overlay title={q.title} onBack={onBack}>
@@ -2530,11 +2617,20 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
         </div>
       )}
 
-      {/* Live progress for count-based quests (e.g. Pushups 62/100) */}
+      {/* Live progress for count-based quests (e.g. Pushups 62/100).
+          singleSession quests don't carry a meaningful "progress so far" outside
+          an active sitting, so show the target with a note instead of a stale count. */}
       {hasTargets && !questDone && (
         <div style={{marginBottom:"16px"}}>
           {targetUnlocks.map(u=>{
             const act=activities.find(a=>a.name===u.name);
+            if(u.singleSession){
+              return (
+                <div key={u.name} style={{marginBottom:"10px"}}>
+                  <div style={{...body("12px",C.muted)}}>{u.name}: needs one sitting of {u.target} {u.unit||""}</div>
+                </div>
+              );
+            }
             const count=act?.count||0;
             const pct=Math.min(100,Math.round(count/u.target*100));
             return (
@@ -2568,6 +2664,10 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
       ) : hasTargets ? (
         <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
           {targetsMet ? "Targets reached — completing…" : "Log your practice after each session to track progress."}
+        </div>
+      ) : isReflectQuest ? (
+        <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
+          Sit for at least {reflectUnlock.minDuration} minutes, then write a Reflect entry afterward.
         </div>
       ) : (
         <button onClick={onComplete}
@@ -3080,7 +3180,9 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                 onChoose={(cid)=>{ onChooseClass(cid); setViewingChoice(false); }}
                 onReturn={()=>setViewingChoice(false)}
                 alreadyChosen={classState.chosenClasses||[]}
-                activeClass={classState.activeClass}/>
+                activeClass={classState.activeClass}
+                questProgress={classState.questProgress||{}}
+                trialComplete={trialComplete}/>
             ) : !trialComplete(classState.activeClass) ? (
               <FoundationTrial classId={classState.activeClass} trialProgress={classState.trialProgress}
                 onOpenTrial={(t)=>onOpenAnchor(t)} devMode={devMode} onDevSkipTrial={onDevSkipTrial}
@@ -3469,6 +3571,7 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
     return false;
   };
   const entryUnlocked = e => {
+    if(e.skillUnlockQuest==="chant_unlock") return chantUnlocked;
     if(e.section==="Path Skills") return pathSkillUnlocked(e);
     return !e.unlock || chapterActive(e.unlock);
   };
@@ -3776,6 +3879,15 @@ function LogsScreen({ onBack, sessions, jEntries }){
                           <span style={{...body("12px",C.gold)}}>{s.duration} min</span>
                         </div>
                         {s.tags?.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:"4px",paddingLeft:"10px",marginBottom:"4px"}}>{s.tags.map((tg,j)=><span key={j} style={{...body("10px",C.muted),border:`0.5px solid ${C.bord}`,padding:"1px 6px",borderRadius:"10px"}}>{tg}</span>)}</div>}
+                        {s.activities?.some(a=>s.loggedCounts?.[a.id]!=null) && (
+                          <div style={{display:"flex",flexWrap:"wrap",gap:"4px",paddingLeft:"10px",marginBottom:"4px"}}>
+                            {s.activities.filter(a=>s.loggedCounts?.[a.id]!=null).map((a,j)=>{
+                              const v=s.loggedCounts[a.id];
+                              const display = a.unit==="minutes" ? `${v.toFixed(1)} min` : `${v}${a.unit?" "+a.unit:""}`;
+                              return <span key={j} style={{fontSize:"10px",color:C.cream,background:"rgba(255,255,255,0.04)",border:`0.5px solid ${C.bord}`,padding:"1px 7px",borderRadius:"10px"}}>{a.name}: {display}</span>;
+                            })}
+                          </div>
+                        )}
                         {s.reflection&&<div style={{...body("12px",C.muted),fontStyle:"italic",paddingLeft:"10px",lineHeight:"1.5"}}>"{s.reflection}"</div>}
                         <div style={{display:"flex",flexWrap:"wrap",gap:"4px",paddingLeft:"10px",marginTop:"5px"}}>
                           {(s.xp||0)>0&&<span style={{fontSize:"10px",color:C.gold,background:C.goldFt,border:`0.5px solid ${C.goldDim}`,padding:"1px 7px",borderRadius:"10px"}}>+{s.xp} XP</span>}
@@ -4554,7 +4666,7 @@ export default function AscendApp(){
         setActivities(p=> p.some(a=>a.name===u.name) ? p : [...p,{
           id:`cls_${u.name.replace(/\s+/g,'_').toLowerCase()}`,
           name:u.name, stat:u.stat, classSkill:true, practiceType:u.practiceType,
-          count:0, target: u.target ?? null, unit: u.unit ?? null,
+          count:0, target: u.target ?? null, unit: u.unit ?? null, singleSession: !!u.singleSession,
         }]);
       }
       /* kind:"journal" (tend/inquire) and kind:"practiceType" are read directly
@@ -4684,9 +4796,22 @@ export default function AscendApp(){
         selStats.forEach(sk=>{ sg[sk]=(sg[sk]||0)+perStat; });
       }
     }
-    const s={type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),activities:activities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg,awarenessLanding:lands};
+    const s={type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),activities:activeActivities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg,awarenessLanding:lands,loggedCounts:loggedCounts||{}};
     setSessions(p=>[s,...p]);
     setHasAnchored(true);
+    /* Reflect quest: complete once a single sitting session reaches the
+       required minutes AND a reflection note was actually written for it —
+       checked against this session directly, not the activity-count system. */
+    Object.keys(QUEST_CHAINS).forEach(cid=>{
+      QUEST_CHAINS[cid].forEach(q=>{
+        if(classState.questProgress?.[q.id]) return;
+        const reflectUnlock = (q.unlocks||[]).find(u=>u.kind==="reflect" && u.minDuration);
+        if(!reflectUnlock) return;
+        const longEnough = s.typeId==="sitting" && s.elapsed >= reflectUnlock.minDuration*60;
+        const noteWritten = !!(s.reflection && s.reflection.trim());
+        if(longEnough && noteWritten) completeClassQuest(q.id);
+      });
+    });
     /* Accumulate any logged reps/distance onto the activity's running count,
        and auto-complete the owning quest once every target activity is met. */
     if(Object.keys(loggedCounts).length>0){
@@ -4694,8 +4819,13 @@ export default function AscendApp(){
         loggedCounts[a.id]!=null ? {...a, count:(a.count||0)+loggedCounts[a.id]} : a
       );
       setActivities(updatedActivities);
-      /* find any active, not-yet-complete quest whose target activities (by
-         name) are now all at/above their target, and mark it complete */
+      /* find any active, not-yet-complete quest whose target activities are
+         now met, and mark it complete. Two modes:
+         - singleSession: THIS session alone must reach the target (e.g. one
+           20-minute sit with Observe Attention selected) — checked against
+           loggedCounts directly, not the lifetime running count.
+         - accumulated (default): the lifetime count across all sessions must
+           reach the target (e.g. 100 pushups total, any number of sessions). */
       Object.keys(QUEST_CHAINS).forEach(cid=>{
         QUEST_CHAINS[cid].forEach(q=>{
           if(classState.questProgress?.[q.id]) return; // already done
@@ -4703,7 +4833,12 @@ export default function AscendApp(){
           if(targetUnlocks.length===0) return;
           const allMet = targetUnlocks.every(u=>{
             const act = updatedActivities.find(a=>a.name===u.name);
-            return act && (act.count||0) >= u.target;
+            if(!act) return false;
+            if(u.singleSession){
+              const thisSession = loggedCounts[act.id]||0;
+              return thisSession >= u.target;
+            }
+            return (act.count||0) >= u.target;
           });
           if(allMet) completeClassQuest(q.id);
         });
@@ -5122,7 +5257,7 @@ export default function AscendApp(){
           onOpenInquire={(question)=>{setPendingInquiry(question);setOpenClassQuest(null);setScr("journal");}}/>}
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
         {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} anchorImmediate={anchorImmediate} setAnchorImmediate={setAnchorImmediate} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} guidedSession={guidedSession} setGuidedSession={setGuidedSession} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onSignOut={handleSignOut} onVerified={handleVerified}/>}
-        {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={anchorImmediate || !anchorUnlocks(completedChapters).pause} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType} reflectUnlocked={!!classState?.questProgress?.s_reflect} unlockedPracticeTypes={unlockedClassPracticeTypes} unlocks={anchorUnlocks(completedChapters)} guideCues={!anchorUnlocks(completedChapters).modifiers ? [
+        {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={anchorImmediate || !anchorUnlocks(completedChapters).pause} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType} reflectUnlocked={!!classState?.questProgress?.s_reflect || (classState?.activeClass==="sage" && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} unlocks={anchorUnlocks(completedChapters)} guideCues={!anchorUnlocks(completedChapters).modifiers ? [
           {s:0,  e:5,  text:"Sit comfortably."},
           {s:5,  e:10, text:"Let your eyes soften or close."},
           {s:10, e:50, text:"This is your time to simply be here, breathing, for as long as feels right."},
