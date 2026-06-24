@@ -228,8 +228,8 @@ const QUEST_CHAINS = {
       isEpilogue: true,
       myth: "You have built the body. Now you are given something harder: presence with nothing to do.\n\nEvery skill before this asked you to generate something — a rep, a stride, a strike. Cold asks the opposite. It asks you to stay, while something difficult happens to you, and not flee. This is the final face of \"presence under pressure\" — not power, but stillness inside discomfort.\n\nCold Exposure is a condition you can carry into any practice — sit in it, stand in it, walk in it. Seek it where you can find it: a cold shower, an early swim, the morning air.",
       libId: "lib_w_cold",
-      criteria: "Practice with Cold Exposure (any session).",
-      unlocks: [{ kind: "activity", practiceType: "any", name: "Cold Exposure", stat: "wil" }],
+      criteria: "Reach Warrior Mastery 1 — complete the Warrior chain.",
+      unlocks: [],
     },
   ],
 
@@ -280,9 +280,8 @@ const QUEST_CHAINS = {
       title: "Deep Listening",
       myth: "Everything so far has been practiced alone. This is the first time it's asked of you with someone else in the room.\n\nThe instinct will be to fix. Someone shares their pain, and something in you reaches for a solution, a reassurance, anything to close the gap before it grows uncomfortable. Resist it. No one in pain is asking to be repaired. They are asking to be heard — fully, without your own thoughts crowding the space meant for theirs.\n\nThis is why the path began with you, and why it asked you to release what you were carrying before it asked you to hold someone else's. A heart still gripping its own grievance will flinch at someone else's, or worse, make it about its own. Empty yourself. Leave space. Let their words land before you decide what they mean.\n\nYou already practiced this when no one was watching. Now you'll discover whether it was real.\n\nTend unlocked. Mark it in your journal whenever you hold space for someone.",
       libId: "lib_h_listen",
-      criteria: "Practice Deep Listening; mark a Tend entry.",
+      criteria: "Hold space for someone, then mark a Tend entry with how long you listened.",
       unlocks: [
-        { kind: "activity", practiceType: "restore", name: "Deep Listening", stat: "hrt" },
         { kind: "journal", feature: "tend" },
       ],
     },
@@ -291,8 +290,8 @@ const QUEST_CHAINS = {
       title: "Service",
       myth: "Heart Listening turned you toward yourself. Tension Release, Voice Work tended what you found there. Deep Listening turned that same attention toward someone else. Service is what you do with hands, not just presence — when listening isn't enough, and something in the world actually needs doing.\n\nThere's an old question worth asking honestly: is any service truly selfless? You will likely feel something when you help — lighter, more useful, closer to the person you're becoming. That isn't a flaw in the act. It's simply true, and pretending otherwise helps no one. The danger isn't feeling good when you serve. The danger is needing someone else's need in order to feel good about yourself at all. Serve because it's needed, not because you require it to feel whole.\n\nOne genuine act. Not performed, not announced. Something that actually helps, given to someone who actually needed it.\n\nMark it in your Tend journal.",
       libId: "lib_h_service",
-      criteria: "Perform an act of Service; mark a Tend entry.",
-      unlocks: [{ kind: "activity", practiceType: "restore", name: "Service", stat: "wil" }],
+      criteria: "Perform an act of Service, then mark a Tend entry with how long it took.",
+      unlocks: [],
     },
     {
       id: "h_union",
@@ -453,7 +452,146 @@ function freshClassState() {
     questProgress: {},    // { questId: true } once a quest is complete
     inquireAnswered: {},  // { "What am I resisting?": true, ... }
     epilogueRevealed: {}, // { warrior: bool } once chain complete
+    mastery: {},           // { warrior: { xp: 0 }, ... } — exists only once chain is complete
   };
+}
+
+/* ── CLASS MASTERY ─────────────────────────────────────────────────────────
+   The 7-quest chain is each path's foundation, not its ceiling. The moment the
+   chain completes, the player is granted Mastery 1 outright (a flat milestone,
+   no retroactive XP math), and mastery XP begins counting toward Mastery 2.
+
+   Earning, once a path has reached Mastery 1:
+     - Continues accruing from that path's relevant practice FOREVER, even
+       while a different path is active (practice is practice).
+     - Mastery BONUSES (small unlocks like Cold Exposure) only activate while
+       that path is the active one — established ≠ in-use.
+   Before Mastery 1 (during the 7-quest chain), only the active path earns.
+
+   Curve: same cubic shape as the Presence curve, own tunable constant per path
+   so a path that earns more easily (e.g. Sage, via plain Sit) can be tuned to
+   need proportionally more XP per level without touching the earning rules. */
+const MASTERY_XP_A = { warrior: 27, healer: 27, sage: 35 }; // placeholder — Sage tuned higher since Sit is the most common practice. Mastery 10 (advanced-class gate) lands around 50-70 hours of qualifying practice; tune after real testing.
+const masteryTotalXPForLevel = (classId, L) => Math.round((MASTERY_XP_A[classId]??0.25) * Math.max(0,L-1) ** 3);
+const masteryLevelFromXP = (classId, xp) => {
+  let L=1;
+  while(masteryTotalXPForLevel(classId, L+1) <= Math.max(0,xp)) L++;
+  return L;
+};
+const ADVANCED_CLASS_MASTERY_GATE = 10; // advanced classes start unlocking here; per-class specifics TBD
+
+/* Per-activity XP multipliers — applies to BOTH Presence and mastery XP, and
+   is tracked TIME-SEGMENTED within a session (toggling Horse Stance on/off
+   mid-Stand only multiplies the minutes it was actually active). If more than
+   one multiplier-activity is ever active at once, the highest applies, not
+   stacked. Default 1x for everything not listed, including future
+   user-created activities unless explicitly given their own multiplier later. */
+const ACTIVITY_MULTIPLIERS = {
+  "Run": 2,
+  "Horse Stance": 3,
+};
+function multiplierFor(activityName){ return ACTIVITY_MULTIPLIERS[activityName] ?? 1; }
+
+/* Given a chronological log of {ts, id, on} toggle events (ts in elapsed
+   seconds, NOT wall-clock — so paused time is automatically excluded, same
+   units as the session's own pause-aware timer) and the session's total
+   elapsed seconds, compute the multiplier-weighted "effective seconds" for
+   XP purposes. If multiple multiplier activities were ever on at once, the
+   highest one applies for that stretch, not stacked. No events at all (the
+   overwhelming majority of sessions) → weighted === raw elapsed, unchanged. */
+function weightedElapsedSeconds(events, totalElapsed, activities){
+  const byId = {}; activities.forEach(a=>{ byId[a.id]=a; });
+  const sorted = [...events].sort((a,b)=>a.ts-b.ts);
+  let activeSet = new Set(), cursor = 0, weighted = 0;
+  const currentMult = () => activeSet.size===0 ? 1 : Math.max(...[...activeSet].map(id=>multiplierFor(byId[id]?.name)));
+  for(const ev of sorted){
+    weighted += Math.max(0, ev.ts-cursor) * currentMult();
+    cursor = ev.ts;
+    if(ev.on) activeSet.add(ev.id); else activeSet.delete(ev.id);
+  }
+  weighted += Math.max(0, totalElapsed-cursor) * currentMult();
+  return weighted;
+}
+
+/* Flat, deliberately small bonus per logged unit (rep, km, or any future
+   countable unit) — same formula regardless of unit type. Kept modest so it
+   reads as a nice bonus for real effort, not a second economy worth gaming by
+   mashing +10. Does NOT apply to unit:"minutes" activities, since those are
+   already paid via session duration × multiplier — counting their minutes
+   again here would double-pay the same time. */
+const COUNT_BONUS_PER_UNIT = 0.08; // ~0.08 XP per rep/km — e.g. 100 pushups ≈ 8 XP, a few minutes' worth
+function countBonusXP(loggedCounts, activitiesById){
+  let bonus=0;
+  Object.entries(loggedCounts).forEach(([id,v])=>{
+    const act=activitiesById[id];
+    if(act && act.unit!=="minutes") bonus += v*COUNT_BONUS_PER_UNIT;
+  });
+  return bonus;
+}
+
+/* Mastery bonuses — small unlocks granted at a given mastery level for a given
+   path. Intentionally a short, easy-to-extend list; add a line, nothing else
+   to wire. Only active (selectable) while that path is the player's active one. */
+const MASTERY_BONUSES = {
+  warrior: [
+    { level: 1, id: "bonus_w_cold", name: "Cold Exposure", stat: "wil", practiceType: "any" },
+  ],
+  healer: [],
+  sage: [],
+};
+
+/* Shared: has this path's 7-quest foundation chain been fully completed? */
+function chainComplete(classId, questProgress={}){
+  const numbered = (QUEST_CHAINS[classId]||[]).filter(q=>!q.isTrial && !q.isEpilogue);
+  return numbered.length>0 && numbered.every(q=>questProgress[q.id]);
+}
+
+/* Reverse lookup: which activity NAMES belong to each path (its own quest-chain
+   skills, plus its mastery-bonus skills like Cold Exposure) — used to credit
+   mastery XP to a path whenever one of its skills is actually used in a
+   session, regardless of which session TYPE that skill happens to live under
+   (e.g. Run is a Warrior skill even though it's logged under a Walk session). */
+const PATH_SKILL_NAMES = {};
+Object.entries(QUEST_CHAINS).forEach(([cid,chain])=>{
+  PATH_SKILL_NAMES[cid] = new Set();
+  chain.forEach(q=>(q.unlocks||[]).forEach(u=>{ if(u.kind==="activity") PATH_SKILL_NAMES[cid].add(u.name); }));
+});
+Object.entries(MASTERY_BONUSES).forEach(([cid,bonuses])=>{
+  bonuses.forEach(b=>PATH_SKILL_NAMES[cid]?.add(b.name));
+});
+
+/* Which path(s) does a completed session qualify for mastery XP? Inclusive,
+   not exclusive — a session can credit more than one path if it genuinely
+   earns it (e.g. a Sit with the Throat center selected credits both Sage and
+   Healer). Rules: that path's own skills used (any session type) OR Warrior
+   via Stand, Sage via Sit, Healer via Chest/Throat awareness landing. */
+function masteryPathsForSession(s){
+  const paths = new Set();
+  const names = (s.activities||[]).map(a=>a.name);
+  Object.entries(PATH_SKILL_NAMES).forEach(([cid,set])=>{
+    if(names.some(n=>set.has(n))) paths.add(cid);
+  });
+  if(s.typeId==="standing") paths.add("warrior");
+  if(s.typeId==="sitting") paths.add("sage");
+  const lands = Array.isArray(s.awarenessLanding) ? s.awarenessLanding : [];
+  if(lands.includes("chest")||lands.includes("throat")) paths.add("healer");
+  return [...paths];
+}
+
+/* Credit mastery XP to every qualifying path that has actually reached
+   Mastery 1 (chain complete) — mastery doesn't exist before that, so nothing
+   accrues pre-7/7; the quest chain's own progress is the only marker until
+   then. Once established, a path earns from its relevant practice FOREVER,
+   active or not — only the bonuses it grants require being active. */
+function awardMasteryXP(classState, qualifyingPaths, xpAmount){
+  if(!xpAmount || xpAmount<=0 || !qualifyingPaths || qualifyingPaths.length===0) return classState;
+  let next = classState;
+  qualifyingPaths.forEach(cid=>{
+    if(!chainComplete(cid, classState.questProgress)) return;
+    const cur = next.mastery?.[cid]?.xp || 0;
+    next = {...next, mastery:{...next.mastery, [cid]:{xp:cur+xpAmount}}};
+  });
+  return next;
 }
 
 
@@ -1002,7 +1140,7 @@ function playGong(ctx){
   }catch(e){}
 }
 
-function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting", reflectUnlocked=false, unlockedPracticeTypes=[], unlocks={modifiers:true,pause:true,pin:true,practiceType:true,activities:true,centers:true}, guideCues=null }){
+function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting", reflectUnlocked=false, unlockedPracticeTypes=[], unlocks={modifiers:true,pause:true,pin:true,practiceType:true,activities:true,centers:true}, guideCues=null, activeClassId=null }){
   const [phase,setPhase]       = useState("active");
   const [running,setRunning]   = useState(startImmediately);
   const [t,setT]               = useState(0);
@@ -1024,6 +1162,19 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
   const [awarenessLanding,setAwarenessLanding] = useState([]); // array of region ids
   const [feelOpen,setFeelOpen] = useState(false);
   const [activeActIds,setActiveActIds] = useState([]);
+  /* Time-segmented multiplier tracking: every time an activity is toggled on
+     or off, log a real timestamp. At session end this lets XP be weighted by
+     which multiplier was actually active during which seconds — toggling
+     Horse Stance on for 3 of a 9-minute Stand only multiplies those 3 minutes,
+     not the whole session. */
+  const multEventsRef = useRef([]); // [{ts, id, on}]
+  const toggleActivity = (id) => {
+    setActiveActIds(p=>{
+      const turningOn = !p.includes(id);
+      multEventsRef.current.push({ts:Date.now(), id, on:turningOn});
+      return turningOn ? [...p, id] : p.filter(x=>x!==id);
+    });
+  };
   const [actCounts,setActCounts] = useState({}); // { activityId: enteredCountString }
   const [actDrop,setActDrop]   = useState(false);
   const [creatingAct,setCreatingAct] = useState(false);
@@ -1052,10 +1203,15 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
   const allTypes = [...CORE, ...dropdownTypes];
   const typeLabel = (allTypes.find(tp=>tp.id===pType)||CORE[0]).label;
   const dur = Math.max(1,Math.floor(elapsed/60));
-  const xp = Math.floor(elapsed / 10);  // 1 XP per 10 s
+  const weightedSecsLive = weightedElapsedSeconds(multEventsRef.current, t, activities);
+  const xp = Math.floor(weightedSecsLive / 10);  // 1 XP per 10 weighted s (multiplier-aware)
   /* Every activity is scoped to the practice type it was created/unlocked
-     under — shows only when it matches the current session type, or is "any". */
+     under — shows only when it matches the current session type, or is "any".
+     Mastery-bonus activities (e.g. Cold Exposure) have the further condition
+     that they only show while THEIR path is the player's active one — earned
+     forever, but only usable while you're actually walking that path. */
   const activityVisible = (a) => {
+    if(a.masteryBonus && a.bonusPath!==activeClassId) return false;
     if(!a.practiceType || a.practiceType==="any") return true;
     return a.practiceType===pType;
   };
@@ -1132,7 +1288,8 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
         if(!isNaN(v) && v>0) loggedCounts[act.id]=v;
       }
     });
-    onDone({type:typeLabel,typeId:pType,duration:dur,elapsed,activeActivities,tags,reflection:refl,pinSession,pinTag,awarenessLanding,loggedCounts});
+    const weightedElapsed = weightedElapsedSeconds(multEventsRef.current, t, activities);
+    onDone({type:typeLabel,typeId:pType,duration:dur,elapsed,weightedElapsed,activeActivities,tags,reflection:refl,pinSession,pinTag,awarenessLanding,loggedCounts});
   };
   const submitNew = () => {
     const nt=newType.trim(); if(!nt) return;
@@ -1310,7 +1467,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                       const isActive=activeActIds.includes(act.id);
                       return (
                         <div key={act.id} style={{display:"flex",alignItems:"center",padding:"8px 14px",gap:"8px",background:isActive?"rgba(163,192,137,0.08)":"transparent"}}>
-                          <button onClick={()=>{setActiveActIds(p=>isActive?p.filter(x=>x!==act.id):[...p,act.id]);}} style={{flex:1,display:"flex",alignItems:"center",gap:"8px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
+                          <button onClick={()=>toggleActivity(act.id)} style={{flex:1,display:"flex",alignItems:"center",gap:"8px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
                             <span style={{...body("13px",isActive?C.cream:C.txt)}}>{act.name}</span>
                             <span style={{fontSize:"9px",color:sc,background:sc+"22",border:`0.5px solid ${sc}55`,padding:"1px 5px",borderRadius:"4px",fontFamily:"Cinzel,serif",letterSpacing:"0.06em"}}>{act.stat.toUpperCase()}</span>
                           </button>
@@ -1350,7 +1507,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                   const act=activities.find(a=>a.id===id);
                   if(!act) return null;
                   const sc=STAT_COLORS[act.stat]||C.sageB;
-                  return (<span key={id} onClick={()=>setActiveActIds(p=>p.filter(x=>x!==id))} style={{fontSize:"11px",color:sc,background:sc+"18",border:`0.5px solid ${sc}55`,padding:"2px 9px",borderRadius:"8px",cursor:"pointer"}}>{act.name} ×</span>);
+                  return (<span key={id} onClick={()=>toggleActivity(id)} style={{fontSize:"11px",color:sc,background:sc+"18",border:`0.5px solid ${sc}55`,padding:"2px 9px",borderRadius:"8px",cursor:"pointer"}}>{act.name} ×</span>);
                 })}
               </div>
             )}
@@ -2383,7 +2540,7 @@ const CHAPTER_QUESTS = {
 
 /* The "Choose Your Path" screen, shown when the gate is met and no class chosen.
    Picking a class sets it active and drops the player into the Foundation Trial. */
-function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onReturn=()=>{}, questProgress={}, trialComplete=()=>true }){
+function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onReturn=()=>{}, questProgress={}, trialComplete=()=>true, mastery={} }){
   const [sel,setSel]=useState(null);
   return (
     <div style={{padding:"4px 4px 20px"}}>
@@ -2398,7 +2555,10 @@ function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onRet
         const trialDone = trialComplete(c.id);
         const chainQuests = (QUEST_CHAINS[c.id]||[]).filter(q=>!q.isTrial && !q.isEpilogue);
         const doneCount = chainQuests.filter(q=>questProgress[q.id]).length;
+        const isMastered = trialDone && doneCount===chainQuests.length;
+        const masteryLvl = isMastered ? masteryLevelFromXP(c.id, mastery[c.id]?.xp||0) : 0;
         const progressLabel = !trialDone ? ""
+          : isMastered ? ` · MASTERY ${masteryLvl}`
           : (isActive||walked) ? ` · ${doneCount}/${chainQuests.length}` : "";
         return (
           <div key={c.id}
@@ -2507,6 +2667,7 @@ function questProgressLine(q, activities){
 }
 
 function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epilogueRevealed={}, activities=[],
+                             masteryXP=0, isActivePath=true,
                              onOpenQuest, onOpenLib }){
   const cls = CLASS_BY_ID[classId];
   if(!cls) return null;
@@ -2517,12 +2678,44 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
   const isDone = q => !!questProgress[q.id];
   /* A quest is active if it's the first not-yet-done quest in order. */
   const firstActiveIdx = numbered.findIndex(q=>!isDone(q));
-  const chainComplete = firstActiveIdx===-1;
+  const fullyComplete = firstActiveIdx===-1;
 
   const stateOf = (q,i) => isDone(q) ? "complete" : (i===firstActiveIdx ? "active" : "locked");
 
+  /* Mastery — only meaningful once the chain itself is complete (Mastery 1). */
+  const masteryLvl = fullyComplete ? masteryLevelFromXP(classId, masteryXP) : 0;
+  const curThreshold = masteryTotalXPForLevel(classId, masteryLvl);
+  const nextThreshold = masteryTotalXPForLevel(classId, masteryLvl+1);
+  const pctToNext = Math.min(100, Math.round(((masteryXP-curThreshold)/Math.max(1,nextThreshold-curThreshold))*100));
+  const bonuses = MASTERY_BONUSES[classId]||[];
+
   return (
     <div style={{padding:"8px 0 4px"}}>
+      {fullyComplete && (
+        <div style={{marginBottom:"22px",padding:"14px 16px",borderRadius:"8px",border:`0.5px solid ${cls.accent}55`,background:"rgba(255,255,255,0.02)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:"8px"}}>
+            <div style={{...dsp("13px",cls.accent,500,"0.08em")}}>{cls.name.toUpperCase()} MASTERY {masteryLvl}</div>
+            {!isActivePath && <div style={{...body("10px",C.dim),fontStyle:"italic"}}>accruing · go active to use bonuses</div>}
+          </div>
+          <div style={{height:"5px",background:C.bord,borderRadius:"3px",overflow:"hidden",marginBottom:"6px"}}>
+            <div style={{height:"100%",width:`${pctToNext}%`,background:cls.accent,transition:"width .3s"}}/>
+          </div>
+          <div style={{...body("11px",C.dim)}}>{Math.round(masteryXP-curThreshold)}/{Math.round(nextThreshold-curThreshold)} XP to Mastery {masteryLvl+1}</div>
+          {bonuses.length>0 && (
+            <div style={{marginTop:"10px"}}>
+              {bonuses.map(b=>{
+                const unlocked = masteryLvl>=b.level;
+                return (
+                  <div key={b.id} style={{display:"flex",alignItems:"center",gap:"8px",marginTop:"6px",opacity:unlocked?1:0.4}}>
+                    <span style={{...dsp("8px",unlocked?cls.accent:C.dim,400,"0.1em")}}>MASTERY {b.level}</span>
+                    <span style={{...body("12px",unlocked?C.cream:C.muted)}}>{b.name}{unlocked?"":" (locked)"}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
       <SL title={`${cls.name} · ${cls.verb}`}/>
       {numbered.map((q,i)=>{
         const st = stateOf(q,i);
@@ -2553,7 +2746,7 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
         );
       })}
       {/* Epilogue, revealed once the chain completes */}
-      {epilogue && chainComplete && (
+      {epilogue && fullyComplete && (
         <div style={{marginTop:"10px",borderTop:`0.5px solid ${C.bord}`,paddingTop:"14px"}}>
           <div onClick={()=>onOpenQuest(epilogue.id)}
             style={{background:C.surf,border:`0.5px solid ${cls.accent}66`,borderRadius:"6px",padding:"11px 14px",cursor:"pointer"}}>
@@ -3182,7 +3375,8 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                 alreadyChosen={classState.chosenClasses||[]}
                 activeClass={classState.activeClass}
                 questProgress={classState.questProgress||{}}
-                trialComplete={trialComplete}/>
+                trialComplete={trialComplete}
+                mastery={classState.mastery||{}}/>
             ) : !trialComplete(classState.activeClass) ? (
               <FoundationTrial classId={classState.activeClass} trialProgress={classState.trialProgress}
                 onOpenTrial={(t)=>onOpenAnchor(t)} devMode={devMode} onDevSkipTrial={onDevSkipTrial}
@@ -3192,6 +3386,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                 <button onClick={()=>setViewingChoice(true)} style={{background:"none",border:"none",cursor:"pointer",...body("12px",C.dim),marginBottom:"14px",padding:0}}>← Walk a different path</button>
                 <ClassQuestSection classId={classState.activeClass} questProgress={classState.questProgress}
                   inquireAnswered={classState.inquireAnswered} epilogueRevealed={classState.epilogueRevealed}
+                  masteryXP={classState.mastery?.[classState.activeClass]?.xp||0} isActivePath={true}
                   activities={activities} onOpenQuest={onOpenClassQuest} onOpenLib={onGoToLib}/>
               </>
             )}
@@ -3773,6 +3968,7 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, ten
   const [mode,setMode]=useState(pendingInquiry?"inquire":"normal");
   const [question,setQuestion]=useState(pendingInquiry||"");
   const [tendKind,setTendKind]=useState(null); // "Deep Listening" | "Service"
+  const [tendMins,setTendMins]=useState("");
   useEffect(()=>{ if(pendingInquiry){ setMode("inquire"); setQuestion(pendingInquiry); } },[pendingInquiry]);
 
   const canSave = entry.trim() && (mode!=="inquire" || question.trim());
@@ -3781,10 +3977,10 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, ten
     const date=new Date().toISOString().slice(0,10);
     const e={text:entry.trim(),mood,body:bdy,date};
     if(mode==="inquire"){ e.tag="inquire"; e.question=question.trim(); }
-    else if(mode==="tend"){ e.tag="tend"; e.tendKind=tendKind||"Deep Listening"; }
+    else if(mode==="tend"){ e.tag="tend"; e.tendKind=tendKind||"Deep Listening"; const m=parseFloat(tendMins); if(!isNaN(m)&&m>0) e.tendMinutes=m; }
     onSave(e);
     setSaved(true);
-    setTimeout(()=>{setEntry("");setMood(null);setBdy(null);setSaved(false);},1100);
+    setTimeout(()=>{setEntry("");setMood(null);setBdy(null);setSaved(false);setTendMins("");},1100);
   };
 
   const modeTabs=[["normal","Entry"]];
@@ -3813,6 +4009,9 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, ten
         <div style={{marginBottom:"16px"}}>
           <div style={{...body("12px",C.muted),marginBottom:"7px"}}>What kind of moment?</div>
           <Chips opts={["Deep Listening","Service"]} sel={tendKind} onSel={setTendKind}/>
+          <div style={{...body("12px",C.muted),marginTop:"14px",marginBottom:"7px"}}>About how long did it last?</div>
+          <input type="number" min="0" inputMode="decimal" value={tendMins} onChange={e=>setTendMins(e.target.value)} placeholder="minutes"
+            style={{width:"120px",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.cream,...body("15px"),padding:"9px 12px",boxSizing:"border-box",outline:"none",caretColor:C.sageB}}/>
         </div>
       )}
 
@@ -4769,19 +4968,74 @@ export default function AscendApp(){
       return (trialQ?.unlocks||[]).filter(u=>u.kind==="practiceType").map(u=>u.practiceType);
     });
 
+  /* Current mastery level for a path — 0 if its chain isn't complete yet
+     (mastery doesn't exist before that), else derived from accrued XP. */
+  const masteryLevelForPath = (classId) => {
+    if(!classState || !chainComplete(classId, classState.questProgress)) return 0;
+    return masteryLevelFromXP(classId, classState.mastery?.[classId]?.xp || 0);
+  };
+
+  /* Grant any mastery-bonus activities (e.g. Cold Exposure) the moment a path
+     reaches the required level — earned permanently once granted, but their
+     visibility in the picker is separately gated to "this path is active"
+     (handled in AnchorPortal's activityVisible). */
+  useEffect(()=>{
+    if(!classState) return;
+    const toAdd = [];
+    Object.entries(MASTERY_BONUSES).forEach(([cid,bonuses])=>{
+      if(!chainComplete(cid, classState.questProgress)) return;
+      const lvl = masteryLevelFromXP(cid, classState.mastery?.[cid]?.xp || 0);
+      bonuses.forEach(b=>{ if(lvl>=b.level) toAdd.push({...b, classSkill:true, masteryBonus:true, bonusPath:cid, count:0}); });
+    });
+    if(toAdd.length===0) return;
+    setActivities(prev=>{
+      const existing=new Set(prev.map(a=>a.id));
+      const fresh=toAdd.filter(b=>!existing.has(b.id));
+      return fresh.length>0 ? [...prev, ...fresh] : prev;
+    });
+  },[classState]);
+
   const awardJournalXP = () => setCh(p=>{
     const st={...p.stats};
     ["hrt","voi","wis"].forEach(k=>{ st[k]=(st[k]||0)+3; });
     return {...p,stats:st,totalXP:(p.totalXP??0)+3};
   });
 
-  const handleDone=({type,typeId,duration,elapsed:elapsedSecs,activeActivities=[],tags,reflection,pinSession,pinTag,quickAnchor,awarenessLanding,loggedCounts={}})=>{
+  /* Inquire entries route the flat journal bonus to Sage mastery (no duration
+     concept for Inquire — it's a question sat with, not a timed practice).
+     Tend entries earn duration-based XP from the minutes the player logged,
+     same per-10-seconds rate as a live session, weighted by how intense that
+     kind of Tend moment is (Deep Listening genuinely asks more than Service),
+     credited to Presence AND Healer mastery exactly like a real session would. */
+  const TEND_MULTIPLIER = { "Deep Listening": 1.5, "Service": 1 };
+  const awardEntryMasteryXP = (e) => {
+    if(e.tag==="inquire"){
+      setClassState(cs=>awardMasteryXP(cs, ["sage"], 3));
+    } else if(e.tag==="tend" && e.tendMinutes>0){
+      const mult = TEND_MULTIPLIER[e.tendKind] ?? 1;
+      const xp = Math.round((e.tendMinutes*60/10) * mult);
+      if(xp>0){
+        setCh(p=>({...p, totalXP:(p.totalXP??0)+xp}));
+        setClassState(cs=>awardMasteryXP(cs, ["healer"], xp));
+      }
+    }
+  };
+
+  const handleDone=({type,typeId,duration,elapsed:elapsedSecs,weightedElapsed,activeActivities=[],tags,reflection,pinSession,pinTag,quickAnchor,awarenessLanding,loggedCounts={}})=>{
     const wasFirstSession = !hasAnchored;
     const isA=quickAnchor||!type;
     /* sessions < 10 s are discarded silently */
     if(!isA && (elapsedSecs??0) < 10){ setAnch(false); return; }
     if(!isA && typeId) setAnchInitType(typeId); // remember last used type
-    const xpE=isA?0:Math.floor((elapsedSecs??0)/10);
+    /* XP is based on multiplier-weighted seconds (Run 2x, Horse Stance 3x, etc.,
+       time-segmented) when available, falling back to raw elapsed for quick
+       anchors/legacy paths that don't compute a weighted value. Plus a small
+       flat bonus per logged rep/km (not minutes — those already earn via
+       duration so a second count-bonus would double-pay the same time). */
+    const activitiesById = Object.fromEntries((activeActivities||[]).map(a=>[a.id,a]));
+    const bonusXP = countBonusXP(loggedCounts||{}, activitiesById);
+    const baseSecs = isA ? 0 : (weightedElapsed!=null ? weightedElapsed : (elapsedSecs??0));
+    const xpE = isA ? 0 : Math.floor(baseSecs/10) + Math.round(bonusXP);
     const {sg}=isA?{sg:{}}:rewards(typeId||"sitting",xpE,activeActivities);
     const AWARENESS_STAT={root:"str",belly:"vit",solar_plexus:"wil",chest:"hrt",throat:"voi",head:"wis",top:"ali"};
     // backward compat: old sessions stored a string, new ones store an array
@@ -4799,6 +5053,13 @@ export default function AscendApp(){
     const s={type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),activities:activeActivities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg,awarenessLanding:lands,loggedCounts:loggedCounts||{}};
     setSessions(p=>[s,...p]);
     setHasAnchored(true);
+    /* Route this session's XP to mastery for whichever path(s) it qualifies
+       for — only paths that have already reached Mastery 1 actually accrue
+       anything; awardMasteryXP is a no-op for any path still mid-chain. */
+    if(!isA && xpE>0){
+      const qualifying = masteryPathsForSession(s);
+      if(qualifying.length>0) setClassState(cs=>awardMasteryXP(cs, qualifying, xpE));
+    }
     /* Reflect quest: complete once a single sitting session reaches the
        required minutes AND a reflection note was actually written for it —
        checked against this session directly, not the activity-count system. */
@@ -5225,7 +5486,7 @@ export default function AscendApp(){
             </div>
           </div>
         )}
-        {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");setPendingInquiry(null);}} onSave={e=>{setJEnt(p=>[e,...p]);awardJournalXP();if(e.tag==="inquire"&&e.question)recordInquiry(e.question);setScr(null);setJournalDraft("");setPendingInquiry(null);}} onEntryChange={setJournalDraft} pendingInquiry={pendingInquiry} tendUnlocked={!!classState?.questProgress?.h_listen} inquireUnlocked={!!(classState?.activeClass==="sage")}/>}
+        {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");setPendingInquiry(null);}} onSave={e=>{setJEnt(p=>[e,...p]);awardJournalXP();awardEntryMasteryXP(e);if(e.tag==="inquire"&&e.question)recordInquiry(e.question);setScr(null);setJournalDraft("");setPendingInquiry(null);}} onEntryChange={setJournalDraft} pendingInquiry={pendingInquiry} tendUnlocked={!!classState?.questProgress?.h_listen} inquireUnlocked={!!(classState?.activeClass==="sage")}/>}
         {openChantQuest && (
           <Overlay title={CHANT_QUEST.title} onBack={()=>setOpenChantQuest(false)}>
             <div style={{...dsp("9px",C.sageB,400,"0.16em"),marginBottom:"14px"}}>FOUNDATION · VOICE</div>
@@ -5257,7 +5518,7 @@ export default function AscendApp(){
           onOpenInquire={(question)=>{setPendingInquiry(question);setOpenClassQuest(null);setScr("journal");}}/>}
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
         {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} anchorImmediate={anchorImmediate} setAnchorImmediate={setAnchorImmediate} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} guidedSession={guidedSession} setGuidedSession={setGuidedSession} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onSignOut={handleSignOut} onVerified={handleVerified}/>}
-        {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={anchorImmediate || !anchorUnlocks(completedChapters).pause} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType} reflectUnlocked={!!classState?.questProgress?.s_reflect || (classState?.activeClass==="sage" && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} unlocks={anchorUnlocks(completedChapters)} guideCues={!anchorUnlocks(completedChapters).modifiers ? [
+        {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={anchorImmediate || !anchorUnlocks(completedChapters).pause} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType} reflectUnlocked={!!classState?.questProgress?.s_reflect || (classState?.activeClass==="sage" && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={classState?.activeClass||null} unlocks={anchorUnlocks(completedChapters)} guideCues={!anchorUnlocks(completedChapters).modifiers ? [
           {s:0,  e:5,  text:"Sit comfortably."},
           {s:5,  e:10, text:"Let your eyes soften or close."},
           {s:10, e:50, text:"This is your time to simply be here, breathing, for as long as feels right."},
