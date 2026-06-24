@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npm run *)",
-      "Bash(git init *)"
+      "Bash(git init *)",
+      "Bash(node -e ' *)"
     ]
   }
 }
