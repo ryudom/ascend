@@ -30,8 +30,7 @@ export default defineConfig({
         short_name: 'Ascend',
         theme_color: '#0d1410',
         background_color: '#0d1410',
-        display: 'fullscreen',
-        display_override: ['fullscreen', 'standalone', 'minimal-ui'],
+        display: 'standalone',
         orientation: 'portrait',
         icons: [
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
