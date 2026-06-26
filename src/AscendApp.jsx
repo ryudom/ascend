@@ -3226,7 +3226,7 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
 function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}, hasAnchored, sessions=[], chaptersRead=[], onMarkRead, libReadAt={}, pins=[], chStats={}, onOpenAnchor=()=>{}, onGoToLib=()=>{},
   classGateOpen=false, classState=null, onChooseClass=()=>{}, trialComplete=()=>false, onOpenClassQuest=()=>{}, devMode=false, onDevSkipTrial=()=>{},
   questCollapsed=false, setQuestCollapsed=()=>{}, classCollapsed=false, setClassCollapsed=()=>{},
-  chantGateOpen=false, chantUnlocked=false, setOpenChantQuest=()=>{}, activities=[], jEnt=[] }){
+  chantGateOpen=false, chantUnlocked=false, setOpenChantQuest=()=>{}, activities=[], jEnt=[], onAcknowledgeTrial=()=>{} }){
   const [view,setView]               = useState("overview");
   const [questLine,setQuestLine]     = useState("main"); // "main" | "chant" | "path"
   const [autoSurfaced,setAutoSurfaced] = useState({}); // {chant:true, path:true} once auto-shown
@@ -3732,7 +3732,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
             ) : !classState.trialCelebrated?.[classState.activeClass] &&
                 !(QUEST_CHAINS[classState.activeClass]||[]).some(q=>classState.questProgress?.[q.id]) ? (
               <TrialCompleteScreen classId={classState.activeClass}
-                onContinue={()=>acknowledgeTrialComplete(classState.activeClass)}/>
+                onContinue={()=>onAcknowledgeTrial(classState.activeClass)}/>
             ) : (
               <>
                 <button onClick={()=>setViewingChoice(true)} style={{background:"none",border:"none",cursor:"pointer",...body("12px",C.dim),marginBottom:"14px",padding:0}}>← Walk a different path</button>
@@ -5874,7 +5874,7 @@ export default function AscendApp(){
         <div style={{flex:1,overflowY:"auto",paddingBottom:"118px"}}>
           <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities}/></div>
           <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>setCompletedChapters(p=>p.includes(n)?p:[...p,n])} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
-            classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} questCollapsed={questCollapsed} setQuestCollapsed={setQuestCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt}/></div>
+            classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} questCollapsed={questCollapsed} setQuestCollapsed={setQuestCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete}/></div>
           <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones}/></div>
           <div style={{display:tab==="library"?"block":"none"}}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)} collapsed={libCollapsed} setCollapsed={setLibCollapsed} classState={classState} chantUnlocked={chantUnlocked}/></div>
         </div>
