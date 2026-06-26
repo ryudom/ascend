@@ -248,59 +248,62 @@ const QUEST_CHAINS = {
       title: "Heart Listening",
       myth: "You have chosen the path of the open heart.\n\nThere is an old truth, found in nearly every healing tradition that has ever existed: the healer is not someone untouched by pain. It is someone who has been touched by it, and turned toward it instead of away. The ones who can sit beside another's grief without flinching are, almost always, the ones who have grieved. The wound is not what disqualifies you from this path. It is what qualifies you.\n\nEvery healer carries a wound. Not as failure. Not as something to hide until it's fixed. The wound is where the listening begins — because a heart that has never ached has nothing to recognize when it meets someone else's ache.\n\nThis path does not ask you to heal yourself first, then help others. It asks something stranger: that you turn toward your own heart with the same attention you would one day offer someone in pain. Listen to what's there. Not to fix it. Not yet. Just to hear it, fully, the way you'd want to be heard.\n\nYou cannot offer a presence you've never once given yourself.",
       libId: "lib_h_heart",
-      criteria: "Practice Heart Listening.",
-      unlocks: [{ kind: "activity", practiceType: "restore", name: "Heart Listening", stat: "hrt" }],
+      criteria: "Accumulate 15 minutes practicing Heart Listening.",
+      unlocks: [{ kind: "activity", practiceType: "restore", name: "Heart Listening", stat: "hrt", target: 15, unit: "minutes" }],
     },
     {
       id: "h_forgive",
       title: "Forgiveness & Gratitude",
       myth: "You listened, and you found something. Maybe an old hurt. Maybe a grudge you didn't know you were still carrying. Maybe anger at someone who never apologized, or at yourself, for something you've never once let yourself off the hook for.\n\nListening alone does not release it. You can hear a wound clearly for years and still carry it. Something more is needed — not forgetting, not pretending the harm didn't happen, but a deliberate act of setting the weight down. Forgiveness does not excuse what happened. It simply refuses to keep paying for it twice.\n\nAnd there is a reason gratitude belongs beside it, not after it. Across nearly every tradition that has ever practiced forgiveness, the same second movement appears: once the weight is set down, attention turns toward what remains. What is still good. What was never taken. Release without gratitude is only half the work — an emptying with nothing to fill the space it leaves behind.\n\nName what you're releasing. Then name what you're grateful for. Let both be true in the same breath.",
       libId: "lib_h_forgive",
-      criteria: "Practice Forgiveness & Gratitude.",
-      unlocks: [{ kind: "activity", practiceType: "restore", name: "Forgiveness & Gratitude", stat: "hrt" }],
+      criteria: "Accumulate 15 minutes practicing Forgiveness & Gratitude.",
+      unlocks: [{ kind: "activity", practiceType: "restore", name: "Forgiveness & Gratitude", stat: "hrt", target: 15, unit: "minutes" }],
     },
     {
       id: "h_tension",
       title: "Tension Release",
       myth: "Some of what the body carries was never yours to begin with. The shoulders that climbed toward the ears, the jaw clenched in your sleep — these often started as a grudge, a hurt, a held breath, long before they became habit. Now that you've begun setting some of that weight down, the body has room to follow.\n\nThree doors into the same room. Breath, slow and deliberate, telling the nervous system it's safe to stand down. Stretch, lengthening what's grown tight from years of bracing. Massage, a hand returning to a sore place, asking the muscle to soften rather than guard. None of them complicated. None of them requiring expertise — only attention, and a willingness to be slow.\n\nYou cannot release what you have never once noticed you were holding. Find the knot. Breathe into it, stretch around it, or press gently into it — whichever door is open today.",
       libId: "lib_h_tension",
-      criteria: "Practice Tension Release.",
-      unlocks: [{ kind: "activity", practiceType: "restore", name: "Tension Release", stat: "vit" }],
+      criteria: "Accumulate 30 minutes practicing Tension Release.",
+      unlocks: [{ kind: "activity", practiceType: "restore", name: "Tension Release", stat: "vit", target: 30, unit: "minutes" }],
     },
     {
       id: "h_voice",
       title: "Voice Work",
       myth: "The weight has been set down. The body has begun to soften. Something in you is lighter than it was a few quests ago — and lightness, like grief, wants a way out into the air.\n\nHum. Not to perform, not to sound a certain way — simply to let a tone rise and feel where it lands. The voice travels further than most people realize. It moves down through the throat, into the chest, out through the ear and back to the part of you that governs calm. What forgiveness released in silence, the voice can finish releasing out loud.\n\nThis is the truth strange enough to be ancient: there is hardly a tradition on earth that did not, at some point, discover that the human voice itself heals. Long before instruments. Long before words had meaning, there was breath, finding a tone, and a body that listened.\n\nHum. Chant. Let a single sound rise and see what it touches.",
       libId: "lib_h_voice",
-      criteria: "Practice Voice Work.",
-      unlocks: [{ kind: "activity", practiceType: "restore", name: "Voice Work", stat: "voi" }],
+      criteria: "Accumulate 20 minutes practicing Voice Work.",
+      unlocks: [{ kind: "activity", practiceType: "restore", name: "Voice Work", stat: "voi", target: 20, unit: "minutes" }],
+    },
+    {
+      id: "h_communion",
+      title: "Communion",
+      myth: "Every tradition that has ever produced a healer has, at some point, produced this same gesture: a person turning toward something larger than themselves and speaking, then falling silent to listen for what comes back. Shamans, sangomas, curanderas, healers under a hundred different names across every continent — the details differ, but the shape repeats too consistently to be coincidence. Whatever else a healer does, they are rarely only a technician. They are, almost always, also someone who communes.\n\nThere is no name precise enough for what's on the other end — call it the divine, call it the field, call it the simple fact that nothing alive exists alone. You do not have to name it. You only have to stop insisting you are separate from it, long enough to actually speak and actually listen.\n\nThis is the concrete shape of it: say what's true in your heart right now — aloud or silently, doesn't matter. Not a performance, not the words you think you should say. Whatever's actually there. Then stop. Go quiet. Don't fill the silence with your own analysis of what you just said. Simply wait, and notice what arises in the space that's left.\n\nYou may get something back that feels like an answer. You may get nothing at all but the quality of the silence itself. Both are real outcomes of this practice. The communing is in the asking and the waiting — not in what, if anything, replies.",
+      libId: "lib_h_communion",
+      criteria: "Accumulate 30 minutes practicing Communion.",
+      unlocks: [{ kind: "activity", practiceType: "restore", name: "Communion", stat: "ali", target: 30, unit: "minutes" }],
     },
     {
       id: "h_listen",
       title: "Deep Listening",
-      myth: "Everything so far has been practiced alone. This is the first time it's asked of you with someone else in the room.\n\nThe instinct will be to fix. Someone shares their pain, and something in you reaches for a solution, a reassurance, anything to close the gap before it grows uncomfortable. Resist it. No one in pain is asking to be repaired. They are asking to be heard — fully, without your own thoughts crowding the space meant for theirs.\n\nThis is why the path began with you, and why it asked you to release what you were carrying before it asked you to hold someone else's. A heart still gripping its own grievance will flinch at someone else's, or worse, make it about its own. Empty yourself. Leave space. Let their words land before you decide what they mean.\n\nYou already practiced this when no one was watching. Now you'll discover whether it was real.\n\nTend unlocked. Mark it in your journal whenever you hold space for someone.",
+      myth: "Everything so far has been practiced alone. This is the first time it's asked of you with someone else in the room.\n\nThe instinct will be to fix. Someone shares their pain, and something in you reaches for a solution, a reassurance, anything to close the gap before it grows uncomfortable. Resist it. No one in pain is asking to be repaired. They are asking to be heard — fully, without your own thoughts crowding the space meant for theirs.\n\nThis is why the path began with you, and why it asked you to release what you were carrying before it asked you to hold someone else's. A heart still gripping its own grievance will flinch at someone else's, or worse, make it about its own. Empty yourself. Leave space. Let their words land before you decide what they mean.\n\nYou already practiced this when no one was watching. Now you'll discover whether it was real.\n\nTend unlocked. Mark it in your journal whenever you hold space for someone, with how long it lasted.",
       libId: "lib_h_listen",
-      criteria: "Hold space for someone, then mark a Tend entry with how long you listened.",
+      criteria: "Accumulate 30 minutes of Deep Listening, logged in Tend.",
       unlocks: [
         { kind: "journal", feature: "tend" },
+        { kind: "tend", tendKind: "Deep Listening", target: 30, unit: "minutes" },
       ],
     },
     {
       id: "h_service",
       title: "Service",
-      myth: "Heart Listening turned you toward yourself. Tension Release, Voice Work tended what you found there. Deep Listening turned that same attention toward someone else. Service is what you do with hands, not just presence — when listening isn't enough, and something in the world actually needs doing.\n\nThere's an old question worth asking honestly: is any service truly selfless? You will likely feel something when you help — lighter, more useful, closer to the person you're becoming. That isn't a flaw in the act. It's simply true, and pretending otherwise helps no one. The danger isn't feeling good when you serve. The danger is needing someone else's need in order to feel good about yourself at all. Serve because it's needed, not because you require it to feel whole.\n\nOne genuine act. Not performed, not announced. Something that actually helps, given to someone who actually needed it.\n\nMark it in your Tend journal.",
-      libId: "lib_h_service",
-      criteria: "Perform an act of Service, then mark a Tend entry with how long it took.",
-      unlocks: [],
-    },
-    {
-      id: "h_union",
-      title: "Union",
       isCapstone: true,
-      myth: "Every skill on this path has had a direction. Inward, toward your own heart. Outward, toward another's. This last one points further than either.\n\nThere is no name precise enough for what people reach toward here — call it the divine, call it the field, call it the simple fact that nothing alive exists alone. Every healing tradition that has ever existed eventually points past the self entirely, toward something the self did not create and cannot fully explain. You do not have to name it. You only have to stop insisting you are separate from it.\n\nThis is not an act, the way Service was an act. It is closer to ceasing — laying down the belief that you are the source of what moves through you. You were never the well. You were only ever the cup.\n\nSit with this. Let whatever wants to move through you, move. Direct it nowhere. Simply let it pass through, and notice that you are still here afterward, unharmed, maybe a little less alone than before.",
-      libId: "lib_h_union",
-      criteria: "Practice Union.",
-      unlocks: [{ kind: "activity", practiceType: "restore", name: "Union", stat: "ali" }],
+      myth: "Heart Listening turned you toward yourself. Tension Release and Voice Work tended what you found there. Communion turned attention toward something larger than yourself. Deep Listening turned that same attention toward someone else. This is the last turn, and it asks for hands, not just presence — when listening isn't enough, and something in the world actually needs doing.\n\nThere's an old question worth asking honestly: is any service truly selfless? You will likely feel something when you help — lighter, more useful, closer to the person you're becoming. That isn't a flaw in the act. It's simply true, and pretending otherwise helps no one. The danger isn't feeling good when you serve. The danger is needing someone else's need in order to feel good about yourself at all. Serve because it's needed, not because you require it to feel whole.\n\nEverything this path has built — the heart that listens, the weight set down, the voice that releases, the silence that communes — was never meant to end in a feeling. It was meant to end in your hands, doing something real for someone who actually needed it.\n\nMark each act in your Tend journal, with how long it took.",
+      libId: "lib_h_service",
+      criteria: "Accumulate 45 minutes of Service, logged in Tend.",
+      unlocks: [
+        { kind: "tend", tendKind: "Service", target: 45, unit: "minutes" },
+      ],
     },
   ],
 
@@ -544,6 +547,22 @@ const MASTERY_BONUSES = {
 function chainComplete(classId, questProgress={}){
   const numbered = (QUEST_CHAINS[classId]||[]).filter(q=>!q.isTrial && !q.isEpilogue);
   return numbered.length>0 && numbered.every(q=>questProgress[q.id]);
+}
+
+/* Shared: is a given quest either already complete, or the CURRENTLY ACTIVE
+   quest in its chain (trial done, and every quest before it already done)?
+   This is what a quest's own unlock should gate on — never on the quest's
+   OWN completion, or nothing could ever reach the completion that requires
+   using the very thing the quest unlocks (e.g. Tend must be usable while
+   Deep Listening is active, not only after Deep Listening is already done). */
+function questActiveOrDone(classId, questId, questProgress={}, trialDoneFn=()=>true){
+  if(questProgress?.[questId]) return true;
+  if(!trialDoneFn(classId)) return false;
+  const numbered = (QUEST_CHAINS[classId]||[]).filter(q=>!q.isTrial && !q.isEpilogue);
+  const idx = numbered.findIndex(q=>q.id===questId);
+  if(idx===-1) return false;
+  if(idx===0) return true;
+  return numbered.slice(0,idx).every(q=>questProgress?.[q.id]);
 }
 
 /* Reverse lookup: which activity NAMES belong to each path (its own quest-chain
@@ -2496,7 +2515,7 @@ const LIBRARY_ENTRIES = [
 
   /* ── PATH SKILLS (barebone stubs — fill detailed instruction later) ── */
   CHANT_LIBRARY_STUB,
-  ...Object.entries(QUEST_CHAINS).flatMap(([cid,chain]) =>
+  ...Object.entries(QUEST_CHAINS).filter(([cid])=>cid!=="healer").flatMap(([cid,chain]) =>
     chain.filter(q=>!q.isTrial).map(q=>({
       id:q.libId, unlock:0, section:"Path Skills",
       pathId:cid, pathName:(CLASS_BY_ID[cid]?.name)||"",
@@ -2508,6 +2527,71 @@ const LIBRARY_ENTRIES = [
       practice:"",
     }))
   ),
+
+  /* ── HEALER LIBRARY (fully written) ── */
+  { id:"lib_h_heart", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_heart",
+    title:"Heart Listening", sub:"Healer", sc:"hrt",
+    body:[
+      "Heart Listening is the practice of turning the same attention you'd offer a grieving friend toward your own chest. Not analysis. Not fixing. Just arriving, fully, in the place where feeling actually lives in the body.",
+      "Sit, and let your attention settle in the chest rather than the head. Ask, gently, what's here right now? Not what should be here. Not what you'd prefer to find. Whatever's actually present — warmth, tightness, a dull ache, nothing in particular — meet it the way you'd meet a person who came to you in pain: without rushing them toward being fine.",
+      "This is harder than it sounds precisely because it asks for no agenda. The instinct will be to immediately want to feel better, or to explain the feeling away. Resist both. The skill being built here is the capacity to simply stay — present, unhurried, undefended — with whatever the heart is actually holding."
+    ],
+    practice:"During a Sit, rest attention in the chest. When a feeling arises, name it quietly ('this is sadness,' 'this is relief') without elaborating on why. Stay with it for a few breaths before letting it go." },
+
+  { id:"lib_h_forgive", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_forgive",
+    title:"Forgiveness & Gratitude", sub:"Healer", sc:"hrt",
+    body:[
+      "This practice pairs two deliberate acts. First, naming something you're ready to set down — a grudge, a disappointment, a way you've held yourself accountable for too long. Second, naming something genuinely good that's still true, right now, regardless of the first thing.",
+      "Forgiveness here doesn't mean deciding the harm didn't matter, or owing anyone an apology on their behalf. It means refusing to keep paying for something twice — once when it happened, and again, every day since, by carrying it. You can release the weight without rewriting the facts.",
+      "Gratitude isn't tacked on as a nicety. It's the second half of the same motion: once a hand opens to let something go, it has room to hold something else. Naming what's still good isn't denial of what was hard — it's simply true, at the same time, and worth saying out loud."
+    ],
+    practice:"Speak or write one sentence naming what you're releasing, and one sentence naming something you're grateful for, in the same sitting. Let both stand without qualifying either one." },
+
+  { id:"lib_h_tension", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_tension",
+    title:"Tension Release", sub:"Healer", sc:"vit",
+    body:[
+      "The body holds what the mind has stopped tracking. A clenched jaw, shoulders pulled toward the ears, a held breath — patterns that started as a real response to something and quietly became permanent. Tension Release is the practice of noticing these and inviting them to soften, without force.",
+      "Three doors into the same room: breath (slow, deliberate exhales that tell the nervous system it's safe to stand down), stretch (lengthening what's grown tight), and self-massage (a hand returning to a sore place, asking it to soften rather than guard). None require expertise — only attention and a willingness to go slowly.",
+      "The releasing itself usually isn't forced. Bring clear attention to a held place, and it often loosens on its own, the way a fist softens once you actually look at it. The work is the noticing. The release tends to follow."
+    ],
+    practice:"Scan from scalp to feet. Wherever you find gripping, pick one door — a slow exhale into it, a gentle stretch, or a few seconds of self-massage — and stay until something shifts, even slightly." },
+
+  { id:"lib_h_voice", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_voice",
+    title:"Voice Work", sub:"Healer", sc:"voi",
+    body:[
+      "Voice Work uses sustained sound — humming, toning, a single repeated note — as a way to finish releasing what breath and stillness loosen but don't always carry all the way out. The voice moves through the chest and throat in a way silence doesn't reach.",
+      "This isn't singing, and there's no note to get right. Let a tone rise from wherever it wants to, hold it as long as a breath allows, and notice where it resonates — chest, throat, the bones of the face. Some traditions call this toning; the mechanism is simple: sustained vocal vibration is a real, felt sensation that pulls attention out of the head and into the body.",
+      "Because Voice Work is genuinely active rather than meditative, it tends to ask more of you per minute than a quiet sit — which is part of why it counts for more. Real practice here is unmistakable: your throat will know the difference between a held tone and a mumble."
+    ],
+    practice:"Take a full breath and let out a low, sustained hum until the breath runs out, several times in a row. Notice where you feel it most — chest, throat, skull — without trying to control the pitch." },
+
+  { id:"lib_h_listen", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_listen",
+    title:"Deep Listening", sub:"Healer", sc:"hrt",
+    body:[
+      "Deep Listening happens with someone else present, which is why it doesn't live in a timed session — it lives in your Tend journal, logged afterward with however long it actually lasted. The skill is the same one Heart Listening built, now turned outward.",
+      "The instinct to fix is the thing to resist hardest. Someone in pain is usually not asking for a solution — they're asking to be heard without your own reactions, advice, or discomfort crowding the space meant for theirs. Empty yourself first. Let their words land fully before deciding what they mean.",
+      "A real Deep Listening session usually runs somewhere between 10 and 30 minutes — long enough that performing presence gives way to actually holding it. Log the real length afterward; the honesty of that number is part of the practice. Across a few real instances, this adds up — 30 minutes total is well within reach without inflating anything."
+    ],
+    practice:"After holding space for someone, open Tend in the journal, select Deep Listening, and log roughly how long it lasted. Write only what you're moved to write — the duration matters more than the word count." },
+
+  { id:"lib_h_service", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_service",
+    title:"Service", sub:"Healer", sc:"wil",
+    body:[
+      "Service is the same chain made physical — listening turned into hands actually doing something. Like Deep Listening, it happens in the world rather than in a session, and gets logged afterward in Tend with however long it took.",
+      "It doesn't need to be large. A genuine act that actually helped someone who actually needed it — that's the whole bar. The act doesn't need witnesses, and it doesn't need to feel selfless to count; feeling lighter after helping is human, not a flaw to suppress.",
+      "The only real test: did this serve someone else's need, or did it mainly serve your need to feel useful? Both can be true at once, and that's fine — the practice is doing it because it was needed, not because you required it. As the path's final ask, this one accumulates across however many real acts it takes — 45 minutes total, however that's reached."
+    ],
+    practice:"After a genuine act of service, open Tend, select Service, and log roughly how long it took. No need to describe it in detail unless something about it is worth keeping." },
+
+  { id:"lib_h_communion", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_communion",
+    title:"Communion", sub:"Healer", sc:"ali",
+    body:[
+      "Communion has two halves, in order: expressing what's actually true in your heart right now, then going fully quiet and listening for whatever comes back. Neither half works without the other — speaking without listening is just venting; listening without first speaking has nothing to listen past.",
+      "The expressing doesn't need an audience or even words spoken aloud. It needs honesty. Say the real thing, not the composed thing — whatever you're actually carrying, addressed outward, to however you understand what's larger than yourself. You don't have to resolve what you don't believe about it; you only have to mean what you say.",
+      "The listening half is the harder discipline. Most people, even when they intend to listen, immediately start narrating to themselves about what they just said. Let that quiet down. You may receive something that feels like a response — an image, a felt shift, a sentence that wasn't quite yours. You may receive nothing but the texture of the silence itself. Both are real outcomes; neither is a failure."
+    ],
+    practice:"Say one true thing from your heart, aloud or silently. Then stop completely — no analyzing what you said — and simply wait, attentive, for as long as the silence holds your attention." },
+
 ];
 
 const ANCHOR_SUBQUESTS = [
@@ -2655,19 +2739,25 @@ function FoundationTrial({ classId, trialProgress={}, onOpenTrial, devMode=false
 /* The class questline — a vertical chain like the Act I chapters, but separate.
    Quests unlock one at a time; each quest opens a reader showing its myth, a
    library link, and (where relevant) tappable Inquiry questions. */
-function questProgressLine(q, activities){
+function questProgressLine(q, activities, jEnt=[]){
   const targetUnlocks = (q.unlocks||[]).filter(u=>u.kind==="activity" && u.target);
-  if(targetUnlocks.length===0) return q.criteria;
-  return targetUnlocks.map(u=>{
+  const tendUnlocks = (q.unlocks||[]).filter(u=>u.kind==="tend" && u.target);
+  if(targetUnlocks.length===0 && tendUnlocks.length===0) return q.criteria;
+  const activityLines = targetUnlocks.map(u=>{
     if(u.singleSession) return `${u.name}: one sitting of ${u.target}${u.unit?" "+u.unit:""}`;
     const act = activities.find(a=>a.name===u.name);
     const count = act?.count||0;
     return `${u.name}: ${count}/${u.target}${u.unit?" "+u.unit:""}`;
-  }).join(" · ");
+  });
+  const tendLines = tendUnlocks.map(u=>{
+    const total = jEnt.filter(e=>e.tag==="tend" && e.tendKind===u.tendKind).reduce((s,e)=>s+(e.tendMinutes||0),0);
+    return `${u.tendKind}: ${total.toFixed(0)}/${u.target}${u.unit?" "+u.unit:""}`;
+  });
+  return [...activityLines, ...tendLines].join(" · ");
 }
 
 function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epilogueRevealed={}, activities=[],
-                             masteryXP=0, isActivePath=true,
+                             masteryXP=0, isActivePath=true, jEnt=[],
                              onOpenQuest, onOpenLib }){
   const cls = CLASS_BY_ID[classId];
   if(!cls) return null;
@@ -2740,7 +2830,7 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
                 {complete?"COMPLETE":active?"ACTIVE":"LOCKED"}{q.isCapstone?" · CAPSTONE":""}
               </div>
               <div style={{...body("15px",C.cream)}}>{q.title}</div>
-              {active && <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{questProgressLine(q,activities)}</div>}
+              {active && <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{questProgressLine(q,activities,jEnt)}</div>}
             </div>
           </div>
         );
@@ -2752,7 +2842,7 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
             style={{background:C.surf,border:`0.5px solid ${cls.accent}66`,borderRadius:"6px",padding:"11px 14px",cursor:"pointer"}}>
             <div style={{...dsp("8px",cls.accent,400,"0.16em"),marginBottom:"3px"}}>EPILOGUE</div>
             <div style={{...body("15px",C.cream)}}>{epilogue.title}</div>
-            <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{questProgressLine(epilogue,activities)}</div>
+            <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{questProgressLine(epilogue,activities,jEnt)}</div>
           </div>
         </div>
       )}
@@ -2762,7 +2852,7 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
 
 /* Quest reader — shows a single class quest's myth, a library link, a complete
    button, and for Inquire, the five tappable questions with checkmarks. */
-function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=false, activities=[],
+function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=false, activities=[], jEnt=[],
                             onBack, onComplete, onOpenLib, onOpenInquire }){
   const cls = CLASS_BY_ID[classId];
   const q = (QUEST_CHAINS[classId]||[]).find(x=>x.id===questId);
@@ -2772,11 +2862,15 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
   const isInquire = !!q.inquireQuestions;
   const allAnswered = isInquire && q.inquireQuestions.every(qq=>inquireAnswered[qq]);
   const targetUnlocks = (q.unlocks||[]).filter(u=>u.kind==="activity" && u.target);
+  const tendUnlocks = (q.unlocks||[]).filter(u=>u.kind==="tend" && u.target);
   const hasTargets = targetUnlocks.length>0;
+  const hasTendTargets = tendUnlocks.length>0;
   const targetsMet = hasTargets && targetUnlocks.every(u=>{
     const act=activities.find(a=>a.name===u.name);
     return act && (act.count||0) >= u.target;
   });
+  const tendTotal = (kind) => jEnt.filter(e=>e.tag==="tend" && e.tendKind===kind).reduce((s,e)=>s+(e.tendMinutes||0),0);
+  const tendsMet = hasTendTargets && tendUnlocks.every(u=>tendTotal(u.tendKind) >= u.target);
   const reflectUnlock = (q.unlocks||[]).find(u=>u.kind==="reflect" && u.minDuration);
   const isReflectQuest = !!reflectUnlock;
 
@@ -2840,6 +2934,27 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
         </div>
       )}
 
+      {/* Live progress for Tend-based quests (Deep Listening, Service) — sourced
+          from journal entries logged so far, same shape as the activity bars. */}
+      {hasTendTargets && !questDone && (
+        <div style={{marginBottom:"16px"}}>
+          {tendUnlocks.map(u=>{
+            const total = tendTotal(u.tendKind);
+            const pct = Math.min(100, Math.round(total/u.target*100));
+            return (
+              <div key={u.tendKind} style={{marginBottom:"10px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",...body("12px",C.muted),marginBottom:"4px"}}>
+                  <span>{u.tendKind}</span><span>{total.toFixed(0)}/{u.target} {u.unit||""}</span>
+                </div>
+                <div style={{height:"4px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${pct}%`,background:accent,transition:"width .3s"}}/>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Library link */}
       <button onClick={()=>onOpenLib(q.libId)}
         style={{display:"block",marginTop:"6px",marginBottom:"16px",background:"none",border:"none",
@@ -2857,6 +2972,10 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
       ) : hasTargets ? (
         <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
           {targetsMet ? "Targets reached — completing…" : "Log your practice after each session to track progress."}
+        </div>
+      ) : hasTendTargets ? (
+        <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
+          {tendsMet ? "Logged enough — completing…" : "Log each real instance in your Tend journal to track progress."}
         </div>
       ) : isReflectQuest ? (
         <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
@@ -2878,7 +2997,7 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
 function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}, hasAnchored, sessions=[], chaptersRead=[], onMarkRead, libReadAt={}, pins=[], chStats={}, onOpenAnchor=()=>{}, onGoToLib=()=>{},
   classGateOpen=false, classState=null, onChooseClass=()=>{}, trialComplete=()=>false, onOpenClassQuest=()=>{}, devMode=false, onDevSkipTrial=()=>{},
   questCollapsed=false, setQuestCollapsed=()=>{}, classCollapsed=false, setClassCollapsed=()=>{},
-  chantGateOpen=false, chantUnlocked=false, setOpenChantQuest=()=>{}, activities=[] }){
+  chantGateOpen=false, chantUnlocked=false, setOpenChantQuest=()=>{}, activities=[], jEnt=[] }){
   const [view,setView]               = useState("overview");
   const [questLine,setQuestLine]     = useState("main"); // "main" | "chant" | "path"
   const [autoSurfaced,setAutoSurfaced] = useState({}); // {chant:true, path:true} once auto-shown
@@ -3387,7 +3506,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                 <ClassQuestSection classId={classState.activeClass} questProgress={classState.questProgress}
                   inquireAnswered={classState.inquireAnswered} epilogueRevealed={classState.epilogueRevealed}
                   masteryXP={classState.mastery?.[classState.activeClass]?.xp||0} isActivePath={true}
-                  activities={activities} onOpenQuest={onOpenClassQuest} onOpenLib={onGoToLib}/>
+                  activities={activities} jEnt={jEnt} onOpenQuest={onOpenClassQuest} onOpenLib={onGoToLib}/>
               </>
             )}
           </div>
@@ -4201,7 +4320,8 @@ function Toggle({ on, onToggle }){
 function SettingsScreen({ onBack, name, setName, anchorImmediate, setAnchorImmediate, theme, setTheme,
     devMode, enableDevMode, disableDevMode, exportData, applyImport, resetData,
     fontScale, setFontScale, guidedSession, setGuidedSession,
-    cloudUser, cloudSyncing, cloudMsg, onSaveCloud, onLoadCloud, onSignOut, onVerified }){
+    cloudUser, cloudSyncing, cloudMsg, onSaveCloud, onLoadCloud, onSignOut, onVerified,
+    autoCloudSync, setAutoCloudSync }){
   const [resetConfirm,setResetConfirm]=useState(false);
   const [importDone,setImportDone]=useState(false);
   const [cloudEmail,setCloudEmail]=useState("");
@@ -4311,6 +4431,13 @@ function SettingsScreen({ onBack, name, setName, anchorImmediate, setAnchorImmed
               {cloudMsg&&(
                 <div style={{...body("11px",cloudMsg.type==="ok"?C.sageB:"rgba(220,120,120,0.9)"),marginBottom:"8px",fontStyle:"italic"}}>{cloudMsg.text}</div>
               )}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`0.5px solid ${C.bord}`,marginBottom:"10px"}}>
+                <div style={{flex:1,paddingRight:"12px"}}>
+                  <div style={{...body("14px",C.cream)}}>Auto-sync to cloud</div>
+                  <div style={{...body("11px",C.dim),fontStyle:"italic"}}>Saves automatically as you practice — survives reinstalling the app</div>
+                </div>
+                <Toggle on={autoCloudSync} onToggle={()=>setAutoCloudSync(v=>!v)}/>
+              </div>
               <div style={{display:"flex",gap:"8px",marginBottom:"8px"}}>
                 <button onClick={onSaveCloud} disabled={cloudSyncing} style={{flex:1,padding:"9px",background:"rgba(163,192,137,0.08)",border:`0.5px solid ${C.sageB}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.sageB,400,"0.12em")}}>
                   {cloudSyncing?"…":"↑ SAVE TO CLOUD"}
@@ -4512,6 +4639,25 @@ async function sbLoadData(token,userId){
   }catch{return null;}
 }
 
+/* Guarded cloud save: peeks at what's already in the cloud before overwriting
+   it. Refuses to push if the cloud's total XP is HIGHER than the local save's
+   — this is what stops an empty/wiped/lower-progress local state (a fresh
+   reinstall mid-restore, a dev-mode wipe, a second device with less progress)
+   from silently clobbering further-along progress that already exists in the
+   cloud. Total XP is used rather than the displayed Presence Level since it's
+   strictly more precise — any real difference in level implies a difference
+   in XP in the same direction, but XP also distinguishes two saves that
+   happen to sit at the same level with different real progress underneath. */
+async function sbSaveDataGuarded(token,userId,localBlob){
+  try{
+    const cloudData = await sbLoadData(token,userId);
+    const localXP = localBlob?.ch?.totalXP ?? 0;
+    const cloudXP = cloudData?.ch?.totalXP ?? -1; // -1 so a first-ever save always proceeds
+    if(cloudXP > localXP) return false; // cloud is further along — refuse, don't clobber it
+    return await sbSaveData(token,userId,localBlob);
+  }catch{ return false; }
+}
+
 export default function AscendApp(){
   /* hydrate once on mount */
   const P = useMemo(loadPersisted, []);
@@ -4577,6 +4723,7 @@ export default function AscendApp(){
   const [theme,setTheme]=useState(P.theme ?? "navy");
   const [fontScale,setFontScale]=useState(P.fontScale ?? 1.0);
   const [guidedSession,setGuidedSession]=useState(P.guidedSession ?? true);
+  const [autoCloudSync,setAutoCloudSync]=useState(P.autoCloudSync ?? true);
   const [splashImgLoaded,setSplashImgLoaded]=useState(false);
   const [anchorImmediate,setAnchorImmediate]=useState(true);
   applyTheme(theme);
@@ -4700,6 +4847,25 @@ export default function AscendApp(){
   const handleVerified = (token, user) => {
     setCloudToken(token);
     setCloudUser(user);
+    /* Auto-restore from the cloud right after signing in — but ONLY if the
+       cloud's total XP is actually HIGHER than this device's local total XP.
+       This is the general form of "don't let a fresh reinstall or a second
+       device with less progress silently overwrite further-along progress" —
+       it correctly covers the reinstall case (local XP is 0), a second device
+       with some-but-less progress (still restores, correctly), AND refuses to
+       touch local data when local is already ahead or equal (no clobbering). */
+    (async ()=>{
+      setCloudSyncing(true);
+      const data = await sbLoadData(token, user.id);
+      setCloudSyncing(false);
+      if(!data) return; // nothing in the cloud yet — nothing to restore
+      const cloudXP = data?.ch?.totalXP ?? 0;
+      const localXP = ch?.totalXP ?? 0;
+      if(cloudXP > localXP){
+        applyImport(data);
+        showCloudMsg("ok","Restored from cloud ✓");
+      }
+    })();
   };
 
   const handleSignOut = () => {
@@ -4773,7 +4939,7 @@ export default function AscendApp(){
      sees the latest without re-binding listeners. */
   const blob = {
     v:1, tab, fontScale, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, revealZones, zonesMigrated, libCollapsed,
-    completedChapters, hasAnchored, theme, guidedSession, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, onboardingDone: onboarding==="done",
+    completedChapters, hasAnchored, theme, guidedSession, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, autoCloudSync, onboardingDone: onboarding==="done",
   };
   const blobRef = useRef(blob);
   blobRef.current = blob;
@@ -4784,7 +4950,7 @@ export default function AscendApp(){
     const json = JSON.stringify(blobRef.current);
     const t = setTimeout(()=>writeStorage(json), 250);
     return ()=>clearTimeout(t);
-  },[hydrated, devMode, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, revealZones, zonesMigrated, libCollapsed]);
+  },[hydrated, devMode, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, autoCloudSync, revealZones, zonesMigrated, libCollapsed]);
 
   /* ── FLUSH: write immediately when the page is hidden or unloaded ── */
   useEffect(()=>{
@@ -4798,6 +4964,46 @@ export default function AscendApp(){
       window.removeEventListener("beforeunload", flush);
     };
   },[devMode, hydrated]);
+
+  /* ── AUTO CLOUD SYNC ──────────────────────────────────────────────────────
+     Mirrors the local autosave above, but only when signed in, and far less
+     frequently — a real network call, not a free local write. Debounced 8s
+     after the last change (so a burst of activity coalesces into one push),
+     and also flushed on pagehide/visibilitychange so closing the app right
+     after a session doesn't lose that last save to the cloud. This exists
+     specifically so deleting and reinstalling the iOS PWA (which wipes
+     localStorage entirely) doesn't lose anything — the cloud becomes the
+     real source of truth, local storage just the fast/offline cache. */
+  const cloudSyncTimerRef = useRef(null);
+  const lastCloudPushRef = useRef(0);
+  useEffect(()=>{
+    if(devMode || !hydrated || !cloudUser || !cloudToken || !autoCloudSync) return;
+    clearTimeout(cloudSyncTimerRef.current);
+    cloudSyncTimerRef.current = setTimeout(async ()=>{
+      try{
+        await sbSaveDataGuarded(cloudToken, cloudUser.id, blobRef.current);
+        lastCloudPushRef.current = Date.now();
+      }catch(e){ /* silent — local save already protects the data either way */ }
+    }, 8000);
+    return ()=>clearTimeout(cloudSyncTimerRef.current);
+  },[devMode, hydrated, cloudUser, cloudToken, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, autoCloudSync, revealZones, zonesMigrated, libCollapsed]);
+
+  useEffect(()=>{
+    if(!cloudUser || !cloudToken) return;
+    const flushCloud = ()=>{
+      if(devMode || !hydrated || !autoCloudSync) return;
+      // best-effort — fire and forget on the way out, same spirit as the local
+      // flush, but still guarded: if this races page teardown and never
+      // completes, the worst case is a missed save (safe), not an overwrite.
+      sbSaveDataGuarded(cloudToken, cloudUser.id, blobRef.current).catch(()=>{});
+    };
+    window.addEventListener("pagehide", flushCloud);
+    window.addEventListener("visibilitychange", flushCloud);
+    return ()=>{
+      window.removeEventListener("pagehide", flushCloud);
+      window.removeEventListener("visibilitychange", flushCloud);
+    };
+  },[cloudUser, cloudToken, devMode, hydrated, autoCloudSync]);
 
   /* ── BOOTSTRAP: recover from window.storage when localStorage is empty
      OR unavailable (sandboxed iframes often block localStorage entirely) ── */
@@ -5019,6 +5225,29 @@ export default function AscendApp(){
         setClassState(cs=>awardMasteryXP(cs, ["healer"], xp));
       }
     }
+  };
+
+  /* Cumulative minutes logged in Tend under a given kind (Deep Listening,
+     Service), summed fresh from journal entries each time — no separate
+     running counter needed since jEnt is already the source of truth. */
+  const tendMinutesTotal = (entries, tendKind) =>
+    (entries||[]).filter(e=>e.tag==="tend" && e.tendKind===tendKind)
+      .reduce((sum,e)=>sum+(e.tendMinutes||0), 0);
+
+  /* After a Tend entry is saved, check every quest with a kind:"tend" unlock
+     to see if its cumulative target is now met, and complete it if so — the
+     same auto-complete spirit as session-activity targets, just sourced from
+     journal entries instead of session activities. */
+  const checkTendQuestCompletion = (updatedEntries) => {
+    Object.keys(QUEST_CHAINS).forEach(cid=>{
+      QUEST_CHAINS[cid].forEach(q=>{
+        if(classState.questProgress?.[q.id]) return;
+        const tendUnlock = (q.unlocks||[]).find(u=>u.kind==="tend" && u.target);
+        if(!tendUnlock) return;
+        const total = tendMinutesTotal(updatedEntries, tendUnlock.tendKind);
+        if(total >= tendUnlock.target) completeClassQuest(q.id);
+      });
+    });
   };
 
   const handleDone=({type,typeId,duration,elapsed:elapsedSecs,weightedElapsed,activeActivities=[],tags,reflection,pinSession,pinTag,quickAnchor,awarenessLanding,loggedCounts={}})=>{
@@ -5405,7 +5634,7 @@ export default function AscendApp(){
         <div style={{flex:1,overflowY:"auto",paddingBottom:"118px"}}>
           <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities}/></div>
           <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>setCompletedChapters(p=>p.includes(n)?p:[...p,n])} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
-            classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} questCollapsed={questCollapsed} setQuestCollapsed={setQuestCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities}/></div>
+            classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} questCollapsed={questCollapsed} setQuestCollapsed={setQuestCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt}/></div>
           <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones}/></div>
           <div style={{display:tab==="library"?"block":"none"}}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)} collapsed={libCollapsed} setCollapsed={setLibCollapsed} classState={classState} chantUnlocked={chantUnlocked}/></div>
         </div>
@@ -5486,7 +5715,7 @@ export default function AscendApp(){
             </div>
           </div>
         )}
-        {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");setPendingInquiry(null);}} onSave={e=>{setJEnt(p=>[e,...p]);awardJournalXP();awardEntryMasteryXP(e);if(e.tag==="inquire"&&e.question)recordInquiry(e.question);setScr(null);setJournalDraft("");setPendingInquiry(null);}} onEntryChange={setJournalDraft} pendingInquiry={pendingInquiry} tendUnlocked={!!classState?.questProgress?.h_listen} inquireUnlocked={!!(classState?.activeClass==="sage")}/>}
+        {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");setPendingInquiry(null);}} onSave={e=>{const updated=[e,...jEnt];setJEnt(updated);awardJournalXP();awardEntryMasteryXP(e);if(e.tag==="inquire"&&e.question)recordInquiry(e.question);if(e.tag==="tend")checkTendQuestCompletion(updated);setScr(null);setJournalDraft("");setPendingInquiry(null);}} onEntryChange={setJournalDraft} pendingInquiry={pendingInquiry} tendUnlocked={questActiveOrDone("healer","h_listen",classState?.questProgress||{},trialComplete)} inquireUnlocked={!!(classState?.activeClass==="sage")}/>}
         {openChantQuest && (
           <Overlay title={CHANT_QUEST.title} onBack={()=>setOpenChantQuest(false)}>
             <div style={{...dsp("9px",C.sageB,400,"0.16em"),marginBottom:"14px"}}>FOUNDATION · VOICE</div>
@@ -5511,13 +5740,13 @@ export default function AscendApp(){
           </Overlay>
         )}
         {openClassQuest&&<ClassQuestReader classId={openClassQuest.classId} questId={openClassQuest.questId}
-          inquireAnswered={classState?.inquireAnswered||{}} questDone={!!classState?.questProgress?.[openClassQuest.questId]} activities={activities}
+          inquireAnswered={classState?.inquireAnswered||{}} questDone={!!classState?.questProgress?.[openClassQuest.questId]} activities={activities} jEnt={jEnt}
           onBack={()=>setOpenClassQuest(null)}
           onComplete={()=>{completeClassQuest(openClassQuest.questId);setOpenClassQuest(null);}}
           onOpenLib={(id)=>{setOpenClassQuest(null);setTab("library");setLibOpenId(id);}}
           onOpenInquire={(question)=>{setPendingInquiry(question);setOpenClassQuest(null);setScr("journal");}}/>}
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
-        {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} anchorImmediate={anchorImmediate} setAnchorImmediate={setAnchorImmediate} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} guidedSession={guidedSession} setGuidedSession={setGuidedSession} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onSignOut={handleSignOut} onVerified={handleVerified}/>}
+        {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} anchorImmediate={anchorImmediate} setAnchorImmediate={setAnchorImmediate} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} guidedSession={guidedSession} setGuidedSession={setGuidedSession} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onSignOut={handleSignOut} onVerified={handleVerified} autoCloudSync={autoCloudSync} setAutoCloudSync={setAutoCloudSync}/>}
         {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={anchorImmediate || !anchorUnlocks(completedChapters).pause} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType} reflectUnlocked={!!classState?.questProgress?.s_reflect || (classState?.activeClass==="sage" && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={classState?.activeClass||null} unlocks={anchorUnlocks(completedChapters)} guideCues={!anchorUnlocks(completedChapters).modifiers ? [
           {s:0,  e:5,  text:"Sit comfortably."},
           {s:5,  e:10, text:"Let your eyes soften or close."},
