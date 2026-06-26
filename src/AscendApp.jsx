@@ -134,6 +134,19 @@ const CLASSES = [
       { type: "walking",  label: "Walk",  minutes: 3, stat: "voi" },
     ],
   },
+  {
+    id: "mystic",
+    name: "Mystic",
+    verb: "Unite",
+    blurb: "Cultivate union, unity, and the dissolving of the boundary between self and all things.",
+    primaryStats: ["ali", "hrt", "vit"],
+    accent: "#9c84b8",
+    trial: [
+      { type: "sitting",  label: "Sit",   minutes: 3, stat: "ali" },
+      { type: "standing", label: "Stand", minutes: 3, stat: "hrt" },
+      { type: "walking",  label: "Walk",  minutes: 3, stat: "vit" },
+    ],
+  },
 ];
 
 const CLASS_BY_ID = Object.fromEntries(CLASSES.map(c => [c.id, c]));
@@ -383,6 +396,75 @@ const QUEST_CHAINS = {
       unlocks: [{ kind: "journal", feature: "inquire" }],
     },
   ],
+
+  mystic: [
+    {
+      id: "m_trial",
+      title: "Mystic Trial",
+      isTrial: true,
+      myth: "Every path begins the same way: not with a technique, but with a vow.\n\nBefore you unite with anything else, you sit, you stand, you walk. Three minutes each. The body has its own way of agreeing to a thing, deeper than the mind's. This is that agreement, spoken in the only language the body trusts: presence, held on purpose.\n\nBut this trial asks one thing more. As you practice each form, bring your attention to a specific place — and on the Ascend screen, after the timer, choose that center as where your awareness landed.\n\nSit, and rest your attention in the crown — alignment, the still point where separateness first loosens.\nStand, and bring it to the chest — the heart, opened rather than guarded.\nWalk, and let it settle in the belly — vitality, the aliveness that needs no permission to simply be.\n\nThree forms. Three centers. One vow. Walk through it, and the path of the Mystic opens.",
+      libId: "lib_m_trial",
+      criteria: "Complete the Mystic Foundation Trial: 3-min Sit, Stand, Walk.",
+      unlocks: [],
+    },
+    {
+      id: "m_pulse",
+      title: "Pulse",
+      myth: "Every tradition that has ever produced a mystic has, in its own language, pointed at the same underlying claim: the boundary between you and what you're looking at is thinner than it appears, and can be felt to thin further with practice. This path doesn't ask you to believe that yet. It only asks you to start somewhere small enough to actually test it.\n\nNothing is smaller, or closer, or more constantly available than your own pulse. It has been beating since before you had a self to notice it, and it will keep beating whether you notice it or not. Right now, it is the closest thing there is to you that you have probably never once fully met.\n\nSettle. Go still enough, for long enough, that you begin to feel it — in the chest, the throat, the wrists, wherever it first becomes findable. Don't watch it from a distance the way you might watch a thought passing. Let the noticing and the beat stop feeling like two things. There is no clean line between 'you' and 'your heartbeat.' See if you can feel that directly, even for a moment.\n\nIf you don't find it today, that's fine. The settling itself is the practice. The finding comes when it comes.",
+      libId: "lib_m_pulse",
+      criteria: "Accumulate 10 minutes settling into your own pulse.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Pulse", stat: "ali", target: 10, unit: "minutes" }],
+    },
+    {
+      id: "m_breath",
+      title: "Breath",
+      myth: "Pulse taught the first lesson: something can be both completely yours and not under your control at all. Breath teaches the second, stranger one — it can be both.\n\nBreathe normally, and the breath simply happens, the way the pulse simply happens. Reach for it, try to direct it, and suddenly it's you doing the breathing. Most people live entirely on one side of that line or the other — either breath is automatic and ignored, or breath is a task being performed. The space between those two — where breath is happening and you are not separate from its happening — is what this practice is actually after.\n\nDon't control it. Don't entirely ignore it either. Simply ride it, the way you'd ride a wave without trying to steer the ocean. At some point, usually without announcing itself, the sense of 'me, breathing' can soften into something closer to 'breathing, happening, here.' That softening is the union. It rarely lasts long the first dozen times. It doesn't need to.",
+      libId: "lib_m_breath",
+      criteria: "Accumulate 10 minutes uniting with the breath.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Breath", stat: "vit", target: 10, unit: "minutes" }],
+    },
+    {
+      id: "m_thought",
+      title: "Thought",
+      myth: "The Sage on this same ground learns to step back from a thought and watch it pass, the way you'd watch a wave from the shore. That is real, valuable, and not what this practice asks for. This practice asks you to walk into the water.\n\nA thought arises. Instead of stepping back to observe it, let the gap between watcher and watched go slack. Don't follow the thought's content — that's just thinking, the thing both paths agree isn't the point. Instead, notice that the thinking and the awareness of thinking have never actually been two separate events happening side by side. They have always been one continuous thing, artificially split by the habit of believing there's a watcher standing apart from what's watched.\n\nThis is subtle, and it will mostly fail at first — the mind is very good at re-installing the gap the instant you notice it's gone. That's fine. Each time you notice the gap reappear, you've also, for a moment, noticed it wasn't there. That noticing is the practice working, even when it looks like failing.",
+      libId: "lib_m_thought",
+      criteria: "Accumulate 15 minutes uniting with thought.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Thought", stat: "wis", target: 15, unit: "minutes" }],
+    },
+    {
+      id: "m_senses",
+      title: "The Senses",
+      myth: "Sound, sight, the air on your skin — ordinarily, these arrive, and then a second step happens almost instantly: you register them as things happening to a 'you' that exists separately from them. This practice asks you to notice that the second step is optional.\n\nLet a sound arrive. Don't ask whose it is. The hearing and the heard have always occurred in the same place, at the same moment — the apparent distance between 'the sound out there' and 'me hearing it in here' is added afterward, not given at the start. The same is true of a color, a texture, a temperature. Right before the mind sorts the world into self and world, there is just contact, undivided.\n\nThis is not a technique you master and then perform on command. It's closer to a noticing that gets easier to return to the more often you've genuinely tasted it. Each sense is its own small doorway into the same room.",
+      libId: "lib_m_senses",
+      criteria: "Accumulate 15 minutes uniting with the senses.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "The Senses", stat: "wis", target: 15, unit: "minutes" }],
+    },
+    {
+      id: "m_other",
+      title: "Another Person",
+      myth: "Everything so far has been practiced on something that never talks back. This is the first time the boundary you're working with belongs to someone else too.\n\nThis is not Deep Listening, and it doesn't require anyone's participation or even their knowledge. Sit or stand somewhere another person happens to be — a stranger on a bench, someone across a café, anyone at all. Don't engage them, don't perform compassion at them. Just let your attention rest in their direction, and notice the place where 'me' is quietly assumed to end and 'them' is quietly assumed to begin.\n\nThat line is real enough to be useful — you are not asked to forget where your body ends and another's begins. But it is also thinner than habit suggests. See if you can feel both at once: the practical, undeniable separateness, and underneath it, the plain fact that you are both, right now, simply here, breathing the same air, made of the same kind of aliveness. Most people brush past that fact a thousand times a day without once actually feeling it.",
+      libId: "lib_m_other",
+      criteria: "Accumulate 20 minutes uniting with another person's presence.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Another Person", stat: "hrt", target: 20, unit: "minutes" }],
+    },
+    {
+      id: "m_moment",
+      title: "The Moment",
+      myth: "Pulse, breath, thought, the senses, another person — each was a small rehearsal of the same move, applied to something progressively larger. This one is larger still: not a thing inside time, but time itself.\n\nMost suffering involves leaving now — replaying what already happened, rehearsing what hasn't. This practice asks you to let this exact moment be the only one that exists, not as a discipline of staying focused, but as a direct noticing that it's already true. The past is a memory occurring now. The future is an imagining occurring now. There has never actually been any moment available to you except this one, and there never will be.\n\nLet the sense of time passing — of moving from one moment toward the next — soften into something closer to a single, continuous present that simply keeps revealing more of itself. You are not trying to stop time. You are noticing that the stream you thought you were standing in is the same water, everywhere, always now.",
+      libId: "lib_m_moment",
+      criteria: "Accumulate 25 minutes uniting with the present moment.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "The Moment", stat: "ali", target: 25, unit: "minutes" }],
+    },
+    {
+      id: "m_henosis",
+      title: "Henosis",
+      isCapstone: true,
+      myth: "There is an old Greek word, older than any of the traditions that later borrowed its shape: henosis. Oneness. Unity. Not a feeling about the world, but a direct, unmediated contact with the fact that it was never actually divided in the first place.\n\nYou have been practicing this all along, in small, deliberately manageable doses — a pulse, a breath, a thought, a sound, a stranger, a single moment. None of those were warm-ups for something different. They were this, in miniature. Henosis is what happens when the boundary that softened in each of them stops being rebuilt in between.\n\nThis is not an escape from the world, however it might look from outside. The deepest accounts across every tradition that has ever taken this seriously insist on the same correction: real union returns you to ordinary life changed, not absent from it — contemplative in action, not fled from it. If this practice ever starts to feel like a way to avoid your own life rather than meet it more completely, that is the signal to step back, not lean in further.\n\nSit, with nothing to achieve and nothing to avoid. Let everything you've practiced — the pulse, the breath, the thought, the world, the other, the moment — stop being separate exercises and become one continuous fact you are resting inside of, rather than performing.",
+      libId: "lib_m_henosis",
+      criteria: "Accumulate 45 minutes practicing Henosis.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Henosis", stat: "ali", target: 45, unit: "minutes" }],
+    },
+  ],
 };
 
 /* Convenience: the verb shown for each unlocked practice type. */
@@ -413,6 +495,17 @@ function classGateMet(presenceLevel, completedChapters) {
   const actDone = Array.isArray(completedChapters) &&
                   completedChapters.includes(ACT1_FINAL_CHAPTER);
   return presenceLevel >= CLASS_UNLOCK_LEVEL && actDone;
+}
+
+/* Mystic is hidden until BOTH Healer and Sage have reached Mastery 1 — i.e.
+   both their 7-quest chains are fully complete (7/7 = Mastery 1 is a flat
+   milestone, so this is the same chainComplete check used everywhere else).
+   This is a deliberately simple first gate for testing; more requirements
+   (mastery level beyond 1, Warrior too, etc.) may be added later — keep this
+   as a single small function so additional conditions are a one-line change. */
+function mysticGateMet(classState){
+  if(!classState) return false;
+  return chainComplete("healer", classState.questProgress) && chainComplete("sage", classState.questProgress);
 }
 
 /* ── PROGRESSIVE CONTROL UNLOCKS ──────────────────────────────────────────
@@ -456,6 +549,7 @@ function freshClassState() {
     inquireAnswered: {},  // { "What am I resisting?": true, ... }
     epilogueRevealed: {}, // { warrior: bool } once chain complete
     mastery: {},           // { warrior: { xp: 0 }, ... } — exists only once chain is complete
+    trialCelebrated: {},  // { warrior: bool } — has the Trial Complete screen been shown for this class yet
   };
 }
 
@@ -474,7 +568,7 @@ function freshClassState() {
    Curve: same cubic shape as the Presence curve, own tunable constant per path
    so a path that earns more easily (e.g. Sage, via plain Sit) can be tuned to
    need proportionally more XP per level without touching the earning rules. */
-const MASTERY_XP_A = { warrior: 27, healer: 27, sage: 35 }; // placeholder — Sage tuned higher since Sit is the most common practice. Mastery 10 (advanced-class gate) lands around 50-70 hours of qualifying practice; tune after real testing.
+const MASTERY_XP_A = { warrior: 27, healer: 27, sage: 35, mystic: 27 }; // placeholder — Sage tuned higher since Sit is the most common practice; Mystic has no "free" session-type earning rule (unlike Warrior/Sit, Sage/Sit, Healer/chest-throat) so it doesn't need compensation the way Sage does. Mastery 10 (advanced-class gate) lands around 50-70 hours of qualifying practice; tune after real testing.
 const masteryTotalXPForLevel = (classId, L) => Math.round((MASTERY_XP_A[classId]??0.25) * Math.max(0,L-1) ** 3);
 const masteryLevelFromXP = (classId, xp) => {
   let L=1;
@@ -535,12 +629,37 @@ function countBonusXP(loggedCounts, activitiesById){
 /* Mastery bonuses — small unlocks granted at a given mastery level for a given
    path. Intentionally a short, easy-to-extend list; add a line, nothing else
    to wire. Only active (selectable) while that path is the player's active one. */
+/* Shown once per class, right after the Foundation Trial finishes and before
+   the quest chain takes over — a brief threshold moment so the trial's end
+   doesn't pass in silence. Distinct voice per class, matching each path's
+   established register (forge/vow for Warrior, wound/compassion for Healer,
+   witnessing/question for Sage, dissolving/union for Mystic). */
+const TRIAL_WELCOME = {
+  warrior: {
+    title: "The Vow Is Spoken",
+    body: "Three forms, three centers, one body that agreed to all of it. That's the oath kept — not promised, not intended, actually kept, the only kind of vow the Warrior's path has ever recognized.\n\nThe forge doesn't ask whether you believe in it before it gets to work. It only asks that you showed up, which you just did. Everything ahead — the strength, the strikes, the flow that eventually stops needing your permission to happen — starts from here, not from belief, but from the simple fact of having stood still long enough to mean it.",
+  },
+  healer: {
+    title: "The Heart Has Opened",
+    body: "Three forms, three centers — chest, throat, will — and the body agreed to all of it. That agreement is the real beginning. Not a feeling of readiness, just the willingness to turn toward what's there.\n\nEvery healer who ever walked this path carried something before they could tend anything else. You've just spoken that same oath, in the only language this path has ever trusted: presence, held on purpose. What comes next will ask you to keep doing exactly that — toward yourself first, then outward, then further than either.",
+  },
+  sage: {
+    title: "The Question Is Asked",
+    body: "Three forms, three centers — clarity, alignment, voice — and the body agreed to look. That's the entire vow this path has ever required: not answers, just a willingness to actually see what's there before deciding what it means.\n\nKnow thyself was carved above a temple older than almost anything else still standing, and nobody has improved on it since. You've just taken the first real step toward it — not by finding something out, but by agreeing to keep looking. Everything ahead is more of the same question, asked with progressively sharper attention.",
+  },
+  mystic: {
+    title: "The Boundary Has Thinned",
+    body: "Three forms, three centers — crown, chest, belly — and for three minutes each, the line between you and where you placed your attention got a little less solid. That's not nothing. That's the entire claim this path has ever made, tested in miniature, three times, just now.\n\nEverything ahead is the same small thinning, applied to something a little larger each time — a pulse, a breath, a thought, a stranger, a moment, and eventually all of it at once. You don't have to believe any of that's possible yet. You only have to keep showing up the way you just did.",
+  },
+};
+
 const MASTERY_BONUSES = {
   warrior: [
     { level: 1, id: "bonus_w_cold", name: "Cold Exposure", stat: "wil", practiceType: "any" },
   ],
   healer: [],
   sage: [],
+  mystic: [],
 };
 
 /* Shared: has this path's 7-quest foundation chain been fully completed? */
@@ -1182,15 +1301,19 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
   const [feelOpen,setFeelOpen] = useState(false);
   const [activeActIds,setActiveActIds] = useState([]);
   /* Time-segmented multiplier tracking: every time an activity is toggled on
-     or off, log a real timestamp. At session end this lets XP be weighted by
-     which multiplier was actually active during which seconds — toggling
-     Horse Stance on for 3 of a 9-minute Stand only multiplies those 3 minutes,
-     not the whole session. */
+     or off, log the session's own elapsed-seconds value (t) — NOT Date.now().
+     This must stay in the same unit as totalElapsed in weightedElapsedSeconds,
+     or the weighting math produces astronomically wrong numbers (a stray
+     wall-clock millisecond timestamp compared against a near-zero session
+     cursor explodes into billions of "weighted seconds"). At session end this
+     lets XP be weighted by which multiplier was actually active during which
+     seconds — toggling Horse Stance on for 3 of a 9-minute Stand only
+     multiplies those 3 minutes, not the whole session. */
   const multEventsRef = useRef([]); // [{ts, id, on}]
   const toggleActivity = (id) => {
     setActiveActIds(p=>{
       const turningOn = !p.includes(id);
-      multEventsRef.current.push({ts:Date.now(), id, on:turningOn});
+      multEventsRef.current.push({ts:t, id, on:turningOn});
       return turningOn ? [...p, id] : p.filter(x=>x!==id);
     });
   };
@@ -2515,7 +2638,7 @@ const LIBRARY_ENTRIES = [
 
   /* ── PATH SKILLS (barebone stubs — fill detailed instruction later) ── */
   CHANT_LIBRARY_STUB,
-  ...Object.entries(QUEST_CHAINS).filter(([cid])=>cid!=="healer").flatMap(([cid,chain]) =>
+  ...Object.entries(QUEST_CHAINS).filter(([cid])=>cid!=="healer"&&cid!=="mystic").flatMap(([cid,chain]) =>
     chain.filter(q=>!q.isTrial).map(q=>({
       id:q.libId, unlock:0, section:"Path Skills",
       pathId:cid, pathName:(CLASS_BY_ID[cid]?.name)||"",
@@ -2592,6 +2715,78 @@ const LIBRARY_ENTRIES = [
     ],
     practice:"Say one true thing from your heart, aloud or silently. Then stop completely — no analyzing what you said — and simply wait, attentive, for as long as the silence holds your attention." },
 
+  /* ── MYSTIC LIBRARY (fully written) ── */
+  { id:"lib_m_trial", unlock:0, section:"Path Skills", pathId:"mystic", pathName:"Mystic", skillUnlockQuest:"m_trial",
+    title:"Mystic Trial", sub:"Mystic", sc:"ali",
+    body:[
+      "The Mystic's trial asks the same three forms every path asks for — Sit, Stand, Walk, three minutes each — with attention placed at a specific center each time. Sit settles into the crown, where alignment and separateness first begin to loosen. Stand opens at the chest, where the heart unguards itself. Walk settles into the belly, where simple aliveness needs no permission to be felt.",
+      "Nothing here requires belief in anything beyond what you can directly notice. The trial is a vow spoken through the body — three short proofs that you're willing to sit still long enough to find out what's actually there, rather than what you assume must be there."
+    ],
+    practice:"Complete one 3-minute Sit, Stand, and Walk, resting attention at the crown, chest, and belly in turn." },
+
+  { id:"lib_m_pulse", unlock:0, section:"Path Skills", pathId:"mystic", pathName:"Mystic", skillUnlockQuest:"m_pulse",
+    title:"Pulse", sub:"Mystic", sc:"ali",
+    body:[
+      "Pulse is the smallest possible test of this whole path's central claim: that the line between 'you' and what you're attending to is thinner than it appears. Nothing is closer or more constant than your own heartbeat, and most people go years without directly feeling it.",
+      "Settle — sitting upright tends to help, and a hand resting lightly on the chest or two fingers at the wrist can help locate it at first, though neither is required once you're practiced. Once found, the goal isn't to monitor it from a distance the way you might count breaths. Let the noticing and the beat become one continuous fact rather than two — an observer and an observed.",
+      "Some sessions you'll find it quickly. Others you won't find it at all, and the settling itself is still the practice on those days. This isn't a skill that improves linearly; it improves the more honestly you sit with not-finding-it too."
+    ],
+    practice:"Sit upright, settle fully, and locate your pulse (hand on chest or fingers at the wrist if needed). Once found, let the sense of 'feeling it' and 'it beating' become one event, not two." },
+
+  { id:"lib_m_breath", unlock:0, section:"Path Skills", pathId:"mystic", pathName:"Mystic", skillUnlockQuest:"m_breath",
+    title:"Breath", sub:"Mystic", sc:"vit",
+    body:[
+      "Breath sits in a strange middle ground — automatic when ignored, deliberate the moment you reach for it. Most breathing practices ask you to pick a side: control it, or let it run on its own. This one asks you to find the seam between the two, where breath is simply happening and 'you, breathing' stops feeling like two separate things.",
+      "Don't force a rhythm. Don't entirely check out either. Ride the breath the way you'd ride a wave — present to its rise and fall, without steering it. At some point, often without warning, the felt sense of 'me, doing this' can soften into something more like 'breathing, occurring, here.'",
+      "This softening rarely holds for long, especially early on. That's expected. Each glimpse of it is real practice, whether or not it lasts past the next thought."
+    ],
+    practice:"Let the breath move without controlling it. Notice when it starts to feel like something happening TO 'you' versus something you're causing — and let that distinction relax." },
+
+  { id:"lib_m_thought", unlock:0, section:"Path Skills", pathId:"mystic", pathName:"Mystic", skillUnlockQuest:"m_thought",
+    title:"Thought", sub:"Mystic", sc:"wis",
+    body:[
+      "This is the practice most easily confused with Sage's Observe Thought, and worth distinguishing clearly: Sage steps back from a thought to watch it pass, maintaining a clean distance between witness and witnessed. This practice does the opposite — it lets that distance go slack on purpose.",
+      "A thought arises. Instead of stepping back, notice that the thinking and the awareness of the thinking have never actually occurred as two separate events side by side — that gap is a habit of interpretation, not a given fact. Let watcher and watched blur rather than separate.",
+      "This will mostly fail at first, and that's fine — the mind reinstalls the gap almost instantly. Each time you catch the gap reappearing, you've also, for a flash, caught it being absent. That flash is the entire practice."
+    ],
+    practice:"When a thought arises, don't step back to observe it (that's Sage's move). Instead let the sense of a separate watcher soften, so thinking and noticing the thinking feel like one continuous event." },
+
+  { id:"lib_m_senses", unlock:0, section:"Path Skills", pathId:"mystic", pathName:"Mystic", skillUnlockQuest:"m_senses",
+    title:"The Senses", sub:"Mystic", sc:"wis",
+    body:[
+      "A sound arrives, and almost instantly the mind sorts it into 'the sound out there' and 'me hearing it in here.' This practice notices that the sorting is an extra step, added after the fact — not part of the raw contact itself.",
+      "Let a sound, a color, a texture, a temperature simply arrive. Before naming it, before placing it outside yourself, there is just contact — undivided. Each sense is a small doorway into the same room; you don't need all five at once, and you don't need anything exotic to find it.",
+      "This isn't a permanent state to achieve and hold. It's a noticing that gets easier to return to the more genuinely you've tasted it, in any single sense, even briefly."
+    ],
+    practice:"Pick one sense. Let something arrive through it before you name or place it. Notice the moment just before 'self' and 'world' get sorted into two separate things." },
+
+  { id:"lib_m_other", unlock:0, section:"Path Skills", pathId:"mystic", pathName:"Mystic", skillUnlockQuest:"m_other",
+    title:"Another Person", sub:"Mystic", sc:"hrt",
+    body:[
+      "This isn't Healer's Deep Listening, and it asks nothing of the other person — not their participation, not even their awareness. A stranger on a bench, someone across a café, anyone at all is enough.",
+      "Without engaging them, let your attention rest in their direction. Notice the line where 'me' is assumed to end and 'them' is assumed to begin — real enough to matter (you are not asked to forget your own boundaries), but thinner than habit suggests underneath. You're both, right now, simply here, made of the same kind of aliveness.",
+      "Most people pass a hundred strangers a day without once actually feeling this. The practice is just slowing down enough to feel it on purpose, even once."
+    ],
+    practice:"Near a stranger (public space, no interaction needed), let attention rest in their direction. Hold both facts at once: your real separateness, and underneath it, your shared, plain aliveness." },
+
+  { id:"lib_m_moment", unlock:0, section:"Path Skills", pathId:"mystic", pathName:"Mystic", skillUnlockQuest:"m_moment",
+    title:"The Moment", sub:"Mystic", sc:"ali",
+    body:[
+      "Pulse, breath, thought, the senses, another person — each was the same move, rehearsed on something small. This one applies it to something larger: not a thing inside time, but time itself.",
+      "Most suffering involves leaving now — replaying what already happened, rehearsing what hasn't happened yet. The past is a memory occurring now. The future is an imagining occurring now. There has never been any moment actually available to you except this one.",
+      "Let the felt sense of moving through time soften into something more like a single, continuous present that keeps revealing more of itself. You're not stopping time. You're noticing the water was never actually flowing away from you to begin with."
+    ],
+    practice:"Notice that any memory or anticipation you're having is itself happening right now. Let the sense of 'moving through time' rest into 'this, continuously, revealing more.'" },
+
+  { id:"lib_m_henosis", unlock:0, section:"Path Skills", pathId:"mystic", pathName:"Mystic", skillUnlockQuest:"m_henosis",
+    title:"Henosis", sub:"Mystic", sc:"ali",
+    body:[
+      "Henosis is an old Greek word for oneness — chosen deliberately because it belongs to no single tradition, even though nearly every tradition that has taken mysticism seriously eventually arrives at some version of the same claim under its own name.",
+      "Everything practiced so far — pulse, breath, thought, the senses, another person, the moment — was never a separate warm-up. Each was this, in miniature. Henosis is what happens when the boundary that softened in each of them simply stops being rebuilt in between.",
+      "One real caution, taken directly from those who've walked this longest: real union is supposed to return you to ordinary life changed, not absent from it. If this practice starts to feel like a way to avoid your life rather than meet it more fully, that's the signal to step back, not lean in further."
+    ],
+    practice:"Sit with nothing to achieve and nothing to avoid. Let everything practiced before — pulse, breath, thought, world, other, moment — rest together as one continuous fact rather than separate exercises." },
+
 ];
 
 const ANCHOR_SUBQUESTS = [
@@ -2626,13 +2821,21 @@ const CHAPTER_QUESTS = {
    Picking a class sets it active and drops the player into the Foundation Trial. */
 function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onReturn=()=>{}, questProgress={}, trialComplete=()=>true, mastery={} }){
   const [sel,setSel]=useState(null);
+  /* Mystic stays hidden entirely (not just disabled) until both Healer and
+     Sage have reached Mastery 1 — a deliberately simple first gate for
+     testing; already-active/walked classes always remain visible regardless,
+     so this never hides a class the player has already committed to. */
+  const visibleClasses = CLASSES.filter(c=>
+    c.id!=="mystic" || activeClass==="mystic" || alreadyChosen.includes("mystic") ||
+    (chainComplete("healer",questProgress) && chainComplete("sage",questProgress))
+  );
   return (
     <div style={{padding:"4px 4px 20px"}}>
       <div style={{...dsp("13px",C.gold,400,"0.16em"),marginBottom:"6px"}}>CHOOSE YOUR PATH</div>
       <div style={{...body("14px",C.muted),lineHeight:"1.6",marginBottom:"20px",fontStyle:"italic"}}>
         You have returned to yourself. Now choose how you will cultivate. This is a direction, not a cage — you may walk a different path later, and your progress on this one will be waiting when you return.
       </div>
-      {CLASSES.map(c=>{
+      {visibleClasses.map(c=>{
         const isOpen = sel===c.id;
         const isActive = activeClass===c.id;
         const walked = alreadyChosen.includes(c.id) && !isActive;
@@ -2693,6 +2896,32 @@ function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onRet
 /* Foundation Trial — three enforced 3-min sessions, each stat-tagged.
    Tapping a trial step opens the Anchor at that practice type. Completion of
    all three (tracked via trialProgress) is required before the chain opens. */
+/* Shown once, the moment a Foundation Trial completes, before the quest
+   chain takes over — a brief threshold so the trial's end isn't silent. */
+function TrialCompleteScreen({ classId, onContinue }){
+  const cls = CLASS_BY_ID[classId];
+  const welcome = TRIAL_WELCOME[classId];
+  if(!cls || !welcome) return null;
+  return (
+    <div style={{padding:"4px 4px 20px",textAlign:"center"}}>
+      <div style={{...dsp("10px",cls.accent,400,"0.2em"),marginBottom:"10px"}}>TRIAL COMPLETE</div>
+      <div style={{...dsp("19px",C.cream,500,"0.04em"),marginBottom:"4px"}}>{welcome.title}</div>
+      <div style={{...dsp("11px",cls.accent,400,"0.14em"),marginBottom:"22px"}}>WELCOME TO THE PATH OF THE {cls.name.toUpperCase()}</div>
+      <div style={{textAlign:"left"}}>
+        {welcome.body.split("\n\n").map((p,i)=>(
+          <div key={i} style={{...body("15px",C.txt),lineHeight:"1.8",marginBottom:"16px"}}>{p}</div>
+        ))}
+      </div>
+      <button onClick={onContinue}
+        style={{marginTop:"8px",padding:"12px 28px",background:"rgba(255,255,255,0.04)",
+          border:`0.5px solid ${cls.accent}`,color:cls.accent,...dsp("10px",undefined,400,"0.16em"),
+          cursor:"pointer",borderRadius:"6px"}}>
+        BEGIN THE PATH OF THE {cls.name.toUpperCase()}
+      </button>
+    </div>
+  );
+}
+
 function FoundationTrial({ classId, trialProgress={}, onOpenTrial, devMode=false, onDevSkipTrial=()=>{}, onBackToChoice=()=>{} }){
   const cls = CLASS_BY_ID[classId];
   if(!cls) return null;
@@ -3500,6 +3729,10 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
               <FoundationTrial classId={classState.activeClass} trialProgress={classState.trialProgress}
                 onOpenTrial={(t)=>onOpenAnchor(t)} devMode={devMode} onDevSkipTrial={onDevSkipTrial}
                 onBackToChoice={()=>setViewingChoice(true)}/>
+            ) : !classState.trialCelebrated?.[classState.activeClass] &&
+                !(QUEST_CHAINS[classState.activeClass]||[]).some(q=>classState.questProgress?.[q.id]) ? (
+              <TrialCompleteScreen classId={classState.activeClass}
+                onContinue={()=>acknowledgeTrialComplete(classState.activeClass)}/>
             ) : (
               <>
                 <button onClick={()=>setViewingChoice(true)} style={{background:"none",border:"none",cursor:"pointer",...body("12px",C.dim),marginBottom:"14px",padding:0}}>← Walk a different path</button>
@@ -3997,7 +4230,7 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
       {bySec.map(({s,items})=>{
         const isCollapsed=!!collapsed[s];
         /* Path Skills get sub-grouped by path (Foundation / Warrior / Healer / Sage) */
-        const pathOrder=["Foundation","Warrior","Healer","Sage"];
+        const pathOrder=["Foundation","Warrior","Healer","Sage","Mystic"];
         const subGroups = s==="Path Skills"
           ? pathOrder.map(pn=>({pn,its:items.filter(e=>e.pathName===pn)})).filter(g=>g.its.length>0)
           : null;
@@ -5100,6 +5333,13 @@ export default function AscendApp(){
     activeClass:classId,
     chosenClasses: cs.chosenClasses.includes(classId)?cs.chosenClasses:[...cs.chosenClasses,classId],
     trialProgress:{...cs.trialProgress, [classId]: cs.trialProgress[classId]||{}},
+  }));
+
+  /* Marks the Trial Complete welcome screen as seen for a class, so it shows
+     exactly once — the next time the player visits that path, they go
+     straight to the quest chain rather than seeing the welcome again. */
+  const acknowledgeTrialComplete = (classId) => setClassState(cs=>({
+    ...cs, trialCelebrated:{...cs.trialCelebrated, [classId]:true},
   }));
 
   /* Trial step recorded when a qualifying session finishes (see handleDone).
