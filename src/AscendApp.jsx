@@ -5522,35 +5522,19 @@ export default function AscendApp(){
     const s={type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),activities:activeActivities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg,awarenessLanding:lands,loggedCounts:loggedCounts||{}};
     setSessions(p=>[s,...p]);
     setHasAnchored(true);
-    /* Route this session's XP to mastery for whichever path(s) it qualifies
-       for — only paths that have already reached Mastery 1 actually accrue
-       anything; awardMasteryXP is a no-op for any path still mid-chain. */
-    if(!isA && xpE>0){
-      const qualifying = masteryPathsForSession(s);
-      if(qualifying.length>0) setClassState(cs=>awardMasteryXP(cs, qualifying, xpE));
-    }
-    /* Reflect quest: complete once a single sitting session reaches the
-       required minutes AND a reflection note was actually written for it —
-       checked against this session directly, not the activity-count system. */
-    Object.keys(QUEST_CHAINS).forEach(cid=>{
-      QUEST_CHAINS[cid].forEach(q=>{
-        if(classState.questProgress?.[q.id]) return;
-        const reflectUnlock = (q.unlocks||[]).find(u=>u.kind==="reflect" && u.minDuration);
-        if(!reflectUnlock) return;
-        const longEnough = s.typeId==="sitting" && s.elapsed >= reflectUnlock.minDuration*60;
-        const noteWritten = !!(s.reflection && s.reflection.trim());
-        if(longEnough && noteWritten) completeClassQuest(q.id);
-      });
-    });
-    /* Accumulate any logged reps/distance onto the activity's running count,
-       and auto-complete the owning quest once every target activity is met. */
+
+    /* Accumulate any logged reps/minutes onto each activity's running count,
+       and auto-complete the owning quest once every target is met. This runs
+       FIRST and unconditionally — it's the most important effect of saving a
+       session (your actual practice, counted), so nothing that runs after it
+       in this function should ever be able to prevent it from happening. */
+    let updatedActivities = activities;
     if(Object.keys(loggedCounts).length>0){
-      const updatedActivities = activities.map(a=>
+      updatedActivities = activities.map(a=>
         loggedCounts[a.id]!=null ? {...a, count:(a.count||0)+loggedCounts[a.id]} : a
       );
       setActivities(updatedActivities);
-      /* find any active, not-yet-complete quest whose target activities are
-         now met, and mark it complete. Two modes:
+      /* Two modes:
          - singleSession: THIS session alone must reach the target (e.g. one
            20-minute sit with Observe Attention selected) — checked against
            loggedCounts directly, not the lifetime running count.
@@ -5574,6 +5558,37 @@ export default function AscendApp(){
         });
       });
     }
+
+    /* Everything below is defensively isolated: each block is wrapped so that
+       if any one of them ever throws, it can't take the others down with it
+       (and, critically, can never retroactively undo the accumulation above —
+       that already happened and already called setActivities). */
+    try {
+      /* Route this session's XP to mastery for whichever path(s) it qualifies
+         for — only paths that have already reached Mastery 1 actually accrue
+         anything; awardMasteryXP is a no-op for any path still mid-chain. */
+      if(!isA && xpE>0){
+        const qualifying = masteryPathsForSession(s);
+        if(qualifying.length>0) setClassState(cs=>awardMasteryXP(cs, qualifying, xpE));
+      }
+    } catch(e) { /* mastery routing failure should never block anything else */ }
+
+    try {
+      /* Reflect quest: complete once a single sitting session reaches the
+         required minutes AND a reflection note was actually written for it —
+         checked against this session directly, not the activity-count system. */
+      Object.keys(QUEST_CHAINS).forEach(cid=>{
+        QUEST_CHAINS[cid].forEach(q=>{
+          if(classState.questProgress?.[q.id]) return;
+          const reflectUnlock = (q.unlocks||[]).find(u=>u.kind==="reflect" && u.minDuration);
+          if(!reflectUnlock) return;
+          const longEnough = s.typeId==="sitting" && s.elapsed >= reflectUnlock.minDuration*60;
+          const noteWritten = !!(s.reflection && s.reflection.trim());
+          if(longEnough && noteWritten) completeClassQuest(q.id);
+        });
+      });
+    } catch(e) { /* reflect-quest check failure should never block anything else */ }
+
     /* Foundation Trial: a qualifying ≥3-min sit/stand/walk advances the active
        class's trial while it's still in progress. */
     if(!isA && classState.activeClass && (elapsedSecs||0)>=180 &&
