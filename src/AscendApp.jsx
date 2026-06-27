@@ -663,6 +663,35 @@ const MASTERY_BONUSES = {
 };
 
 /* Shared: has this path's 7-quest foundation chain been fully completed? */
+/* Self-healing migration: whenever activities are loaded (initial hydration,
+   cloud restore, import, dev-mode disable), re-sync every class-skill
+   activity's metadata (target/unit/stat/practiceType/singleSession) against
+   whatever the CURRENT quest data actually says. This matters because
+   activities are only ever created ONCE, the first time their quest becomes
+   active — if a quest's numbers get tuned later (as we've done repeatedly
+   throughout this build), anyone who already has that activity from before
+   the change is silently left with the OLD metadata forever, since nothing
+   ever re-creates or re-checks it otherwise. This NEVER touches `count` —
+   real, earned progress is never reset just because a definition changed. */
+function migrateActivityMetadata(activities){
+  if(!Array.isArray(activities)) return activities;
+  const unlockByName = {};
+  Object.values(QUEST_CHAINS).forEach(chain=>{
+    chain.forEach(q=>(q.unlocks||[]).forEach(u=>{
+      if(u.kind==="activity") unlockByName[u.name]=u;
+    }));
+  });
+  return activities.map(a=>{
+    if(!a.classSkill) return a; // never touch user-created activities
+    const u = unlockByName[a.name];
+    if(!u) return a; // no current quest defines this skill (shouldn't normally happen)
+    const target = u.target ?? null, unit = u.unit ?? null, singleSession = !!u.singleSession;
+    const inSync = a.target===target && a.unit===unit && a.stat===u.stat &&
+                   a.practiceType===u.practiceType && a.singleSession===singleSession;
+    return inSync ? a : {...a, stat:u.stat, practiceType:u.practiceType, target, unit, singleSession};
+  });
+}
+
 function chainComplete(classId, questProgress={}){
   const numbered = (QUEST_CHAINS[classId]||[]).filter(q=>!q.isTrial && !q.isEpilogue);
   return numbered.length>0 && numbered.every(q=>questProgress[q.id]);
@@ -4918,7 +4947,7 @@ export default function AscendApp(){
   const [capacities,setCapacities]=useState(false);
   const [chaptersRead,setChaptersRead]=useState(P.chaptersRead??[]);
   const [libReadAt,setLibReadAt]=useState(P.libReadAt??{});
-  const [activities,setActivities]=useState(P.activities??[]);
+  const [activities,setActivities]=useState(()=>migrateActivityMetadata(P.activities??[]));
   const addActivity=(name,stat,practiceType)=>setActivities(p=>[...p,{id:`act_${Date.now()}_${Math.random().toString(36).substr(2,4)}`,name,stat,practiceType}]);
   const deleteActivity=id=>setActivities(p=>p.filter(a=>a.id!==id));
   // onboarding: "brand" | "intro" | "done"
@@ -5140,7 +5169,7 @@ export default function AscendApp(){
         setZonesMigrated(true);
       }
       if(data.libCollapsed) setLibCollapsed(data.libCollapsed);
-      if(data.activities) setActivities(data.activities);
+      if(data.activities) setActivities(migrateActivityMetadata(data.activities));
       if(data.chaptersRead) setChaptersRead(data.chaptersRead);
       if(data.libReadAt) setLibReadAt(data.libReadAt);
       if(data.completedChapters) setCompletedChapters(data.completedChapters);
@@ -5256,7 +5285,7 @@ export default function AscendApp(){
         if(P2.revealZones) setRevealZones(P2.revealZones);
         if(P2.zonesMigrated!==undefined) setZonesMigrated(P2.zonesMigrated);
         if(P2.libCollapsed) setLibCollapsed(P2.libCollapsed);
-        if(P2.activities) setActivities(P2.activities);
+        if(P2.activities) setActivities(migrateActivityMetadata(P2.activities));
         if(P2.chaptersRead) setChaptersRead(P2.chaptersRead);
         if(P2.libReadAt) setLibReadAt(P2.libReadAt);
         if(P2.completedChapters) setCompletedChapters(P2.completedChapters);
@@ -5296,16 +5325,29 @@ export default function AscendApp(){
 
   /* Apply a quest's unlocks (activities, journal features, practice types)
      immediately — this is called the moment a quest becomes ACTIVE, not when
-     it's completed, so the player can practice the skill the quest asks about. */
+     it's completed, so the player can practice the skill the quest asks about.
+     If the activity already exists (created before a later tuning pass), its
+     metadata is re-synced to the current quest data rather than left stale —
+     `count` (real, earned progress) is the one thing this never touches. */
   const applyQuestUnlocks = (quest) => {
     if(!quest?.unlocks) return;
     quest.unlocks.forEach(u=>{
       if(u.kind==="activity"){
-        setActivities(p=> p.some(a=>a.name===u.name) ? p : [...p,{
-          id:`cls_${u.name.replace(/\s+/g,'_').toLowerCase()}`,
-          name:u.name, stat:u.stat, classSkill:true, practiceType:u.practiceType,
-          count:0, target: u.target ?? null, unit: u.unit ?? null, singleSession: !!u.singleSession,
-        }]);
+        const target = u.target ?? null, unit = u.unit ?? null, singleSession = !!u.singleSession;
+        setActivities(p=>{
+          const existing = p.find(a=>a.name===u.name);
+          if(!existing){
+            return [...p, {
+              id:`cls_${u.name.replace(/\s+/g,'_').toLowerCase()}`,
+              name:u.name, stat:u.stat, classSkill:true, practiceType:u.practiceType,
+              count:0, target, unit, singleSession,
+            }];
+          }
+          const inSync = existing.target===target && existing.unit===unit && existing.stat===u.stat &&
+                         existing.practiceType===u.practiceType && existing.singleSession===singleSession;
+          if(inSync) return p;
+          return p.map(a=>a.name===u.name ? {...a, stat:u.stat, practiceType:u.practiceType, target, unit, singleSession} : a);
+        });
       }
       /* kind:"journal" (tend/inquire) and kind:"practiceType" are read directly
          off questProgress/trialComplete elsewhere — no extra state needed here. */
