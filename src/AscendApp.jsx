@@ -4941,7 +4941,7 @@ export default function AscendApp(){
     if(scr==="journal" && journalDraft.trim()){
       setSavePending(()=>action);
     } else {
-      setJournalDraft(""); setScr(null); action();
+      setJournalDraft(""); setScr(null); setOpenClassQuest(null); setOpenChantQuest(false); action();
     }
   };
   const [anch,setAnch]=useState(false);
