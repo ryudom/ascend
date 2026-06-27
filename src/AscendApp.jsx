@@ -81,13 +81,15 @@ const CHANT_UNLOCK_CHAPTER = 5; // unlocks after "The Living World"
 const CHANT_QUEST = {
   id: "chant_unlock",
   title: "Find Your Voice",
-  myth: "Sit, Stand, Walk — three doors into stillness, three ways the body learns presence. There is a fourth thing, older than any of them, that travels through all three without needing a door of its own: the voice.\n\nEvery culture that has ever practiced stillness has, at some point, discovered the same thing — that sound, repeated and let go of expectation, deepens the silence rather than breaking it. A single tone, held without performance. A word, repeated until it stops being a word and becomes only vibration. This is not new. It may be older than language itself — humans were almost certainly humming before they had names for anything.\n\nChant is not its own practice. It travels with you — into Sit, into Stand, into Walk — asking nothing except that you let a sound rise and stay with it a while. Some days it will be a hum. Some days a single repeated word. Some days nothing more than a long, slow exhale with a little voice riding on top of it.\n\nTry it once, in whichever stillness you already know. Let a sound rise. Don't perform it. Just let it be there.\n\nChant unlocked. Find it under Activities the next time you Sit, Stand, or Walk.",
+  myth: "Sit, Stand, Walk — three doors into stillness, three ways the body learns presence. There is a fourth thing, older than any of them, that travels through all three without needing a door of its own: the voice.\n\nEvery culture that has ever practiced stillness has, at some point, discovered the same thing — that sound, repeated and let go of expectation, deepens the silence rather than breaking it. A single tone, held without performance. A word, repeated until it stops being a word and becomes only vibration. This is not new. It may be older than language itself — humans were almost certainly humming before they had names for anything.\n\nChant is not its own practice. It travels with you — into Sit, into Stand, into Walk — asking nothing except that you let a sound rise and stay with it a while. Some days it will be a hum. Some days a single repeated word. Some days nothing more than a long, slow exhale with a little voice riding on top of it.\n\nTry it once, in whichever stillness you already know. Let a sound rise. Don't perform it. Just let it be there.\n\nFind it under Activities the next time you Sit, Stand, or Walk.",
   libId: "lib_chant",
-  criteria: "Practice with Chant (any session).",
+  criteria: "Accumulate 3 minutes practicing Chant.",
+  target: 3,
+  unit: "minutes",
 };
 const CHANT_LIBRARY_STUB = {
   id: "lib_chant", unlock: 0, section: "Practices", title: "Find Your Voice",
-  sub: "Voice · any practice", skillUnlockQuest: "chant_unlock",
+  sub: "Voice · Sit, Stand, or Walk", skillUnlockQuest: "chant_unlock",
   sc: "voi",
   body: ["Practical instruction and detail for Chant will live here. For now: hum, tone, or repeat a single word softly while sitting, standing, or walking. No performance required — just a sound, held loosely, riding alongside the breath."],
   practice: "",
@@ -682,6 +684,10 @@ function migrateActivityMetadata(activities){
     }));
   });
   return activities.map(a=>{
+    if(a.id==="chant_voi"){
+      const inSync = a.target===CHANT_QUEST.target && a.unit===CHANT_QUEST.unit && a.practiceType==="core";
+      return inSync ? a : {...a, practiceType:"core", target:CHANT_QUEST.target, unit:CHANT_QUEST.unit};
+    }
     if(!a.classSkill) return a; // never touch user-created activities
     const u = unlockByName[a.name];
     if(!u) return a; // no current quest defines this skill (shouldn't normally happen)
@@ -1383,6 +1389,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
      forever, but only usable while you're actually walking that path. */
   const activityVisible = (a) => {
     if(a.masteryBonus && a.bonusPath!==activeClassId) return false;
+    if(a.practiceType==="core") return CORE.some(c=>c.id===pType);
     if(!a.practiceType || a.practiceType==="any") return true;
     return a.practiceType===pType;
   };
@@ -5170,6 +5177,8 @@ export default function AscendApp(){
       }
       if(data.libCollapsed) setLibCollapsed(data.libCollapsed);
       if(data.activities) setActivities(migrateActivityMetadata(data.activities));
+      if(data.classState) setClassState(data.classState);
+      if(data.chantUnlocked!==undefined) setChantUnlocked(data.chantUnlocked);
       if(data.chaptersRead) setChaptersRead(data.chaptersRead);
       if(data.libReadAt) setLibReadAt(data.libReadAt);
       if(data.completedChapters) setCompletedChapters(data.completedChapters);
@@ -5286,6 +5295,8 @@ export default function AscendApp(){
         if(P2.zonesMigrated!==undefined) setZonesMigrated(P2.zonesMigrated);
         if(P2.libCollapsed) setLibCollapsed(P2.libCollapsed);
         if(P2.activities) setActivities(migrateActivityMetadata(P2.activities));
+        if(P2.classState) setClassState(P2.classState);
+        if(P2.chantUnlocked!==undefined) setChantUnlocked(P2.chantUnlocked);
         if(P2.chaptersRead) setChaptersRead(P2.chaptersRead);
         if(P2.libReadAt) setLibReadAt(P2.libReadAt);
         if(P2.completedChapters) setCompletedChapters(P2.completedChapters);
@@ -5315,13 +5326,6 @@ export default function AscendApp(){
   const presenceLevel = levelFromTotalXP(ch.totalXP??0);
   const classGateOpen = devMode || classGateMet(presenceLevel, completedChapters);
   const chantGateOpen = devMode || completedChapters.includes(CHANT_UNLOCK_CHAPTER);
-
-  const completeChant = () => {
-    setChantUnlocked(true);
-    setActivities(p=> p.some(a=>a.name==="Chant") ? p : [...p,{
-      id:"chant_voi", name:"Chant", stat:"voi", classSkill:true, practiceType:"any",
-    }]);
-  };
 
   /* Apply a quest's unlocks (activities, journal features, practice types)
      immediately — this is called the moment a quest becomes ACTIVE, not when
@@ -5483,6 +5487,17 @@ export default function AscendApp(){
     });
   },[classState]);
 
+  /* Chant activates the moment its quest becomes available (Chapter 5) — the
+     activity exists immediately so it can be practiced toward the 3-minute
+     target; completion itself is checked in handleDone once that's met. */
+  useEffect(()=>{
+    if(!chantGateOpen || chantUnlocked) return;
+    setActivities(prev=> prev.some(a=>a.id==="chant_voi") ? prev : [...prev, {
+      id:"chant_voi", name:"Chant", stat:"voi", classSkill:true, practiceType:"core",
+      count:0, target:CHANT_QUEST.target, unit:CHANT_QUEST.unit,
+    }]);
+  },[chantGateOpen, chantUnlocked]);
+
   const awardJournalXP = () => setCh(p=>{
     const st={...p.stats};
     ["hrt","voi","wis"].forEach(k=>{ st[k]=(st[k]||0)+3; });
@@ -5599,6 +5614,12 @@ export default function AscendApp(){
           if(allMet) completeClassQuest(q.id);
         });
       });
+      /* Chant is standalone (not part of any class's QUEST_CHAINS), so it gets
+         its own small completion check here, same accumulated-target pattern. */
+      if(!chantUnlocked){
+        const chantAct = updatedActivities.find(a=>a.id==="chant_voi");
+        if(chantAct && (chantAct.count||0) >= CHANT_QUEST.target) setChantUnlocked(true);
+      }
     }
 
     /* Everything below is defensively isolated: each block is wrapped so that
@@ -6019,6 +6040,21 @@ export default function AscendApp(){
             {CHANT_QUEST.myth.split("\n\n").map((p,i)=>(
               <div key={i} style={{...body("15px",C.txt),lineHeight:"1.8",marginBottom:"14px"}}>{p}</div>
             ))}
+            {(() => {
+              const chantAct = activities.find(a=>a.id==="chant_voi");
+              const count = chantAct?.count||0;
+              const pct = Math.min(100, Math.round(count/CHANT_QUEST.target*100));
+              return !chantUnlocked && (
+                <div style={{marginBottom:"16px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",...body("12px",C.muted),marginBottom:"4px"}}>
+                    <span>Chant</span><span>{count.toFixed(0)}/{CHANT_QUEST.target} {CHANT_QUEST.unit}</span>
+                  </div>
+                  <div style={{height:"4px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${pct}%`,background:C.sageB,transition:"width .3s"}}/>
+                  </div>
+                </div>
+              );
+            })()}
             <button onClick={()=>{setOpenChantQuest(false);setTab("library");setLibOpenId(CHANT_QUEST.libId);}}
               style={{display:"block",marginTop:"6px",marginBottom:"16px",background:"none",border:"none",
                 ...body("13px",C.sageB),fontStyle:"italic",cursor:"pointer",padding:0}}>
@@ -6027,12 +6063,9 @@ export default function AscendApp(){
             {chantUnlocked ? (
               <div style={{...dsp("10px",C.sageB,400,"0.14em"),padding:"10px 0"}}>✓ COMPLETE</div>
             ) : (
-              <button onClick={()=>{completeChant();setOpenChantQuest(false);}}
-                style={{marginTop:"4px",padding:"11px 22px",background:"rgba(163,192,137,0.1)",
-                  border:`0.5px solid ${C.sageB}`,color:C.sageB,...dsp("9px",undefined,400,"0.14em"),
-                  cursor:"pointer",borderRadius:"6px"}}>
-                MARK COMPLETE
-              </button>
+              <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
+                Find Chant under Activities the next time you Sit, Stand, or Walk.
+              </div>
             )}
           </Overlay>
         )}
