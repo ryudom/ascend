@@ -271,8 +271,13 @@ const QUEST_CHAINS = {
       title: "Forgiveness & Gratitude",
       myth: "You listened, and you found something. Maybe an old hurt. Maybe a grudge you didn't know you were still carrying. Maybe anger at someone who never apologized, or at yourself, for something you've never once let yourself off the hook for.\n\nListening alone does not release it. You can hear a wound clearly for years and still carry it. Something more is needed — not forgetting, not pretending the harm didn't happen, but a deliberate act of setting the weight down. Forgiveness does not excuse what happened. It simply refuses to keep paying for it twice.\n\nAnd there is a reason gratitude belongs beside it, not after it. Across nearly every tradition that has ever practiced forgiveness, the same second movement appears: once the weight is set down, attention turns toward what remains. What is still good. What was never taken. Release without gratitude is only half the work — an emptying with nothing to fill the space it leaves behind.\n\nName what you're releasing. Then name what you're grateful for. Let both be true in the same breath.",
       libId: "lib_h_forgive",
-      criteria: "Accumulate 15 minutes practicing Forgiveness & Gratitude.",
-      unlocks: [{ kind: "activity", practiceType: "restore", name: "Forgiveness & Gratitude", stat: "hrt", target: 15, unit: "minutes" }],
+      criteria: "Accumulate 15 minutes practicing Forgiveness & Gratitude, and write one Release entry for each in your journal.",
+      unlocks: [
+        { kind: "activity", practiceType: "restore", name: "Forgiveness & Gratitude", stat: "hrt", target: 15, unit: "minutes" },
+        { kind: "journal", feature: "release" },
+        { kind: "journalEntry", entryKind: "Forgiveness" },
+        { kind: "journalEntry", entryKind: "Gratitude" },
+      ],
     },
     {
       id: "h_tension",
@@ -2704,7 +2709,7 @@ const LIBRARY_ENTRIES = [
       "Forgiveness here doesn't mean deciding the harm didn't matter, or owing anyone an apology on their behalf. It means refusing to keep paying for something twice — once when it happened, and again, every day since, by carrying it. You can release the weight without rewriting the facts.",
       "Gratitude isn't tacked on as a nicety. It's the second half of the same motion: once a hand opens to let something go, it has room to hold something else. Naming what's still good isn't denial of what was hard — it's simply true, at the same time, and worth saying out loud."
     ],
-    practice:"Speak or write one sentence naming what you're releasing, and one sentence naming something you're grateful for, in the same sitting. Let both stand without qualifying either one." },
+    practice:"Speak or write one sentence naming what you're releasing, and one sentence naming something you're grateful for, in the same sitting. Once both feel real, put each into its own Release entry in the journal — one tagged Forgiveness, one tagged Gratitude — to complete the quest alongside your 15 minutes of practice." },
 
   { id:"lib_h_tension", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_tension",
     title:"Tension Release", sub:"Healer", sc:"vit",
@@ -3007,7 +3012,8 @@ function FoundationTrial({ classId, trialProgress={}, onOpenTrial, devMode=false
 function questProgressLine(q, activities, jEnt=[]){
   const targetUnlocks = (q.unlocks||[]).filter(u=>u.kind==="activity" && u.target);
   const tendUnlocks = (q.unlocks||[]).filter(u=>u.kind==="tend" && u.target);
-  if(targetUnlocks.length===0 && tendUnlocks.length===0) return q.criteria;
+  const entryUnlocks = (q.unlocks||[]).filter(u=>u.kind==="journalEntry");
+  if(targetUnlocks.length===0 && tendUnlocks.length===0 && entryUnlocks.length===0) return q.criteria;
   const activityLines = targetUnlocks.map(u=>{
     if(u.singleSession) return `${u.name}: one sitting of ${u.target}${u.unit?" "+u.unit:""}`;
     const act = activities.find(a=>a.name===u.name);
@@ -3018,7 +3024,11 @@ function questProgressLine(q, activities, jEnt=[]){
     const total = jEnt.filter(e=>e.tag==="tend" && e.tendKind===u.tendKind).reduce((s,e)=>s+(e.tendMinutes||0),0);
     return `${u.tendKind}: ${total.toFixed(0)}/${u.target}${u.unit?" "+u.unit:""}`;
   });
-  return [...activityLines, ...tendLines].join(" · ");
+  const entryLines = entryUnlocks.map(u=>{
+    const has = jEnt.some(e=>e.tag==="release" && e.releaseKind===u.entryKind);
+    return `${u.entryKind}: ${has?"✓":"needed"}`;
+  });
+  return [...activityLines, ...tendLines, ...entryLines].join(" · ");
 }
 
 function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epilogueRevealed={}, activities=[],
@@ -3128,14 +3138,17 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
   const allAnswered = isInquire && q.inquireQuestions.every(qq=>inquireAnswered[qq]);
   const targetUnlocks = (q.unlocks||[]).filter(u=>u.kind==="activity" && u.target);
   const tendUnlocks = (q.unlocks||[]).filter(u=>u.kind==="tend" && u.target);
+  const entryUnlocks = (q.unlocks||[]).filter(u=>u.kind==="journalEntry");
   const hasTargets = targetUnlocks.length>0;
   const hasTendTargets = tendUnlocks.length>0;
+  const hasEntryRequirements = entryUnlocks.length>0;
   const targetsMet = hasTargets && targetUnlocks.every(u=>{
     const act=activities.find(a=>a.name===u.name);
     return act && (act.count||0) >= u.target;
   });
   const tendTotal = (kind) => jEnt.filter(e=>e.tag==="tend" && e.tendKind===kind).reduce((s,e)=>s+(e.tendMinutes||0),0);
   const tendsMet = hasTendTargets && tendUnlocks.every(u=>tendTotal(u.tendKind) >= u.target);
+  const entriesMet = hasEntryRequirements && entryUnlocks.every(u=>jEnt.some(e=>e.tag==="release" && e.releaseKind===u.entryKind));
   const reflectUnlock = (q.unlocks||[]).find(u=>u.kind==="reflect" && u.minDuration);
   const isReflectQuest = !!reflectUnlock;
 
@@ -3220,6 +3233,27 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
         </div>
       )}
 
+      {/* Required journal entries (e.g. one Release entry each of Forgiveness
+          and Gratitude) — shown as a simple checklist, same spirit as the
+          Inquire questions list, since this is a presence check, not a bar. */}
+      {hasEntryRequirements && !questDone && (
+        <div style={{marginBottom:"16px"}}>
+          {entryUnlocks.map(u=>{
+            const has = jEnt.some(e=>e.tag==="release" && e.releaseKind===u.entryKind);
+            return (
+              <div key={u.entryKind} style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"6px"}}>
+                <div style={{width:"20px",height:"20px",borderRadius:"50%",flexShrink:0,
+                  background:has?"rgba(163,192,137,0.12)":"transparent",
+                  border:`1px solid ${has?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  {has&&<span style={{color:C.sageB,fontSize:"11px"}}>✓</span>}
+                </div>
+                <span style={{...body("13px",has?C.cream:C.muted)}}>{u.entryKind} entry in the journal</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Library link */}
       <button onClick={()=>onOpenLib(q.libId)}
         style={{display:"block",marginTop:"6px",marginBottom:"16px",background:"none",border:"none",
@@ -3236,7 +3270,13 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
         </div>
       ) : hasTargets ? (
         <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
-          {targetsMet ? "Targets reached — completing…" : "Log your practice after each session to track progress."}
+          {targetsMet && (!hasEntryRequirements || entriesMet) ? "Requirements met — completing…"
+            : !targetsMet ? "Log your practice after each session to track progress."
+            : "Practice minutes are done — write the journal entries above to finish."}
+        </div>
+      ) : hasEntryRequirements ? (
+        <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
+          {entriesMet ? "Entries logged — completing…" : "Write the journal entries above to complete this quest."}
         </div>
       ) : hasTendTargets ? (
         <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
@@ -4350,13 +4390,15 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
   );
 }
 
-function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, tendUnlocked=false, inquireUnlocked=false }){
+function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, tendUnlocked=false, inquireUnlocked=false, releaseUnlocked=false }){
   const [mood,setMood]=useState(null),[bdy,setBdy]=useState(null),[entry,setEntry]=useState(""),[saved,setSaved]=useState(false);
-  /* mode: "normal" | "inquire" | "tend"; inquire auto-selected if pre-filled */
+  /* mode: "normal" | "inquire" | "tend". Release (Forgiveness/Gratitude) is an
+     optional tag within normal Entry, not its own mode. */
   const [mode,setMode]=useState(pendingInquiry?"inquire":"normal");
   const [question,setQuestion]=useState(pendingInquiry||"");
   const [tendKind,setTendKind]=useState(null); // "Deep Listening" | "Service"
   const [tendMins,setTendMins]=useState("");
+  const [releaseKind,setReleaseKind]=useState(null); // null | "Forgiveness" | "Gratitude"
   useEffect(()=>{ if(pendingInquiry){ setMode("inquire"); setQuestion(pendingInquiry); } },[pendingInquiry]);
 
   const canSave = entry.trim() && (mode!=="inquire" || question.trim());
@@ -4366,14 +4408,15 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, ten
     const e={text:entry.trim(),mood,body:bdy,date};
     if(mode==="inquire"){ e.tag="inquire"; e.question=question.trim(); }
     else if(mode==="tend"){ e.tag="tend"; e.tendKind=tendKind||"Deep Listening"; const m=parseFloat(tendMins); if(!isNaN(m)&&m>0) e.tendMinutes=m; }
+    else if(mode==="normal" && releaseKind){ e.tag="release"; e.releaseKind=releaseKind; }
     onSave(e);
     setSaved(true);
-    setTimeout(()=>{setEntry("");setMood(null);setBdy(null);setSaved(false);setTendMins("");},1100);
+    setTimeout(()=>{setEntry("");setMood(null);setBdy(null);setSaved(false);setTendMins("");setReleaseKind(null);},1100);
   };
 
   const modeTabs=[["normal","Entry"]];
   if(inquireUnlocked) modeTabs.push(["inquire","Inquire"]);
-  if(tendUnlocked) modeTabs.push(["tend","Tend"]);
+  if(tendUnlocked) modeTabs.push(["tend","Restore"]);
 
   return (
     <Overlay title="Journal" onBack={onBack}>
@@ -4404,13 +4447,19 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, ten
       )}
 
       {mode==="normal" && <>
+        {releaseUnlocked && (
+          <div style={{marginBottom:"16px"}}>
+            <div style={{...body("12px",C.muted),marginBottom:"7px"}}>Tag this entry (optional)</div>
+            <Chips opts={["Forgiveness","Gratitude"]} sel={releaseKind} onSel={k=>setReleaseKind(p=>p===k?null:k)}/>
+          </div>
+        )}
         <SL title="How are you right now?"/>
         <div style={{marginBottom:"14px"}}><div style={{...body("12px",C.muted),marginBottom:"7px"}}>Mood</div><Chips opts={MOODS} sel={mood} onSel={setMood}/></div>
         <div style={{marginBottom:"22px"}}><div style={{...body("12px",C.muted),marginBottom:"7px"}}>Body</div><Chips opts={BODY} sel={bdy} onSel={setBdy}/></div>
       </>}
 
-      <SL title={mode==="inquire"?"Sit with it. Then answer.":mode==="tend"?"Reflect":"Entry"}/>
-      <textarea value={entry} onChange={e=>{setEntry(e.target.value);setSaved(false);onEntryChange&&onEntryChange(e.target.value);}} placeholder={mode==="inquire"?"Let the question work on you before you work on it…":mode==="tend"?"What happened? What did you notice?":"What do you notice right now?"} rows={7} style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("15px"),padding:"12px",resize:"none",boxSizing:"border-box",outline:"none",lineHeight:"1.7",caretColor:C.sageB}}/>
+      <SL title={mode==="inquire"?"Sit with it. Then answer.":mode==="tend"?"Reflect":releaseKind==="Gratitude"?"What's still good?":releaseKind==="Forgiveness"?"What are you setting down?":"Entry"}/>
+      <textarea value={entry} onChange={e=>{setEntry(e.target.value);setSaved(false);onEntryChange&&onEntryChange(e.target.value);}} placeholder={mode==="inquire"?"Let the question work on you before you work on it…":mode==="tend"?"What happened? What did you notice?":releaseKind==="Gratitude"?"What's still true, still good, never taken?":releaseKind==="Forgiveness"?"Name it. You don't have to excuse it, just set it down.":"What do you notice right now?"} rows={7} style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("15px"),padding:"12px",resize:"none",boxSizing:"border-box",outline:"none",lineHeight:"1.7",caretColor:C.sageB}}/>
       <button onClick={save} style={{marginTop:"10px",padding:"10px 20px",background:canSave&&!saved?"rgba(163,192,137,0.12)":"transparent",border:`0.5px solid ${canSave&&!saved?C.sageB:C.bord}`,color:canSave&&!saved?C.sageB:C.muted,...dsp("9px",undefined,400,"0.14em"),cursor:"pointer",borderRadius:"6px"}}>{saved?"✓ SAVED":"SAVE ENTRY"}</button>
     </Overlay>
   );
@@ -5547,6 +5596,32 @@ export default function AscendApp(){
     });
   };
 
+  /* For quests that need at least one journal entry of each required kind
+     (e.g. Forgiveness & Gratitude: one Release entry tagged "Forgiveness" AND
+     one tagged "Gratitude") — checked alongside any duration target the same
+     quest also carries, so writing the SECOND missing entry only completes it
+     if the practice-minutes requirement is already satisfied too, and vice
+     versa (the session-save path below re-checks this same combination). */
+  const checkJournalEntryQuestCompletion = (updatedEntries) => {
+    Object.keys(QUEST_CHAINS).forEach(cid=>{
+      QUEST_CHAINS[cid].forEach(q=>{
+        if(classState.questProgress?.[q.id]) return;
+        const entryUnlocks = (q.unlocks||[]).filter(u=>u.kind==="journalEntry");
+        if(entryUnlocks.length===0) return;
+        const entriesOk = entryUnlocks.every(u=>
+          updatedEntries.some(e=>e.tag==="release" && e.releaseKind===u.entryKind)
+        );
+        if(!entriesOk) return;
+        const targetUnlocks = (q.unlocks||[]).filter(u=>u.kind==="activity" && u.target);
+        const activitiesOk = targetUnlocks.every(u=>{
+          const act = activities.find(a=>a.name===u.name);
+          return act && (act.count||0) >= u.target;
+        });
+        if(activitiesOk) completeClassQuest(q.id);
+      });
+    });
+  };
+
   const handleDone=({type,typeId,duration,elapsed:elapsedSecs,weightedElapsed,activeActivities=[],tags,reflection,pinSession,pinTag,quickAnchor,awarenessLanding,loggedCounts={}})=>{
     const wasFirstSession = !hasAnchored;
     const isA=quickAnchor||!type;
@@ -5611,7 +5686,16 @@ export default function AscendApp(){
             }
             return (act.count||0) >= u.target;
           });
-          if(allMet) completeClassQuest(q.id);
+          if(!allMet) return;
+          /* If this quest ALSO requires specific journal entries (e.g.
+             Forgiveness & Gratitude needs one Release entry of each kind),
+             those must already exist too — finishing the practice minutes
+             alone isn't enough if the writing half hasn't happened yet. */
+          const entryUnlocks = (q.unlocks||[]).filter(u=>u.kind==="journalEntry");
+          const entriesOk = entryUnlocks.every(u=>
+            jEnt.some(e=>e.tag==="release" && e.releaseKind===u.entryKind)
+          );
+          if(entriesOk) completeClassQuest(q.id);
         });
       });
       /* Chant is standalone (not part of any class's QUEST_CHAINS), so it gets
@@ -6033,7 +6117,7 @@ export default function AscendApp(){
             </div>
           </div>
         )}
-        {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");setPendingInquiry(null);}} onSave={e=>{const updated=[e,...jEnt];setJEnt(updated);awardJournalXP();awardEntryMasteryXP(e);if(e.tag==="inquire"&&e.question)recordInquiry(e.question);if(e.tag==="tend")checkTendQuestCompletion(updated);setScr(null);setJournalDraft("");setPendingInquiry(null);}} onEntryChange={setJournalDraft} pendingInquiry={pendingInquiry} tendUnlocked={questActiveOrDone("healer","h_listen",classState?.questProgress||{},trialComplete)} inquireUnlocked={!!(classState?.activeClass==="sage")}/>}
+        {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");setPendingInquiry(null);}} onSave={e=>{const updated=[e,...jEnt];setJEnt(updated);awardJournalXP();awardEntryMasteryXP(e);if(e.tag==="inquire"&&e.question)recordInquiry(e.question);if(e.tag==="tend")checkTendQuestCompletion(updated);if(e.tag==="release")checkJournalEntryQuestCompletion(updated);setScr(null);setJournalDraft("");setPendingInquiry(null);}} onEntryChange={setJournalDraft} pendingInquiry={pendingInquiry} tendUnlocked={questActiveOrDone("healer","h_listen",classState?.questProgress||{},trialComplete)} releaseUnlocked={questActiveOrDone("healer","h_forgive",classState?.questProgress||{},trialComplete)} inquireUnlocked={!!(classState?.activeClass==="sage")}/>}
         {openChantQuest && (
           <Overlay title={CHANT_QUEST.title} onBack={()=>setOpenChantQuest(false)}>
             <div style={{...dsp("9px",C.sageB,400,"0.16em"),marginBottom:"14px"}}>FOUNDATION · VOICE</div>
