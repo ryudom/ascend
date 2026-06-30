@@ -296,12 +296,12 @@ const QUEST_CHAINS = {
       unlocks: [{ kind: "activity", practiceType: "restore", name: "Voice Work", stat: "voi", target: 20, unit: "minutes" }],
     },
     {
-      id: "h_communion",
-      title: "Communion",
+      id: "h_commune",
+      title: "Commune",
       myth: "Every tradition that has ever produced a healer has, at some point, produced this same gesture: a person turning toward something larger than themselves and speaking, then falling silent to listen for what comes back. Shamans, sangomas, curanderas, healers under a hundred different names across every continent — the details differ, but the shape repeats too consistently to be coincidence. Whatever else a healer does, they are rarely only a technician. They are, almost always, also someone who communes.\n\nThere is no name precise enough for what's on the other end — call it the divine, call it the field, call it the simple fact that nothing alive exists alone. You do not have to name it. You only have to stop insisting you are separate from it, long enough to actually speak and actually listen.\n\nThis is the concrete shape of it: say what's true in your heart right now — aloud or silently, doesn't matter. Not a performance, not the words you think you should say. Whatever's actually there. Then stop. Go quiet. Don't fill the silence with your own analysis of what you just said. Simply wait, and notice what arises in the space that's left.\n\nYou may get something back that feels like an answer. You may get nothing at all but the quality of the silence itself. Both are real outcomes of this practice. The communing is in the asking and the waiting — not in what, if anything, replies.",
-      libId: "lib_h_communion",
-      criteria: "Accumulate 30 minutes practicing Communion.",
-      unlocks: [{ kind: "activity", practiceType: "restore", name: "Communion", stat: "ali", target: 30, unit: "minutes" }],
+      libId: "lib_h_commune",
+      criteria: "Accumulate 30 minutes practicing Commune.",
+      unlocks: [{ kind: "activity", practiceType: "restore", name: "Commune", stat: "ali", target: 30, unit: "minutes" }],
     },
     {
       id: "h_listen",
@@ -318,7 +318,7 @@ const QUEST_CHAINS = {
       id: "h_service",
       title: "Service",
       isCapstone: true,
-      myth: "Heart Listening turned you toward yourself. Tension Release and Voice Work tended what you found there. Communion turned attention toward something larger than yourself. Deep Listening turned that same attention toward someone else. This is the last turn, and it asks for hands, not just presence — when listening isn't enough, and something in the world actually needs doing.\n\nThere's an old question worth asking honestly: is any service truly selfless? You will likely feel something when you help — lighter, more useful, closer to the person you're becoming. That isn't a flaw in the act. It's simply true, and pretending otherwise helps no one. The danger isn't feeling good when you serve. The danger is needing someone else's need in order to feel good about yourself at all. Serve because it's needed, not because you require it to feel whole.\n\nEverything this path has built — the heart that listens, the weight set down, the voice that releases, the silence that communes — was never meant to end in a feeling. It was meant to end in your hands, doing something real for someone who actually needed it.\n\nMark each act in your Tend journal, with how long it took.",
+      myth: "Heart Listening turned you toward yourself. Tension Release and Voice Work tended what you found there. Commune turned attention toward something larger than yourself. Deep Listening turned that same attention toward someone else. This is the last turn, and it asks for hands, not just presence — when listening isn't enough, and something in the world actually needs doing.\n\nThere's an old question worth asking honestly: is any service truly selfless? You will likely feel something when you help — lighter, more useful, closer to the person you're becoming. That isn't a flaw in the act. It's simply true, and pretending otherwise helps no one. The danger isn't feeling good when you serve. The danger is needing someone else's need in order to feel good about yourself at all. Serve because it's needed, not because you require it to feel whole.\n\nEverything this path has built — the heart that listens, the weight set down, the voice that releases, the silence that communes — was never meant to end in a feeling. It was meant to end in your hands, doing something real for someone who actually needed it.\n\nMark each act in your Tend journal, with how long it took.",
       libId: "lib_h_service",
       criteria: "Accumulate 45 minutes of Service, logged in Tend.",
       unlocks: [
@@ -499,9 +499,13 @@ const CLASS_LIBRARY_STUBS = (() => {
 
 /* Helper: is the class system unlockable for this player? */
 function classGateMet(presenceLevel, completedChapters) {
-  const actDone = Array.isArray(completedChapters) &&
-                  completedChapters.includes(ACT1_FINAL_CHAPTER);
-  return presenceLevel >= CLASS_UNLOCK_LEVEL && actDone;
+  /* Presence Level requirement removed — Act I completion alone is the gate.
+     The Foundation Trial (enforced, real sessions) and the 7-quest chain that
+     follows already pace "how deep are you in this path" on their own; the
+     level gate was a redundant second check on top of that, and keeping it
+     would make Act I's own closing promise ("the paths now stand open")
+     potentially false for anyone who finishes Act I before reaching level 10. */
+  return Array.isArray(completedChapters) && completedChapters.includes(ACT1_FINAL_CHAPTER);
 }
 
 /* Mystic is hidden until BOTH Healer and Sage have reached Mastery 1 — i.e.
@@ -689,6 +693,13 @@ function migrateActivityMetadata(activities){
     }));
   });
   return activities.map(a=>{
+    /* One-time rename: "Communion" was renamed to "Commune" — anyone who
+       already has the old-named activity gets it renamed in place (id and
+       name updated to match), with count fully preserved, rather than ending
+       up with an orphaned old activity AND a fresh duplicate at count 0. */
+    if(a.name==="Communion"){
+      a = {...a, id:"cls_commune", name:"Commune"};
+    }
     if(a.id==="chant_voi"){
       const inSync = a.target===CHANT_QUEST.target && a.unit===CHANT_QUEST.unit && a.practiceType==="core";
       return inSync ? a : {...a, practiceType:"core", target:CHANT_QUEST.target, unit:CHANT_QUEST.unit};
@@ -701,6 +712,20 @@ function migrateActivityMetadata(activities){
                    a.practiceType===u.practiceType && a.singleSession===singleSession;
     return inSync ? a : {...a, stat:u.stat, practiceType:u.practiceType, target, unit, singleSession};
   });
+}
+
+/* One-time rename migration: the Healer quest "Communion" was renamed to
+   "Commune" (id h_communion -> h_commune). Anyone who already completed it
+   under the old id would otherwise show it as incomplete forever, since the
+   new code only ever checks questProgress.h_commune. */
+function migrateClassState(cs){
+  if(!cs || typeof cs!=="object") return cs;
+  const qp = cs.questProgress;
+  if(qp && qp.h_communion!==undefined && qp.h_commune===undefined){
+    const { h_communion, ...rest } = qp;
+    return { ...cs, questProgress: { ...rest, h_commune: h_communion } };
+  }
+  return cs;
 }
 
 function chainComplete(classId, questProgress={}){
@@ -818,6 +843,25 @@ function migrateCh(ch){
   if(!stats.ali) stats.ali=0;
   const totalXP = ch.totalXP ?? (totalXPForLevel(ch.level||1)+(ch.xp||0));
   return {...ch, stats, totalXP, _statsFmt:"xp"};
+}
+
+const AWARENESS_STAT={root:"str",belly:"vit",solar_plexus:"wil",chest:"hrt",throat:"voi",head:"wis",top:"ali"};
+/* Redirects 30% of every OTHER stat's gain into whichever awareness center(s)
+   were selected. Pure and shared — called from BOTH the live review screen
+   (so the displayed stat badges are honest about what's about to be saved)
+   AND the actual save path in handleDone, so the two can never diverge. */
+function applyAwarenessSiphon(sg, awarenessLanding){
+  const lands = Array.isArray(awarenessLanding) ? awarenessLanding : (awarenessLanding ? [awarenessLanding] : []);
+  if(lands.length===0) return sg;
+  const selStats=[...new Set(lands.map(r=>AWARENESS_STAT[r]).filter(Boolean))];
+  if(selStats.length===0) return sg;
+  const out = {...sg};
+  const siphon=Object.keys(out).filter(k=>!selStats.includes(k)).reduce((sum,k)=>{
+    const amt=Math.round(out[k]*0.30); out[k]-=amt; return sum+amt;
+  },0);
+  const perStat=Math.round(siphon/selStats.length);
+  selStats.forEach(sk=>{ out[sk]=(out[sk]||0)+perStat; });
+  return out;
 }
 
 function rewards(typeId, sessionXP, activeActivities=[]){
@@ -1096,6 +1140,8 @@ function Radar({ stats, size=210, circular=false, showLabels=true, totalXP=0 }){
 const ANCHOR_D = "m 125.19742,201.79646 c -0.89743,-0.93671 -0.92009,-1.98326 -0.0615,-2.84182 0.91045,-0.91044 2.29902,-0.88862 3.03553,0.0477 1.70595,2.16876 -1.07235,4.779 -2.974,2.79411 z m -9.07233,-9.9074 c -0.28386,-0.32742 -0.73979,-0.8632 -1.01317,-1.19062 l -0.49706,-0.59531 h 11.81497 c 7.09643,0 11.81497,0.0981 11.81497,0.24574 0,0.13516 -0.40102,0.67094 -0.89114,1.19063 l -0.89114,0.94488 h -9.91066 -9.91066 z m -8.28515,-9.43078 c -0.44879,-0.56664 -0.81598,-1.10243 -0.81598,-1.19062 0,-0.0882 8.81063,-0.16037 19.57917,-0.16037 10.76854,0 19.57594,0.0893 19.57201,0.19844 -0.004,0.10914 -0.42226,0.64492 -0.92961,1.19063 l -0.92244,0.99218 h -17.83358 -17.83358 z m -7.846182,-8.77852 c -1.382424,-1.41573 -3.590804,-1.31322 26.689412,-1.23881 l 27.41784,0.0674 -1.02152,1.10628 -1.02152,1.10628 -25.5295,-0.006 -25.52951,-0.006 z m 28.703422,-8.81838 c -0.0603,-0.0579 -1.92523,-0.14689 -4.14425,-0.19787 -4.79088,-0.11005 -4.63016,0.22708 -1.88718,-3.9586 1.18142,-1.80281 2.5065,-3.85179 2.94462,-4.55331 0.43812,-0.70151 0.88634,-1.17776 0.99604,-1.05833 0.48517,0.52823 6.34648,9.32588 6.34438,9.52274 -0.002,0.21644 -4.04088,0.44941 -4.25361,0.24537 z";
 const ASCEND_D = "m 102.78866,173.74242 c -0.59111,-0.75147 -0.53268,-1.45051 0.19003,-2.27353 0.57789,-0.6581 1.79176,-0.59194 2.29394,0.12502 1.33733,1.90931 -1.04873,3.97313 -2.48397,2.14851 z m -7.092172,-7.75397 c -0.327422,-0.41515 -0.595313,-0.82528 -0.595313,-0.9114 0,-0.0861 4.054185,-0.15659 9.009295,-0.15659 h 9.0093 l -0.70632,0.92604 -0.70633,0.92604 -7.70766,-0.0146 -7.70766,-0.0146 z m -5.851817,-6.652 c -0.344463,-0.43572 -0.57461,-0.84391 -0.511437,-0.90708 0.169748,-0.16975 29.314956,-0.16592 29.320976,0.004 0.003,0.0796 -0.2577,0.50029 -0.57892,0.93477 l -0.58405,0.78997 -13.51013,-0.0146 -13.510143,-0.0146 z m -5.922141,-6.70499 c -0.400182,-0.50154 -0.727604,-0.9707 -0.727604,-1.04257 0,-0.0719 9.346406,-0.13542 20.769794,-0.14122 11.42338,-0.006 20.76979,0.0546 20.76979,0.1342 0,0.0796 -0.31179,0.5535 -0.69286,1.05311 l -0.69286,0.90839 -19.34933,-1e-5 -19.349326,0 z m 2.447396,-4.79356 c 0,-0.2039 6.908348,-10.1668 14.298454,-20.62057 0.30862,-0.43656 1.16517,-1.67137 1.90344,-2.74401 l 1.3423,-1.95026 0.48346,0.62734 c 0.26591,0.34504 1.14204,1.57985 1.94697,2.74401 1.91178,2.76502 3.80864,5.47464 6.08982,8.6992 1.017,1.43758 2.19375,3.10445 2.61499,3.70417 0.42124,0.59971 2.05835,2.90554 3.63802,5.12406 1.57967,2.21853 2.87213,4.15793 2.87213,4.30978 0,0.17645 -0.831,0.24851 -2.30242,0.19966 l -2.30242,-0.0764 -5.24878,-7.40833 c -2.88683,-4.07459 -5.75004,-8.11382 -6.36269,-8.97607 -0.61264,-0.86225 -1.23296,-1.60445 -1.37848,-1.64933 -0.14552,-0.0449 -0.74084,0.61904 -1.32292,1.47539 -0.58208,0.85635 -3.274656,4.69418 -5.983495,8.52851 -2.708839,3.83432 -5.088963,7.23939 -5.289165,7.56681 -0.332842,0.54435 -0.562408,0.59531 -2.681609,0.59531 -1.274683,0 -2.317605,-0.0671 -2.317605,-0.14922 z m 12.699999,-1.73284 c 0,-0.28221 4.007915,-6.62274 4.625345,-7.3173 0.23112,-0.25999 0.87775,0.51712 2.86367,3.4415 1.41084,2.07753 2.56515,3.86576 2.56515,3.97384 0,0.10809 -2.26219,0.19652 -5.02708,0.19652 -3.51604,0 -5.027085,-0.0885 -5.027085,-0.29456 z";
 const ANCHOR1_D = "m 106.93366,196.06211 c -5.68445,-0.69903 -12.408411,-2.71369 -17.609225,-5.27613 -16.776897,-8.26598 -28.21456,-23.76003 -30.959779,-41.93974 -0.628459,-4.16186 -0.632731,-12.04319 -0.0087,-16.05409 2.335017,-15.0081 10.547343,-28.3633 22.8653,-37.184435 5.886675,-4.215567 13.128058,-7.341587 20.817615,-8.986721 3.28852,-0.703557 3.75915,-0.735877 10.71563,-0.735877 6.92753,0 7.43723,0.03461 10.64135,0.722634 14.7189,3.160589 26.7497,11.26521 34.9516,23.545349 8.64784,12.94783 11.4422,29.32393 7.59572,44.51398 -2.33809,9.23325 -7.03282,17.58202 -13.89178,24.7041 -8.29074,8.60879 -19.11485,14.27423 -31.1973,16.32899 -2.87949,0.48968 -11.13593,0.70436 -13.92043,0.36194 z m 10.8976,-4.48412 c 17.13625,-1.66729 32.29161,-12.28383 40.27817,-28.2154 5.11674,-10.20685 6.4775,-22.05176 3.84095,-33.43406 -2.02799,-8.75509 -6.45295,-17.27884 -12.10867,-23.32482 -0.89197,-0.95352 -1.53501,-1.84028 -1.42897,-1.97058 0.10604,-0.13029 0.1003,-0.16424 -0.0128,-0.0754 -0.11305,0.0888 -0.64883,-0.2502 -1.19062,-0.75333 -6.81494,-6.328688 -14.87029,-10.580876 -23.60695,-12.461439 -7.71803,-1.661303 -16.53979,-1.388951 -24.738537,0.763749 -2.85816,0.750451 -8.050054,2.91134 -10.897225,4.535474 -9.027578,5.149666 -15.961884,12.636596 -20.569233,22.208466 -3.304733,6.86565 -4.714257,12.51248 -5.076717,20.33833 -0.910082,19.6495 10.187723,38.32673 28.112295,47.31204 8.524469,4.27319 17.866877,6.00437 27.398267,5.077 z m -6.84986,-15.33666 c -0.87108,-0.53113 -1.45881,-1.43905 -1.76934,-2.73328 -0.27573,-1.14914 0.62236,-2.90784 1.76078,-3.44805 3.47032,-1.64677 6.76137,1.58008 4.93172,4.83551 -1.02425,1.82241 -3.17657,2.41078 -4.92316,1.34582 z M 97.559196,160.19845 c -0.540497,-0.81405 -0.933463,-1.52935 -0.873257,-1.58955 0.0602,-0.0602 7.387951,-0.0788 16.283871,-0.0413 l 16.1744,0.0682 -0.98496,1.51782 -0.98496,1.51782 -14.31619,0.004 -14.316183,0.004 z m -9.911415,-11.76256 c -0.493538,-0.72751 -0.812856,-1.40723 -0.709594,-1.51049 0.276944,-0.27694 52.010063,-0.43278 52.010063,-0.15667 0,0.12787 -0.41989,0.85598 -0.93307,1.61802 l -0.93308,1.38553 -24.26849,-0.007 -24.268487,-0.007 z m -9.084176,-11.42975 c -1.611552,-2.12667 -2.044475,-1.94648 5.16532,-2.14986 7.57223,-0.2136 62.894285,-0.20453 63.969385,0.0105 l 0.74094,0.14819 -0.9465,1.42554 -0.94651,1.42553 H 112.88073 79.215221 Z m 26.840255,-10.08966 c 1.04768,-1.94847 7.24623,-12.06453 7.39377,-12.06666 0.17367,-0.003 7.23993,11.53399 7.53382,12.29984 0.1336,0.34817 -0.80632,0.39762 -7.5571,0.39762 h -7.70967 z";
+const WORLD_LAND_D = "M37.44 46.67 L37.97 47.22 L34.94 47.39 L37.44 46.67Z M33.72 42.83 L31.75 43.89 L33.11 45.47 L28.56 46.31 L29.53 46.64 L28.33 47.00 L33.83 48.11 L42.08 47.31 L40.11 47.08 L40.19 46.69 L45.14 45.86 L48.08 44.69 L57.53 44.58 L59.42 44.03 L60.72 44.39 L65.14 43.28 L69.14 43.86 L68.86 44.97 L69.42 45.08 L74.44 43.39 L83.28 43.69 L87.53 43.14 L88.19 43.61 L97.56 44.92 L95.44 46.17 L96.39 46.89 L94.39 47.47 L100.00 48.53 L100.00 50.00 L0.00 50.00 L0.25 48.36 L10.25 48.61 L7.33 48.25 L7.53 47.78 L6.44 47.53 L9.33 47.31 L6.86 46.97 L6.00 46.36 L18.36 45.47 L22.06 45.92 L21.19 45.17 L29.19 45.53 L31.28 45.14 L31.19 43.69 L33.72 42.83Z M98.06 36.36 L98.39 36.47 L98.08 37.19 L97.03 37.94 L96.31 37.83 L98.06 36.36Z M98.50 35.06 L99.58 35.47 L98.67 36.58 L97.94 34.58 L98.50 35.06Z M63.92 28.78 L63.08 31.92 L62.22 31.94 L62.33 29.50 L63.67 28.33 L63.92 28.78Z M89.89 28.83 L92.53 32.25 L92.47 33.78 L91.67 35.39 L90.64 35.83 L89.06 35.56 L88.39 34.56 L88.00 34.81 L88.28 34.14 L87.78 34.69 L86.47 33.75 L82.78 34.75 L81.94 34.50 L81.69 31.06 L83.58 30.47 L84.92 28.94 L86.00 29.17 L86.78 28.08 L87.92 28.31 L87.64 29.17 L88.94 29.92 L89.47 28.06 L89.89 28.83Z M87.25 25.33 L87.64 25.94 L88.42 25.47 L90.17 26.08 L91.86 27.94 L90.19 27.11 L89.61 27.58 L88.22 27.33 L88.31 26.50 L86.94 26.14 L86.67 25.78 L87.14 25.61 L86.25 25.25 L87.25 25.33Z M84.78 24.61 L83.39 24.94 L83.58 25.39 L84.25 25.17 L83.75 25.53 L84.22 26.47 L83.61 25.72 L83.17 26.50 L83.33 24.83 L84.78 24.61Z M79.39 26.64 L78.50 26.17 L76.47 23.47 L78.83 24.97 L79.39 26.64Z M82.75 24.50 L83.06 24.75 L82.25 26.11 L80.61 25.81 L80.31 25.14 L80.47 24.44 L82.42 23.08 L83.11 23.50 L82.75 24.50Z M27.86 18.67 L29.39 19.36 L28.39 19.47 L27.28 18.72 L26.39 18.92 L27.86 18.67Z M89.17 14.69 L88.97 15.25 L87.72 15.69 L86.39 15.58 L86.17 16.28 L85.94 15.75 L88.72 14.39 L88.97 13.56 L89.42 13.89 L89.17 14.69Z M34.42 10.92 L35.14 11.33 L35.25 12.03 L33.53 11.78 L34.42 10.92Z M49.17 8.72 L49.14 9.44 L50.39 10.75 L48.56 11.11 L49.19 10.00 L48.31 9.22 L49.17 8.72Z M45.97 6.53 L46.22 6.92 L44.81 7.36 L43.25 6.78 L45.97 6.53Z M1.39 6.50 L2.81 6.67 L1.94 7.14 L0.36 6.64 L0.00 6.94 L0.00 5.83 L1.39 6.50Z M24.86 5.69 L25.72 6.33 L26.25 5.58 L27.06 5.64 L27.42 6.22 L24.11 7.78 L23.69 8.64 L24.36 9.14 L27.14 9.69 L27.81 10.78 L28.17 10.39 L27.83 9.81 L28.75 9.31 L28.19 8.67 L28.31 7.69 L29.50 7.67 L30.67 8.03 L31.22 8.83 L32.06 8.25 L34.53 10.53 L31.56 11.06 L30.25 12.00 L31.92 11.33 L32.08 12.17 L33.39 12.25 L31.83 12.92 L32.11 12.42 L31.36 12.47 L30.36 13.06 L30.56 13.44 L29.03 14.03 L28.92 14.67 L28.81 14.11 L28.97 15.11 L27.42 16.28 L27.67 18.00 L26.64 16.64 L23.17 17.14 L22.81 18.78 L23.25 19.64 L24.44 19.81 L25.81 19.03 L25.31 20.58 L26.83 20.75 L26.72 21.92 L27.39 22.56 L28.67 22.61 L30.06 21.56 L30.08 22.47 L30.58 21.61 L31.06 22.06 L32.81 22.03 L34.14 23.33 L35.75 23.83 L36.00 25.03 L38.89 25.81 L40.36 27.03 L39.25 28.64 L38.64 31.08 L36.78 31.92 L35.06 34.56 L33.78 34.42 L34.22 35.25 L31.92 36.42 L32.36 36.83 L31.31 37.67 L31.67 38.36 L30.28 39.94 L29.19 39.53 L29.42 38.03 L29.00 37.94 L29.81 36.78 L29.36 37.00 L30.50 30.50 L28.89 29.06 L27.44 26.69 L27.83 25.75 L27.53 25.31 L28.58 23.94 L28.28 22.69 L27.53 23.00 L26.19 22.25 L25.69 21.31 L21.25 19.92 L18.36 16.22 L18.14 16.61 L19.61 18.50 L18.83 18.14 L15.44 13.81 L15.36 11.61 L15.94 11.92 L15.89 11.39 L14.61 10.89 L12.75 8.86 L9.14 8.08 L7.86 8.56 L8.17 7.97 L6.00 9.44 L4.22 9.89 L6.39 8.64 L5.00 8.69 L3.86 7.92 L5.33 7.00 L3.31 6.75 L5.08 6.64 L3.67 6.00 L6.50 5.17 L12.08 5.86 L14.42 5.42 L19.75 6.28 L20.50 5.89 L23.31 6.31 L23.83 5.81 L23.19 5.53 L23.56 5.03 L24.86 5.69Z M18.28 4.69 L19.94 5.08 L19.89 4.69 L20.42 4.69 L21.92 5.67 L17.75 5.78 L18.78 5.44 L16.83 5.11 L18.28 4.69Z M25.94 4.67 L29.94 5.11 L32.81 6.42 L32.25 6.94 L31.11 6.58 L32.03 7.39 L30.89 7.31 L31.61 7.81 L28.42 7.17 L29.44 6.81 L29.75 6.19 L28.06 5.50 L25.36 5.44 L24.94 4.94 L25.94 4.67Z M16.53 5.17 L15.03 5.03 L15.31 4.36 L17.33 4.39 L17.92 4.58 L16.53 5.17Z M65.97 5.36 L64.33 5.14 L65.44 4.14 L69.14 3.75 L66.25 4.36 L65.39 4.89 L65.97 5.36Z M23.69 3.58 L27.83 4.19 L24.33 4.22 L23.03 3.67 L23.69 3.58Z M79.72 3.61 L81.69 3.94 L80.39 4.39 L85.28 4.56 L86.47 5.33 L89.03 4.78 L94.69 5.72 L99.61 5.72 L100.00 5.83 L100.00 6.94 L99.28 7.06 L99.86 7.61 L95.42 8.36 L95.03 9.75 L93.56 10.83 L93.31 9.22 L95.69 7.61 L94.47 8.19 L93.53 7.94 L93.06 8.58 L89.50 8.61 L87.53 9.81 L88.86 9.94 L89.28 10.50 L88.39 12.14 L85.42 13.94 L85.86 15.25 L85.14 15.44 L84.81 14.00 L83.64 14.19 L83.78 13.64 L82.78 14.11 L83.03 14.61 L84.00 14.58 L83.11 15.31 L83.86 16.19 L83.81 17.17 L82.19 18.67 L79.42 19.50 L80.36 21.28 L79.22 22.61 L77.81 21.28 L77.56 22.44 L78.94 24.64 L77.31 22.83 L77.00 20.31 L76.17 20.56 L75.39 18.67 L74.17 19.03 L72.31 20.58 L72.19 22.11 L71.53 22.78 L70.17 19.06 L69.58 19.19 L68.44 17.94 L65.94 17.86 L63.33 16.67 L64.39 18.33 L65.67 17.67 L66.61 18.81 L65.36 20.22 L62.08 21.50 L59.69 16.81 L59.42 17.33 L59.00 16.69 L61.86 21.75 L62.39 22.11 L64.19 21.67 L64.17 22.06 L63.25 23.83 L60.89 26.31 L61.33 29.08 L59.67 30.50 L59.89 31.58 L59.06 32.14 L58.94 33.00 L57.17 34.42 L55.11 34.47 L53.28 30.03 L53.81 27.97 L52.44 25.31 L52.61 23.97 L51.19 23.25 L47.50 23.67 L45.39 21.61 L45.28 18.92 L48.36 15.06 L52.64 14.61 L53.08 14.75 L52.86 15.61 L55.31 16.58 L55.97 15.89 L59.39 16.39 L60.06 14.81 L57.67 14.81 L57.28 14.03 L59.31 13.33 L61.58 13.33 L60.19 12.44 L60.86 11.86 L59.42 12.67 L58.53 12.06 L57.69 13.17 L58.00 13.58 L56.28 13.81 L56.67 14.53 L56.25 14.89 L55.42 13.42 L53.64 12.31 L53.50 12.75 L55.14 13.83 L54.69 13.78 L54.47 14.44 L52.47 12.67 L50.86 13.03 L49.42 14.81 L47.53 14.75 L47.39 13.06 L49.61 12.78 L49.67 12.22 L48.72 11.47 L52.25 10.14 L52.36 9.14 L52.94 8.97 L53.03 10.00 L55.47 9.89 L56.00 9.06 L56.69 9.17 L56.47 8.56 L58.08 8.33 L55.92 8.14 L55.97 7.44 L57.06 6.92 L56.17 6.75 L54.94 7.58 L55.22 8.31 L54.42 9.42 L53.58 9.61 L52.89 8.47 L51.58 8.72 L51.39 7.78 L56.81 5.28 L61.19 6.14 L61.11 6.58 L59.22 6.50 L60.28 7.28 L62.19 6.64 L62.08 5.94 L62.86 6.03 L62.86 6.47 L64.92 5.86 L66.64 6.03 L66.83 5.58 L69.03 6.08 L68.53 5.28 L70.17 4.78 L70.11 6.61 L70.86 6.17 L70.31 5.17 L70.75 4.78 L71.22 5.22 L72.64 5.06 L72.36 4.56 L74.22 4.14 L79.72 3.61Z M63.64 13.53 L64.00 13.81 L63.67 14.56 L64.94 14.72 L64.64 13.89 L65.19 13.61 L63.97 12.61 L64.72 12.42 L64.72 11.97 L62.97 12.61 L63.64 13.53Z M55.08 2.86 L55.97 3.06 L54.42 3.67 L52.89 2.86 L55.08 2.86Z M25.83 2.86 L24.78 3.28 L23.14 2.72 L24.33 2.42 L25.83 2.86Z M30.97 1.92 L32.81 2.11 L28.64 2.97 L29.06 3.19 L27.61 3.83 L25.14 3.75 L26.39 3.47 L25.56 3.22 L26.36 2.97 L25.86 2.69 L27.28 2.64 L24.56 2.25 L30.97 1.92Z M42.47 1.81 L44.22 2.03 L41.28 2.22 L46.61 2.42 L44.44 2.72 L45.08 2.75 L44.53 3.11 L44.86 3.61 L43.97 3.72 L44.61 4.36 L43.11 4.92 L43.94 5.36 L42.67 5.50 L43.81 5.53 L38.94 6.81 L37.94 8.31 L36.58 8.08 L35.67 7.33 L35.00 6.33 L35.86 5.58 L34.81 5.67 L35.72 5.39 L34.50 5.08 L34.81 4.83 L33.72 4.03 L29.64 3.33 L31.75 2.94 L31.11 2.75 L32.58 2.28 L42.47 1.81Z"; // simplified continent outlines, ~9KB source, viewBox 0 0 100 50
+
 
 /* ── NAV ICON FAMILY — illustration-weight, 24-grid ── */
 function NavIcon({ id, color="#8b9684", size=20 }){
@@ -1695,26 +1741,15 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
               </div>
             )}
             {/* Count rows for target-tracked activities: + | count | +10
-                (duration-based activities log automatically from session time
-                and show live progress instead of manual entry) */}
+                (duration-based/minutes activities auto-log from session time
+                and surface their progress on the review screen instead, where
+                it's read rather than glanced at mid-practice; only reps/km
+                need real-time +/-10 interaction here, during the session) */}
             {activeActIds.map(id=>{
               const act=activities.find(a=>a.id===id);
               if(!act || !act.target) return null;
               const sc=STAT_COLORS[act.stat]||C.sageB;
-              if(act.unit==="minutes"){
-                const liveMin = act.singleSession ? elapsed/60 : (act.count||0) + elapsed/60;
-                const pct = Math.min(100, Math.round(liveMin/act.target*100));
-                return (
-                  <div key={"dur_"+id} style={{marginTop:"10px"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",...body("12px",C.muted),marginBottom:"4px"}}>
-                      <span>{act.name}</span><span>{liveMin.toFixed(1)}/{act.target} min{act.singleSession?" · this sitting":""}</span>
-                    </div>
-                    <div style={{height:"4px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}>
-                      <div style={{height:"100%",width:`${pct}%`,background:sc,transition:"width .3s"}}/>
-                    </div>
-                  </div>
-                );
-              }
+              if(act.unit==="minutes") return null;
               const entered = actCounts[id]??0;
               const bump=(n)=>setActCounts(p=>({...p,[id]:Math.max(0,(parseInt(p[id])||0)+n)}));
               return (
@@ -1755,7 +1790,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
             {(()=>{const lvBefore=levelFromTotalXP(chTotalXP),lvAfter=levelFromTotalXP(chTotalXP+xp);return lvAfter>lvBefore?(
               <span style={{fontSize:"11px",color:"#7fb3e8",background:"rgba(100,160,220,0.12)",border:"0.5px solid rgba(100,160,220,0.4)",padding:"2px 9px",borderRadius:"10px"}}>LEVEL UP! → {lvAfter}</span>
             ):null;})()}
-            {Object.entries(sg).map(([k,v])=>{
+            {Object.entries(applyAwarenessSiphon(sg, awarenessLanding)).map(([k,v])=>{
               const sc=STAT_COLORS[k]||C.sageB;
               const gain=levelFromTotalXP((chStats[k]||0)+v)-levelFromTotalXP(chStats[k]||0);
               if(gain<=0) return null;
@@ -1763,6 +1798,39 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
             }).filter(Boolean)}
           </div>
 
+          {/* What this session counted toward — moved here from the active
+              screen, since this is the moment for reading information, not
+              mid-practice. Cumulative activities show lifetime count + this
+              session; singleSession activities (Sage's Observe quests) show
+              only this sitting, since lifetime count never applies to them. */}
+          {activeActivities.filter(a=>a.target).length>0 && (
+            <div style={{textAlign:"left",marginBottom:"22px"}}>
+              {activeActivities.filter(a=>a.target).map(act=>{
+                const sc=STAT_COLORS[act.stat]||C.sageB;
+                let current, suffix="";
+                if(act.unit==="minutes"){
+                  current = act.singleSession ? elapsed/60 : (act.count||0)+elapsed/60;
+                  suffix = act.singleSession ? " · this sitting" : "";
+                } else {
+                  const entered = parseFloat(actCounts[act.id])||0;
+                  current = (act.count||0) + entered;
+                }
+                const display = act.unit==="minutes" ? current.toFixed(1) : current.toFixed(0);
+                const pct = Math.min(100, Math.round(current/act.target*100));
+                const willComplete = current >= act.target;
+                return (
+                  <div key={act.id} style={{marginBottom:"10px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",...body("12px",willComplete?C.cream:C.muted),marginBottom:"4px"}}>
+                      <span>{act.name}{suffix}</span><span>{display}/{act.target} {act.unit||""}{willComplete?" ✓":""}</span>
+                    </div>
+                    <div style={{height:"4px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${pct}%`,background:willComplete?C.sageB:sc,transition:"width .3s"}}/>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {unlocks.centers && (
           <div style={{textAlign:"left",marginBottom:"22px"}}>
@@ -2316,6 +2384,7 @@ const DOORWAY_SCENES=[
     "This practice does not end. It deepens.",
     "What was hidden becomes revealed. The mysteries slowly unravel. The truth is not always easy to accept — but those who persevere find that the reward is eternal.",
     "The Anchor is your doorway. Begin here. Begin now.",
+    "Most people live an entire life without finding this door. You just found it. That alone makes you someone different than the one who opened this chapter.",
   ]},
 ];
 const DRIFT_PRACTICES=[
@@ -2352,6 +2421,7 @@ const MASTERY_SCENES=[
     "These forms appear simple because they are familiar. But they are the foundations beneath every higher practice.",
     "To sit well is to learn stillness. To stand well is to learn power. To walk well is to learn integration.",
     "Master these three forms and every other practice rests upon solid ground.",
+    "You have sat, stood, and walked every day of your life without once asking what those acts could become. From today, you are no longer moving through a body. You are inhabiting one.",
   ]},
 ];
 
@@ -2414,6 +2484,7 @@ const GROWING_SCENES=[
   {label:"v · the cultivation path",body:[
     "The current pulls attention outward. Cultivation gathers it again.",
     "The process is simple. Return. Practice. Grow. Repeat. This is how a life changes.",
+    "You may not feel different yet. Most growth is invisible from the inside until, one day, it isn't. But something in you has already begun making this its habit rather than its exception — and that, quietly, is the whole of what changes a life.",
   ]},
 ];
 
@@ -2443,6 +2514,7 @@ const THREE_FIRES_SCENES=[
     "You have reclaimed attention from the current. You have entered the doorway. You have practiced the forms. You have claimed ground.",
     "You have remembered the living world. You have begun cultivating your capacities. Now you discover that all of it has been feeding the same thing.",
     "The fires are lit. The climb continues.",
+    "Notice what has actually changed. Not your circumstances — your relationship to them. You arrived at the first page of this Act as someone drifting, asking a question you couldn't quite finish. You leave it as someone who practices presence on purpose. That is not a small difference. It is the entire one.",
   ]},
 ];
 
@@ -2747,10 +2819,10 @@ const LIBRARY_ENTRIES = [
     ],
     practice:"After a genuine act of service, open Tend, select Service, and log roughly how long it took. No need to describe it in detail unless something about it is worth keeping." },
 
-  { id:"lib_h_communion", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_communion",
-    title:"Communion", sub:"Healer", sc:"ali",
+  { id:"lib_h_commune", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_commune",
+    title:"Commune", sub:"Healer", sc:"ali",
     body:[
-      "Communion has two halves, in order: expressing what's actually true in your heart right now, then going fully quiet and listening for whatever comes back. Neither half works without the other — speaking without listening is just venting; listening without first speaking has nothing to listen past.",
+      "Commune has two halves, in order: expressing what's actually true in your heart right now, then going fully quiet and listening for whatever comes back. Neither half works without the other — speaking without listening is just venting; listening without first speaking has nothing to listen past.",
       "The expressing doesn't need an audience or even words spoken aloud. It needs honesty. Say the real thing, not the composed thing — whatever you're actually carrying, addressed outward, to however you understand what's larger than yourself. You don't have to resolve what you don't believe about it; you only have to mean what you say.",
       "The listening half is the harder discipline. Most people, even when they intend to listen, immediately start narrating to themselves about what they just said. Let that quiet down. You may receive something that feels like a response — an image, a felt shift, a sentence that wasn't quite yours. You may receive nothing but the texture of the silence itself. Both are real outcomes; neither is a failure."
     ],
@@ -2939,6 +3011,54 @@ function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onRet
    all three (tracked via trialProgress) is required before the chain opens. */
 /* Shown once, the moment a Foundation Trial completes, before the quest
    chain takes over — a brief threshold so the trial's end isn't silent. */
+/* Shown once, the moment Act I's final chapter completes — a dedicated,
+   full-screen black transition, distinct from the small completion-card
+   modal used for ordinary quests. Reuses the same timed one-line-reveal
+   pattern as the first-session guide text: one line fades in, holds, fades
+   for the next. Names only the paths actually reachable at this point
+   (Mystic stays hidden until Healer + Sage both reach Mastery 1). */
+function ActCompleteScreen({ onContinue }){
+  const [t,setT]=useState(0);
+  useEffect(()=>{
+    const start=Date.now();
+    const id=setInterval(()=>setT((Date.now()-start)/1000),100);
+    return ()=>clearInterval(id);
+  },[]);
+  /* Each line: holds fully visible, then fades out into a beat of black
+     silence before the next line fades in — rather than one line cutting
+     straight to the next. fadeOut is 1s; each cue's "visible" window ends
+     1s before its nominal boundary so the fade-out completes inside a
+     silent gap, not overlapping the next line's fade-in. */
+  const CUES=[
+    {s:0,    fadeOutAt:null, e:3,    text:null},                                            // ~3s black, silence
+    {s:3,    fadeOutAt:6.5,  e:7.5,  text:"Act I Complete"},
+    {s:7.5,  fadeOutAt:null, e:8.5,  text:null},                                             // ~1s black between lines
+    {s:8.5,  fadeOutAt:12.5, e:13.5, text:"You have taken your first steps."},
+    {s:13.5, fadeOutAt:null, e:14.5, text:null},
+    {s:14.5, fadeOutAt:null, e:null, text:"The paths of the Warrior, Healer, and Sage now stand open."},
+  ];
+  const cue = CUES.find(c=>t>=c.s && (c.e==null || t<c.e)) || CUES[CUES.length-1];
+  const fadingOut = cue.fadeOutAt!=null && t>=cue.fadeOutAt;
+  const showContinue = cue.e==null;
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:500,background:"#000",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px"}}>
+      {cue.text && (
+        <div key={cue.s} style={{...dsp("17px",C.cream,400,"0.06em"),textAlign:"center",lineHeight:"1.7",
+          animation: fadingOut ? "fadeOut 1s ease both" : "fadeRise 1.4s ease both"}}>
+          {cue.text}
+        </div>
+      )}
+      {showContinue && (
+        <button onClick={onContinue} style={{marginTop:"34px",padding:"11px 26px",background:"rgba(255,255,255,0.03)",
+          border:`0.5px solid ${C.gold}`,color:C.goldB,...dsp("9px",undefined,400,"0.16em"),cursor:"pointer",borderRadius:"6px",
+          animation:"fadeRise 1.2s ease 0.6s both"}}>
+          CONTINUE
+        </button>
+      )}
+    </div>
+  );
+}
+
 function TrialCompleteScreen({ classId, onContinue }){
   const cls = CLASS_BY_ID[classId];
   const welcome = TRIAL_WELCOME[classId];
@@ -3302,7 +3422,8 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
 function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}, hasAnchored, sessions=[], chaptersRead=[], onMarkRead, libReadAt={}, pins=[], chStats={}, onOpenAnchor=()=>{}, onGoToLib=()=>{},
   classGateOpen=false, classState=null, onChooseClass=()=>{}, trialComplete=()=>false, onOpenClassQuest=()=>{}, devMode=false, onDevSkipTrial=()=>{},
   questCollapsed=false, setQuestCollapsed=()=>{}, classCollapsed=false, setClassCollapsed=()=>{},
-  chantGateOpen=false, chantUnlocked=false, setOpenChantQuest=()=>{}, activities=[], jEnt=[], onAcknowledgeTrial=()=>{} }){
+  chantGateOpen=false, chantUnlocked=false, setOpenChantQuest=()=>{}, activities=[], jEnt=[], onAcknowledgeTrial=()=>{},
+  showActComplete=false, setShowActComplete=()=>{} }){
   const [view,setView]               = useState("overview");
   const [questLine,setQuestLine]     = useState("main"); // "main" | "chant" | "path"
   const [autoSurfaced,setAutoSurfaced] = useState({}); // {chant:true, path:true} once auto-shown
@@ -3371,6 +3492,14 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   };
 
   const fadeGo = fn => { setFade(false); setTimeout(()=>{ fn(); setFade(true); }, 600); };
+
+  /* Act I's final chapter completing takes over the whole tab, regardless of
+     whatever view/phase would otherwise be showing — this check comes after
+     all hooks above (React's rules require that) but before any of the
+     normal view branching below. */
+  if(showActComplete){
+    return <ActCompleteScreen onContinue={()=>{ setShowActComplete(false); setView("overview"); }}/>;
+  }
 
   const openChapter = n => {
     const alreadyRead = readDone(n);
@@ -3593,7 +3722,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
               {isAlreadyComplete ? (
                 <button onClick={()=>setView("overview")} style={{width:"100%",padding:"13px",background:"transparent",border:`0.5px solid ${C.bord}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.muted,400,"0.18em")}}>BACK TO QUEST MAP</button>
               ) : qDone ? (
-                <button onClick={()=>{ onCompleteChapter(readingN); setView("overview"); }} style={{width:"100%",padding:"13px",background:"linear-gradient(rgba(201,168,76,0.18),rgba(201,168,76,0.07))",border:`0.5px solid ${C.gold}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.goldB,400,"0.18em")}}>
+                <button onClick={()=>{ onCompleteChapter(readingN); if(readingN===ACT1_FINAL_CHAPTER) setShowActComplete(true); else setView("overview"); }} style={{width:"100%",padding:"13px",background:"linear-gradient(rgba(201,168,76,0.18),rgba(201,168,76,0.07))",border:`0.5px solid ${C.gold}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.goldB,400,"0.18em")}}>
                   COMPLETE CHAPTER {readingN} ↑
                 </button>
               ) : (
@@ -3703,8 +3832,15 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
 
           // Dev-only: tap a locked chapter to unlock it (complete c.n-1);
           // long-press (550ms) any chapter to toggle its own completion.
+          // Completing Chapter 7 this way mirrors the real button — it also
+          // triggers the Act-complete cinematic, so dev mode can actually
+          // test it without playing through all seven chapters for real.
           const devUnlock = () => { if(!completedChapters.includes(c.n-1)) onCompleteChapter(c.n-1); };
-          const devToggleComplete = () => onToggleChapter(c.n);
+          const devToggleComplete = () => {
+            const wasComplete = completedChapters.includes(c.n);
+            onToggleChapter(c.n);
+            if(c.n===ACT1_FINAL_CHAPTER && !wasComplete) setShowActComplete(true);
+          };
           const onPressStart = () => {
             if(!devMode) return;
             lpFiredRef.current=false;
@@ -3875,6 +4011,29 @@ function haversineM(lat1,lng1,lat2,lng2){
   return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
+/* Groups reveal zones into "places" for the world view — anything within
+   ~50km of an existing cluster's center joins it, so a normal local area
+   (where many small zones naturally form near each other) reads as ONE dot
+   on the world map, not a scatter of nearly-overlapping points. Distant trips
+   (hundreds/thousands of km away) naturally form their own separate cluster. */
+function clusterZones(zones, radiusM=50000){
+  const clusters=[];
+  zones.forEach(z=>{
+    let found=null;
+    for(const c of clusters){
+      if(haversineM(c.lat,c.lng,z.lat,z.lng) <= radiusM){ found=c; break; }
+    }
+    if(found){
+      found.zones.push(z);
+      found.lat=found.zones.reduce((s,zz)=>s+zz.lat,0)/found.zones.length;
+      found.lng=found.zones.reduce((s,zz)=>s+zz.lng,0)/found.zones.length;
+    } else {
+      clusters.push({id:`cluster_${clusters.length}`, lat:z.lat, lng:z.lng, zones:[z]});
+    }
+  });
+  return clusters;
+}
+
 function updateRevealZones(zones, lat, lng){
   let matchedId=null;
   for(const z of zones){
@@ -3914,6 +4073,52 @@ async function fetchZoneGeometry(lat, lng, radiusM=1300){
   }catch(e){ return null; }
 }
 
+/* World view — a simplified, non-literal atlas of every place the player has
+   ever anchored, using the bundled continent silhouette. Each cluster of
+   nearby zones (within ~50km of each other) renders as one marker; tapping a
+   marker jumps into a read-only local view of that place (no live "you are
+   here" pin, since the player isn't actually there); tapping "my location"
+   always returns to a true, live local view. */
+function WorldView({ clusters, userPos, onSelectCluster, onReturnToLocal, onClose }){
+  const W=100, H=50; // matches WORLD_LAND_D's viewBox
+  const project = (lat,lng) => ({ x:(lng+180)/360*W, y:(90-lat)/180*H });
+  return (
+    <div style={{position:"absolute",inset:0,background:C.bg,display:"flex",flexDirection:"column"}}>
+      <div style={{display:"flex",alignItems:"center",padding:"14px 16px 8px"}}>
+        <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,padding:"0 12px 0 0",...dsp("10px",C.muted,400,"0.14em")}}>← BACK</button>
+        <div style={{flex:1,textAlign:"center",...dsp("11px",C.cream,400,"0.22em")}}>EVERYWHERE YOU'VE ANCHORED</div>
+        <div style={{width:"60px"}}/>
+      </div>
+      <div style={{flex:1,position:"relative",display:"flex",alignItems:"center",justifyContent:"center",padding:"10px 18px"}}>
+        <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{maxWidth:"100%"}}>
+          <path d={WORLD_LAND_D} fill={C.surf2} stroke={C.bord} strokeWidth="0.12" fillRule="evenodd"/>
+          {userPos && (()=>{ const p=project(userPos.lat,userPos.lng); return (
+            <circle cx={p.x} cy={p.y} r="0.9" fill={C.gold} stroke={C.bg} strokeWidth="0.25"/>
+          ); })()}
+          {clusters.map(c=>{
+            const p=project(c.lat,c.lng);
+            return (
+              <g key={c.id} onClick={()=>onSelectCluster(c)} style={{cursor:"pointer"}}>
+                <circle cx={p.x} cy={p.y} r="1.6" fill="transparent"/>
+                <circle cx={p.x} cy={p.y} r="0.7" fill={C.sageB} opacity="0.85"/>
+                <circle cx={p.x} cy={p.y} r="1.3" fill="none" stroke={C.sageB} strokeWidth="0.15" opacity="0.5"/>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+      <div style={{padding:"14px 20px 22px",textAlign:"center"}}>
+        <div style={{...body("11px",C.dim),fontStyle:"italic",marginBottom:"12px"}}>
+          {clusters.length} {clusters.length===1?"place":"places"} anchored across the world.
+        </div>
+        <button onClick={onReturnToLocal} style={{padding:"10px 22px",background:"rgba(163,192,137,0.1)",border:`0.5px solid ${C.sageB}`,color:C.sageB,...dsp("9px",undefined,400,"0.16em"),cursor:"pointer",borderRadius:"6px"}}>
+          ◎ MY LOCATION
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function MapTab({ pins, revealZones=[] }){
   const [hoveredPin,setHoveredPin]=useState(null);
   const [locating,setLocating]=useState(false);
@@ -3921,22 +4126,37 @@ function MapTab({ pins, revealZones=[] }){
   const [userPos,setUserPos]=useState(null);
   const [zoom,setZoom]=useState(1);
   const [pan,setPan]=useState({x:0,y:0});
+  const [mode,setMode]=useState("local"); // "local" | "world"
+  const [viewingCluster,setViewingCluster]=useState(null); // a cluster id, when inspecting a distant place from world view
   const containerRef=useRef(null);
 
   const geoPins = pins.filter(p=>p.lat!=null&&p.lng!=null);
   const mapW=350, mapH=530;
   let renderPins, ringMeters=100, ringPx=52, mPerPx=10, projectPoint=()=>({rx:50,ry:50});
 
-  if(userPos){
-    const mPerDegLat=111320, mPerDegLng=111320*Math.cos(userPos.lat*Math.PI/180);
-    const withDist=geoPins.map(p=>({...p,dx:(p.lng-userPos.lng)*mPerDegLng,dy:(p.lat-userPos.lat)*mPerDegLat}));
-    const zoneDists=revealZones.map(z=>Math.hypot((z.lng-userPos.lng)*mPerDegLng,(z.lat-userPos.lat)*mPerDegLat)+z.radius);
+  /* viewCenter is what the local map is actually centered on — usually the
+     real userPos, but when inspecting a distant cluster from world view it's
+     that cluster's own coordinates instead. The live gold "you are here" dot
+     only ever shows for the real userPos, never for a viewed cluster. */
+  const viewCenter = viewingCluster ? {lat:viewingCluster.lat, lng:viewingCluster.lng} : userPos;
+
+  if(viewCenter){
+    const mPerDegLat=111320, mPerDegLng=111320*Math.cos(viewCenter.lat*Math.PI/180);
+    /* Only fit the local view to "your region" — anything genuinely distant
+       (a one-off trip, a future move) shouldn't distort the close-up view at
+       all. That's what World view is for. A real local cluster is virtually
+       never more than ~10km across in practice. */
+    const LOCAL_REGION_M = 10000;
+    const withDist=geoPins.map(p=>({...p,dx:(p.lng-viewCenter.lng)*mPerDegLng,dy:(p.lat-viewCenter.lat)*mPerDegLat}))
+      .filter(p=>Math.hypot(p.dx,p.dy)<=LOCAL_REGION_M);
+    const zoneDists=revealZones.map(z=>Math.hypot((z.lng-viewCenter.lng)*mPerDegLng,(z.lat-viewCenter.lat)*mPerDegLat)+z.radius)
+      .filter(d=>d<=LOCAL_REGION_M);
     const maxDist=Math.max(120,...withDist.map(p=>Math.hypot(p.dx,p.dy)),...zoneDists);
     const halfPx=Math.min(mapW,mapH)/2; mPerPx=maxDist/(halfPx*0.8);
     const niceM=[10,20,50,100,200,500,1000,2000,5000,10000].filter(v=>v<=halfPx/2.6*mPerPx*1.2).pop()||100;
     ringMeters=niceM; ringPx=niceM/mPerPx;
     projectPoint=(lat,lng)=>{
-      const dx=(lng-userPos.lng)*mPerDegLng, dy=(lat-userPos.lat)*mPerDegLat;
+      const dx=(lng-viewCenter.lng)*mPerDegLng, dy=(lat-viewCenter.lat)*mPerDegLat;
       return {rx:50+(dx/mPerPx/mapW)*100, ry:50-(dy/mPerPx/mapH)*100};
     };
     renderPins=pins.map(p=>{
@@ -3983,6 +4203,7 @@ function MapTab({ pins, revealZones=[] }){
   renderPins.forEach((p,i)=>{ const zid=pinZoneId[i]; if(zid!=null) zonePrimaryIdx[zid]=i; }); // last write wins = most recent pin
 
   const handleLocate=()=>{
+    setViewingCluster(null);
     if(!navigator.geolocation){setLocatePulse(true);setTimeout(()=>setLocatePulse(false),1200);return;}
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
@@ -4037,6 +4258,24 @@ function MapTab({ pins, revealZones=[] }){
       el.removeEventListener('mouseleave',onMouseUp);
     };
   },[]);
+
+  /* World mode takes over the whole tab — distinct from local pan/zoom/reveal
+     rendering entirely, since it's showing fundamentally different content
+     (every anchored place, not the detailed geometry around just one). */
+  if(mode==="world"){
+    const clusters = clusterZones(revealZones);
+    return (
+      <div style={{position:"relative",height:`${mapH}px`}}>
+        <WorldView
+          clusters={clusters}
+          userPos={userPos}
+          onSelectCluster={(c)=>{ setViewingCluster(c); setMode("local"); setZoom(1); setPan({x:0,y:0}); }}
+          onReturnToLocal={()=>{ setViewingCluster(null); setMode("local"); handleLocate(); }}
+          onClose={()=>setMode("local")}
+        />
+      </div>
+    );
+  }
 
   return (
     <div style={{position:"relative",height:"100%"}}>
@@ -4128,6 +4367,9 @@ function MapTab({ pins, revealZones=[] }){
 
         {/* Fixed controls (not part of pannable canvas) */}
         <div style={{position:"absolute",bottom:"80px",right:"14px",display:"flex",flexDirection:"column",gap:"6px",zIndex:4}}>
+          <button onClick={()=>setMode("world")} title="World view" style={{width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+            <svg width="17" height="17" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke={C.sageB} strokeWidth="1"/><ellipse cx="10" cy="10" rx="3.4" ry="8" stroke={C.sageB} strokeWidth="0.8"/><line x1="2" y1="10" x2="18" y2="10" stroke={C.sageB} strokeWidth="0.8"/><path d="M3.3 6 H16.7 M3.3 14 H16.7" stroke={C.sageB} strokeWidth="0.6"/></svg>
+          </button>
           <button onClick={handleLocate} style={{width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
             {locating?<div style={{width:"12px",height:"12px",borderRadius:"50%",border:`1.5px solid ${C.sageB}`,borderTopColor:"transparent",animation:"spin 0.8s linear infinite"}}/>
             :<svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" fill={C.sageB}/><circle cx="10" cy="10" r="7" stroke={C.sageB} strokeWidth="1" fill="none"/><line x1="10" y1="1" x2="10" y2="4" stroke={C.sageB} strokeWidth="1.2"/><line x1="10" y1="16" x2="10" y2="19" stroke={C.sageB} strokeWidth="1.2"/><line x1="1" y1="10" x2="4" y2="10" stroke={C.sageB} strokeWidth="1.2"/><line x1="16" y1="10" x2="19" y2="10" stroke={C.sageB} strokeWidth="1.2"/></svg>}
@@ -4141,6 +4383,11 @@ function MapTab({ pins, revealZones=[] }){
             {Math.round(zoom*100)}%
           </div>
         </div>
+        {viewingCluster && (
+          <div style={{position:"absolute",top:"14px",left:"50%",transform:"translateX(-50%)",zIndex:5,background:"rgba(13,20,15,0.85)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"6px 14px",...body("11px",C.sageB),fontStyle:"italic",backdropFilter:"blur(4px)"}}>
+            Viewing a distant place — not where you are now
+          </div>
+        )}
 
         <div style={{position:"absolute",bottom:0,left:0,right:0,background:`linear-gradient(${C.surf2}ee,${C.bg2}f8)`,borderTop:`0.5px solid ${C.bord}`,padding:"12px 18px 16px",zIndex:3,backdropFilter:"blur(6px)"}}>
           <div style={{...body("11px",C.dim),fontStyle:"italic",marginBottom:"6px"}}>The world is waiting.</div>
@@ -4205,8 +4452,10 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
 
   // Anchor type map for practice entries
   const ANCHOR_TYPE = {
-    // Anchors
-    alignment:"sitting", release:"sitting", breath:"sitting",
+    // Anchors — these three conditions apply to any practice, not just
+    // Sitting specifically, so they open generically ("ANCHOR NOW ↗") rather
+    // than forcing Sitting and labeling the button with it.
+    alignment:null, release:null, breath:null,
     // Practices
     sit_prac:"sitting", stand_prac:"standing", walk_prac:"walking", placed:"walking",
     // Capacities — open with remembered type (null → falls back to anchInitType)
@@ -4990,7 +5239,7 @@ export default function AscendApp(){
     if(scr==="journal" && journalDraft.trim()){
       setSavePending(()=>action);
     } else {
-      setJournalDraft(""); setScr(null); setOpenClassQuest(null); setOpenChantQuest(false); action();
+      setJournalDraft(""); setScr(null); setOpenClassQuest(null); setOpenChantQuest(false); setJustCompletedQuest(null); action();
     }
   };
   const [anch,setAnch]=useState(false);
@@ -5027,13 +5276,28 @@ export default function AscendApp(){
   const [zonesMigrated,setZonesMigrated]=useState(P.zonesMigrated ?? false);
   const [libCollapsed,setLibCollapsed]=useState(P.libCollapsed ?? {});
   const [completedChapters,setCompletedChapters]=useState(P.completedChapters ?? []);
-  const [classState,setClassState]=useState(P.classState ?? freshClassState());
+  const [classState,setClassState]=useState(()=>migrateClassState(P.classState ?? freshClassState()));
   const [chantUnlocked,setChantUnlocked]=useState(P.chantUnlocked ?? false);
   const [openChantQuest,setOpenChantQuest]=useState(false);
   const [questCollapsed,setQuestCollapsed]=useState(P.questCollapsed ?? false);
   const [classCollapsed,setClassCollapsed]=useState(P.classCollapsed ?? false);
   /* Which class quest is open in the reader, if any: {classId, questId} */
   const [openClassQuest,setOpenClassQuest]=useState(null);
+  const [showActComplete,setShowActComplete]=useState(false);
+  /* Set the moment ANY quest completes (session-save, Tend, Reflect, or
+     journalEntry path) — a brief, calm confirmation, not a celebration banner.
+     Cleared once the player dismisses it. */
+  const [justCompletedQuest,setJustCompletedQuest]=useState(null); // {title, accent, kind, isCapstone} | null
+
+  /* Generic completion notification — designed so ANY quest source can call
+     this with the same shape: Act I chapters today, and later Chant, the
+     class chains, or future user-created quests, without rebuilding the
+     mechanism each time. `kind` is just a label for the header text
+     ("CHAPTER COMPLETE" vs "QUEST COMPLETE" etc.) — add new kinds freely. */
+  const notifyQuestComplete = ({title, accent=C.gold, kind="QUEST COMPLETE", isCapstone=false}) => {
+    setJustCompletedQuest({title, accent, kind, isCapstone});
+  };
+
   /* Pending inquiry question to pre-fill the journal with, if any. */
   const [pendingInquiry,setPendingInquiry]=useState(null);
   const [hasAnchored,setHasAnchored]=useState(P.hasAnchored ?? false);
@@ -5226,7 +5490,7 @@ export default function AscendApp(){
       }
       if(data.libCollapsed) setLibCollapsed(data.libCollapsed);
       if(data.activities) setActivities(migrateActivityMetadata(data.activities));
-      if(data.classState) setClassState(data.classState);
+      if(data.classState) setClassState(migrateClassState(data.classState));
       if(data.chantUnlocked!==undefined) setChantUnlocked(data.chantUnlocked);
       if(data.chaptersRead) setChaptersRead(data.chaptersRead);
       if(data.libReadAt) setLibReadAt(data.libReadAt);
@@ -5344,7 +5608,7 @@ export default function AscendApp(){
         if(P2.zonesMigrated!==undefined) setZonesMigrated(P2.zonesMigrated);
         if(P2.libCollapsed) setLibCollapsed(P2.libCollapsed);
         if(P2.activities) setActivities(migrateActivityMetadata(P2.activities));
-        if(P2.classState) setClassState(P2.classState);
+        if(P2.classState) setClassState(migrateClassState(P2.classState));
         if(P2.chantUnlocked!==undefined) setChantUnlocked(P2.chantUnlocked);
         if(P2.chaptersRead) setChaptersRead(P2.chaptersRead);
         if(P2.libReadAt) setLibReadAt(P2.libReadAt);
@@ -5464,10 +5728,11 @@ export default function AscendApp(){
   const completeClassQuest = (questId) => {
     const quest = findQuest(questId);
     setClassState(cs=>({ ...cs, questProgress:{...cs.questProgress, [questId]:true} }));
-    /* the moment this quest completes, the NEXT quest in its chain becomes
-       active — apply its unlocks now, immediately, not on its own completion */
     if(quest){
       const chainId = Object.keys(QUEST_CHAINS).find(cid=>QUEST_CHAINS[cid].includes(quest));
+      notifyQuestComplete({title:quest.title, accent:CLASS_BY_ID[chainId]?.accent||C.sageB, kind:quest.isCapstone?"CHAIN COMPLETE":"QUEST COMPLETE"});
+      /* the moment this quest completes, the NEXT quest in its chain becomes
+         active — apply its unlocks now, immediately, not on its own completion */
       const chain = QUEST_CHAINS[chainId]||[];
       const numbered = chain.filter(q=>!q.isTrial && !q.isEpilogue);
       const idx = numbered.findIndex(q=>q.id===questId);
@@ -5637,20 +5902,10 @@ export default function AscendApp(){
     const bonusXP = countBonusXP(loggedCounts||{}, activitiesById);
     const baseSecs = isA ? 0 : (weightedElapsed!=null ? weightedElapsed : (elapsedSecs??0));
     const xpE = isA ? 0 : Math.floor(baseSecs/10) + Math.round(bonusXP);
-    const {sg}=isA?{sg:{}}:rewards(typeId||"sitting",xpE,activeActivities);
-    const AWARENESS_STAT={root:"str",belly:"vit",solar_plexus:"wil",chest:"hrt",throat:"voi",head:"wis",top:"ali"};
+    const {sg:sgRaw}=isA?{sg:{}}:rewards(typeId||"sitting",xpE,activeActivities);
     // backward compat: old sessions stored a string, new ones store an array
     const lands = Array.isArray(awarenessLanding) ? awarenessLanding : (awarenessLanding ? [awarenessLanding] : []);
-    if(lands.length>0){
-      const selStats=[...new Set(lands.map(r=>AWARENESS_STAT[r]).filter(Boolean))];
-      if(selStats.length>0){
-        const siphon=Object.keys(sg).filter(k=>!selStats.includes(k)).reduce((sum,k)=>{
-          const amt=Math.round(sg[k]*0.30); sg[k]-=amt; return sum+amt;
-        },0);
-        const perStat=Math.round(siphon/selStats.length);
-        selStats.forEach(sk=>{ sg[sk]=(sg[sk]||0)+perStat; });
-      }
-    }
+    const sg = applyAwarenessSiphon(sgRaw, lands);
     const s={type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),activities:activeActivities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg,awarenessLanding:lands,loggedCounts:loggedCounts||{}};
     setSessions(p=>[s,...p]);
     setHasAnchored(true);
@@ -5702,7 +5957,7 @@ export default function AscendApp(){
          its own small completion check here, same accumulated-target pattern. */
       if(!chantUnlocked){
         const chantAct = updatedActivities.find(a=>a.id==="chant_voi");
-        if(chantAct && (chantAct.count||0) >= CHANT_QUEST.target) setChantUnlocked(true);
+        if(chantAct && (chantAct.count||0) >= CHANT_QUEST.target){ setChantUnlocked(true); notifyQuestComplete({title:CHANT_QUEST.title, accent:C.sageB, kind:"QUEST COMPLETE"}); }
       }
     }
 
@@ -5780,6 +6035,13 @@ export default function AscendApp(){
   };
 
   // Fade in first scene when intro loads
+  /* Whenever a quest completes — from a session save, a Tend/Release journal
+     entry, or a Reflect note — bring the player to the Quest tab so the calm
+     confirmation (rendered below) has the right context behind it. */
+  useEffect(()=>{
+    if(justCompletedQuest) setTab("quest");
+  },[justCompletedQuest]);
+
   useEffect(()=>{
     if(onboarding==="intro"){ const t=setTimeout(()=>setObFade(true),80); return ()=>clearTimeout(t); }
   },[onboarding]);
@@ -6009,12 +6271,14 @@ export default function AscendApp(){
         ::-webkit-scrollbar { width: 0 !important; height: 0 !important; background: transparent !important; }
         * { scrollbar-width: none !important; -ms-overflow-style: none !important; touch-action: pan-y; }
         input, textarea, select { touch-action: auto; }
+        @keyframes fadeRise { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeOut { from { opacity:1; } to { opacity:0; } }
       `}</style>
       <div style={phoneStyle}>
         {/* floating DEV indicator */}
 
         {/* header */}
-        <div style={{padding:"14px 20px 10px",borderBottom:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+        <div style={{padding:"14px 20px 10px",borderBottom:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0,opacity:showActComplete?0:1,transition:"opacity .8s ease",pointerEvents:showActComplete?"none":"auto"}}>
           <div style={{display:"flex",alignItems:"center",gap:"11px"}}>
             <button onClick={()=>setScr("settings")} aria-label="Settings" style={{background:"none",border:"none",cursor:"pointer",padding:0,lineHeight:0}}>
               <Emblem size={38}/>
@@ -6036,13 +6300,13 @@ export default function AscendApp(){
         <div style={{flex:1,overflowY:"auto",paddingBottom:"118px"}}>
           <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities}/></div>
           <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>setCompletedChapters(p=>p.includes(n)?p:[...p,n])} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
-            classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} questCollapsed={questCollapsed} setQuestCollapsed={setQuestCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete}/></div>
+            classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} questCollapsed={questCollapsed} setQuestCollapsed={setQuestCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete}/></div>
           <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones}/></div>
           <div style={{display:tab==="library"?"block":"none"}}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)} collapsed={libCollapsed} setCollapsed={setLibCollapsed} classState={classState} chantUnlocked={chantUnlocked}/></div>
         </div>
 
         {/* floating anchor button */}
-        <button onClick={()=>{setScr(null);setAnch(true);}} aria-label="Anchor" style={{position:"absolute",bottom:"-7px",left:"50%",transform:"translateX(-50%)",zIndex:261,border:"none",background:"none",cursor:"pointer",padding:0,filter:anch?`drop-shadow(0 0 16px rgba(201,168,76,0.85)) drop-shadow(0 -2px 8px ${C.glow})`:`drop-shadow(0 -2px 10px ${C.glow})`}}>
+        <button onClick={()=>{setScr(null);setAnch(true);}} aria-label="Anchor" style={{position:"absolute",bottom:"-7px",left:"50%",transform:"translateX(-50%)",zIndex:showActComplete?0:261,opacity:showActComplete?0:1,transition:"opacity .8s ease",pointerEvents:showActComplete?"none":"auto",border:"none",background:"none",cursor:"pointer",padding:0,filter:anch?`drop-shadow(0 0 16px rgba(201,168,76,0.85)) drop-shadow(0 -2px 8px ${C.glow})`:`drop-shadow(0 -2px 10px ${C.glow})`}}>
           <svg width="82" height="103" viewBox="0 0 70 88" style={{display:"block"}}>
             {/* ── Anchor_1.svg glyph (active) ── */}
             <circle cx="35" cy="30" r="28" fill={C.surf}/>
@@ -6074,7 +6338,7 @@ export default function AscendApp(){
             </button>
           </>
         )}
-        <nav style={{position:"absolute",bottom:0,left:0,width:"100%",height:"64px",boxSizing:"border-box",background:C.surf,borderTop:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 0 2px",zIndex:260}}>
+        <nav style={{position:"absolute",bottom:0,left:0,width:"100%",height:"64px",boxSizing:"border-box",background:C.surf,borderTop:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 0 2px",zIndex:showActComplete?0:260,opacity:showActComplete?0:1,transition:"opacity .8s ease",pointerEvents:showActComplete?"none":"auto"}}>
           <div style={{display:"flex",flex:1,justifyContent:"space-around",alignItems:"center"}}>
             {NAV.slice(0,2).map(({id,l})=>(
               <button key={id} onClick={()=>navigateTo(()=>{setTab(id);setAnch(false);if(id==="character")setCapacities(false);})} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",padding:"2px 12px",border:"none",background:"none",cursor:"pointer",flexShrink:0}}>
@@ -6152,6 +6416,25 @@ export default function AscendApp(){
               </div>
             )}
           </Overlay>
+        )}
+        {/* A quest just completed — brief, calm confirmation. Not a banner,
+            not confetti: a small card naming what happened, dismissed with
+            one tap. Shown regardless of which path completed it (session,
+            Tend, Reflect, journalEntry). */}
+        {justCompletedQuest && (
+          <div onClick={()=>setJustCompletedQuest(null)} style={{position:"fixed",inset:0,zIndex:60,background:"rgba(8,10,8,0.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:C.surf,border:`0.5px solid ${justCompletedQuest.accent}88`,borderRadius:"10px",padding:"26px 24px",maxWidth:"320px",textAlign:"center"}}>
+              <div style={{...dsp("9px",justCompletedQuest.accent,400,"0.18em"),marginBottom:"10px"}}>
+                {justCompletedQuest.kind}
+              </div>
+              <div style={{...dsp("18px",C.cream,500,"0.04em"),marginBottom:"18px"}}>{justCompletedQuest.title}</div>
+              <button onClick={()=>setJustCompletedQuest(null)}
+                style={{padding:"9px 22px",background:"rgba(255,255,255,0.04)",border:`0.5px solid ${justCompletedQuest.accent}`,
+                  color:justCompletedQuest.accent,...dsp("9px",undefined,400,"0.14em"),cursor:"pointer",borderRadius:"6px"}}>
+                CONTINUE
+              </button>
+            </div>
+          </div>
         )}
         {openClassQuest&&<ClassQuestReader classId={openClassQuest.classId} questId={openClassQuest.questId}
           inquireAnswered={classState?.inquireAnswered||{}} questDone={!!classState?.questProgress?.[openClassQuest.questId]} activities={activities} jEnt={jEnt}
