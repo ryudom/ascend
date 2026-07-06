@@ -81,13 +81,15 @@ const CHANT_UNLOCK_CHAPTER = 5; // unlocks after "The Living World"
 const CHANT_QUEST = {
   id: "chant_unlock",
   title: "Find Your Voice",
-  myth: "Sit, Stand, Walk — three doors into stillness, three ways the body learns presence. There is a fourth thing, older than any of them, that travels through all three without needing a door of its own: the voice.\n\nEvery culture that has ever practiced stillness has, at some point, discovered the same thing — that sound, repeated and let go of expectation, deepens the silence rather than breaking it. A single tone, held without performance. A word, repeated until it stops being a word and becomes only vibration. This is not new. It may be older than language itself — humans were almost certainly humming before they had names for anything.\n\nChant is not its own practice. It travels with you — into Sit, into Stand, into Walk — asking nothing except that you let a sound rise and stay with it a while. Some days it will be a hum. Some days a single repeated word. Some days nothing more than a long, slow exhale with a little voice riding on top of it.\n\nTry it once, in whichever stillness you already know. Let a sound rise. Don't perform it. Just let it be there.\n\nChant unlocked. Find it under Activities the next time you Sit, Stand, or Walk.",
+  myth: "Sit, Stand, Walk — three doors into stillness, three ways the body learns presence. There is a fourth thing, older than any of them, that travels through all three without needing a door of its own: the voice.\n\nEvery culture that has ever practiced stillness has, at some point, discovered the same thing — that sound, repeated and let go of expectation, deepens the silence rather than breaking it. A single tone, held without performance. A word, repeated until it stops being a word and becomes only vibration. This is not new. It may be older than language itself — humans were almost certainly humming before they had names for anything.\n\nChant is not its own practice. It travels with you — into Sit, into Stand, into Walk — asking nothing except that you let a sound rise and stay with it a while. Some days it will be a hum. Some days a single repeated word. Some days nothing more than a long, slow exhale with a little voice riding on top of it.\n\nTry it once, in whichever stillness you already know. Let a sound rise. Don't perform it. Just let it be there.\n\nFind it under Activities the next time you Sit, Stand, or Walk.",
   libId: "lib_chant",
-  criteria: "Practice with Chant (any session).",
+  criteria: "Accumulate 3 minutes practicing Chant.",
+  target: 3,
+  unit: "minutes",
 };
 const CHANT_LIBRARY_STUB = {
   id: "lib_chant", unlock: 0, section: "Practices", title: "Find Your Voice",
-  sub: "Voice · any practice", skillUnlockQuest: "chant_unlock",
+  sub: "Voice · Sit, Stand, or Walk", skillUnlockQuest: "chant_unlock",
   sc: "voi",
   body: ["Practical instruction and detail for Chant will live here. For now: hum, tone, or repeat a single word softly while sitting, standing, or walking. No performance required — just a sound, held loosely, riding alongside the breath."],
   practice: "",
@@ -132,6 +134,19 @@ const CLASSES = [
       { type: "sitting",  label: "Sit",   minutes: 3, stat: "wis" },
       { type: "standing", label: "Stand", minutes: 3, stat: "ali" },
       { type: "walking",  label: "Walk",  minutes: 3, stat: "voi" },
+    ],
+  },
+  {
+    id: "mystic",
+    name: "Mystic",
+    verb: "Unite",
+    blurb: "Cultivate union, unity, and the dissolving of the boundary between self and all things.",
+    primaryStats: ["ali", "hrt", "vit"],
+    accent: "#9c84b8",
+    trial: [
+      { type: "sitting",  label: "Sit",   minutes: 3, stat: "ali" },
+      { type: "standing", label: "Stand", minutes: 3, stat: "hrt" },
+      { type: "walking",  label: "Walk",  minutes: 3, stat: "vit" },
     ],
   },
 ];
@@ -248,59 +263,67 @@ const QUEST_CHAINS = {
       title: "Heart Listening",
       myth: "You have chosen the path of the open heart.\n\nThere is an old truth, found in nearly every healing tradition that has ever existed: the healer is not someone untouched by pain. It is someone who has been touched by it, and turned toward it instead of away. The ones who can sit beside another's grief without flinching are, almost always, the ones who have grieved. The wound is not what disqualifies you from this path. It is what qualifies you.\n\nEvery healer carries a wound. Not as failure. Not as something to hide until it's fixed. The wound is where the listening begins — because a heart that has never ached has nothing to recognize when it meets someone else's ache.\n\nThis path does not ask you to heal yourself first, then help others. It asks something stranger: that you turn toward your own heart with the same attention you would one day offer someone in pain. Listen to what's there. Not to fix it. Not yet. Just to hear it, fully, the way you'd want to be heard.\n\nYou cannot offer a presence you've never once given yourself.",
       libId: "lib_h_heart",
-      criteria: "Practice Heart Listening.",
-      unlocks: [{ kind: "activity", practiceType: "restore", name: "Heart Listening", stat: "hrt" }],
+      criteria: "Accumulate 15 minutes practicing Heart Listening.",
+      unlocks: [{ kind: "activity", practiceType: "restore", name: "Heart Listening", stat: "hrt", target: 15, unit: "minutes" }],
     },
     {
       id: "h_forgive",
       title: "Forgiveness & Gratitude",
       myth: "You listened, and you found something. Maybe an old hurt. Maybe a grudge you didn't know you were still carrying. Maybe anger at someone who never apologized, or at yourself, for something you've never once let yourself off the hook for.\n\nListening alone does not release it. You can hear a wound clearly for years and still carry it. Something more is needed — not forgetting, not pretending the harm didn't happen, but a deliberate act of setting the weight down. Forgiveness does not excuse what happened. It simply refuses to keep paying for it twice.\n\nAnd there is a reason gratitude belongs beside it, not after it. Across nearly every tradition that has ever practiced forgiveness, the same second movement appears: once the weight is set down, attention turns toward what remains. What is still good. What was never taken. Release without gratitude is only half the work — an emptying with nothing to fill the space it leaves behind.\n\nName what you're releasing. Then name what you're grateful for. Let both be true in the same breath.",
       libId: "lib_h_forgive",
-      criteria: "Practice Forgiveness & Gratitude.",
-      unlocks: [{ kind: "activity", practiceType: "restore", name: "Forgiveness & Gratitude", stat: "hrt" }],
+      criteria: "Accumulate 15 minutes practicing Forgiveness & Gratitude, and write one Release entry for each in your journal.",
+      unlocks: [
+        { kind: "activity", practiceType: "restore", name: "Forgiveness & Gratitude", stat: "hrt", target: 15, unit: "minutes" },
+        { kind: "journal", feature: "release" },
+        { kind: "journalEntry", entryKind: "Forgiveness" },
+        { kind: "journalEntry", entryKind: "Gratitude" },
+      ],
     },
     {
       id: "h_tension",
       title: "Tension Release",
       myth: "Some of what the body carries was never yours to begin with. The shoulders that climbed toward the ears, the jaw clenched in your sleep — these often started as a grudge, a hurt, a held breath, long before they became habit. Now that you've begun setting some of that weight down, the body has room to follow.\n\nThree doors into the same room. Breath, slow and deliberate, telling the nervous system it's safe to stand down. Stretch, lengthening what's grown tight from years of bracing. Massage, a hand returning to a sore place, asking the muscle to soften rather than guard. None of them complicated. None of them requiring expertise — only attention, and a willingness to be slow.\n\nYou cannot release what you have never once noticed you were holding. Find the knot. Breathe into it, stretch around it, or press gently into it — whichever door is open today.",
       libId: "lib_h_tension",
-      criteria: "Practice Tension Release.",
-      unlocks: [{ kind: "activity", practiceType: "restore", name: "Tension Release", stat: "vit" }],
+      criteria: "Accumulate 30 minutes practicing Tension Release.",
+      unlocks: [{ kind: "activity", practiceType: "restore", name: "Tension Release", stat: "vit", target: 30, unit: "minutes" }],
     },
     {
       id: "h_voice",
       title: "Voice Work",
       myth: "The weight has been set down. The body has begun to soften. Something in you is lighter than it was a few quests ago — and lightness, like grief, wants a way out into the air.\n\nHum. Not to perform, not to sound a certain way — simply to let a tone rise and feel where it lands. The voice travels further than most people realize. It moves down through the throat, into the chest, out through the ear and back to the part of you that governs calm. What forgiveness released in silence, the voice can finish releasing out loud.\n\nThis is the truth strange enough to be ancient: there is hardly a tradition on earth that did not, at some point, discover that the human voice itself heals. Long before instruments. Long before words had meaning, there was breath, finding a tone, and a body that listened.\n\nHum. Chant. Let a single sound rise and see what it touches.",
       libId: "lib_h_voice",
-      criteria: "Practice Voice Work.",
-      unlocks: [{ kind: "activity", practiceType: "restore", name: "Voice Work", stat: "voi" }],
+      criteria: "Accumulate 20 minutes practicing Voice Work.",
+      unlocks: [{ kind: "activity", practiceType: "restore", name: "Voice Work", stat: "voi", target: 20, unit: "minutes" }],
+    },
+    {
+      id: "h_commune",
+      title: "Commune",
+      myth: "Every tradition that has ever produced a healer has, at some point, produced this same gesture: a person turning toward something larger than themselves and speaking, then falling silent to listen for what comes back. Shamans, sangomas, curanderas, healers under a hundred different names across every continent — the details differ, but the shape repeats too consistently to be coincidence. Whatever else a healer does, they are rarely only a technician. They are, almost always, also someone who communes.\n\nThere is no name precise enough for what's on the other end — call it the divine, call it the field, call it the simple fact that nothing alive exists alone. You do not have to name it. You only have to stop insisting you are separate from it, long enough to actually speak and actually listen.\n\nThis is the concrete shape of it: say what's true in your heart right now — aloud or silently, doesn't matter. Not a performance, not the words you think you should say. Whatever's actually there. Then stop. Go quiet. Don't fill the silence with your own analysis of what you just said. Simply wait, and notice what arises in the space that's left.\n\nYou may get something back that feels like an answer. You may get nothing at all but the quality of the silence itself. Both are real outcomes of this practice. The communing is in the asking and the waiting — not in what, if anything, replies.",
+      libId: "lib_h_commune",
+      criteria: "Accumulate 30 minutes practicing Commune.",
+      unlocks: [{ kind: "activity", practiceType: "restore", name: "Commune", stat: "ali", target: 30, unit: "minutes" }],
     },
     {
       id: "h_listen",
       title: "Deep Listening",
-      myth: "Everything so far has been practiced alone. This is the first time it's asked of you with someone else in the room.\n\nThe instinct will be to fix. Someone shares their pain, and something in you reaches for a solution, a reassurance, anything to close the gap before it grows uncomfortable. Resist it. No one in pain is asking to be repaired. They are asking to be heard — fully, without your own thoughts crowding the space meant for theirs.\n\nThis is why the path began with you, and why it asked you to release what you were carrying before it asked you to hold someone else's. A heart still gripping its own grievance will flinch at someone else's, or worse, make it about its own. Empty yourself. Leave space. Let their words land before you decide what they mean.\n\nYou already practiced this when no one was watching. Now you'll discover whether it was real.\n\nTend unlocked. Mark it in your journal whenever you hold space for someone.",
+      myth: "Everything so far has been practiced alone. This is the first time it's asked of you with someone else in the room.\n\nThe instinct will be to fix. Someone shares their pain, and something in you reaches for a solution, a reassurance, anything to close the gap before it grows uncomfortable. Resist it. No one in pain is asking to be repaired. They are asking to be heard — fully, without your own thoughts crowding the space meant for theirs.\n\nThis is why the path began with you, and why it asked you to release what you were carrying before it asked you to hold someone else's. A heart still gripping its own grievance will flinch at someone else's, or worse, make it about its own. Empty yourself. Leave space. Let their words land before you decide what they mean.\n\nYou already practiced this when no one was watching. Now you'll discover whether it was real.\n\nTend unlocked. Mark it in your journal whenever you hold space for someone, with how long it lasted.",
       libId: "lib_h_listen",
-      criteria: "Hold space for someone, then mark a Tend entry with how long you listened.",
+      criteria: "Accumulate 30 minutes of Deep Listening, logged in Tend.",
       unlocks: [
         { kind: "journal", feature: "tend" },
+        { kind: "tend", tendKind: "Deep Listening", target: 30, unit: "minutes" },
       ],
     },
     {
       id: "h_service",
       title: "Service",
-      myth: "Heart Listening turned you toward yourself. Tension Release, Voice Work tended what you found there. Deep Listening turned that same attention toward someone else. Service is what you do with hands, not just presence — when listening isn't enough, and something in the world actually needs doing.\n\nThere's an old question worth asking honestly: is any service truly selfless? You will likely feel something when you help — lighter, more useful, closer to the person you're becoming. That isn't a flaw in the act. It's simply true, and pretending otherwise helps no one. The danger isn't feeling good when you serve. The danger is needing someone else's need in order to feel good about yourself at all. Serve because it's needed, not because you require it to feel whole.\n\nOne genuine act. Not performed, not announced. Something that actually helps, given to someone who actually needed it.\n\nMark it in your Tend journal.",
-      libId: "lib_h_service",
-      criteria: "Perform an act of Service, then mark a Tend entry with how long it took.",
-      unlocks: [],
-    },
-    {
-      id: "h_union",
-      title: "Union",
       isCapstone: true,
-      myth: "Every skill on this path has had a direction. Inward, toward your own heart. Outward, toward another's. This last one points further than either.\n\nThere is no name precise enough for what people reach toward here — call it the divine, call it the field, call it the simple fact that nothing alive exists alone. Every healing tradition that has ever existed eventually points past the self entirely, toward something the self did not create and cannot fully explain. You do not have to name it. You only have to stop insisting you are separate from it.\n\nThis is not an act, the way Service was an act. It is closer to ceasing — laying down the belief that you are the source of what moves through you. You were never the well. You were only ever the cup.\n\nSit with this. Let whatever wants to move through you, move. Direct it nowhere. Simply let it pass through, and notice that you are still here afterward, unharmed, maybe a little less alone than before.",
-      libId: "lib_h_union",
-      criteria: "Practice Union.",
-      unlocks: [{ kind: "activity", practiceType: "restore", name: "Union", stat: "ali" }],
+      myth: "Heart Listening turned you toward yourself. Tension Release and Voice Work tended what you found there. Commune turned attention toward something larger than yourself. Deep Listening turned that same attention toward someone else. This is the last turn, and it asks for hands, not just presence — when listening isn't enough, and something in the world actually needs doing.\n\nThere's an old question worth asking honestly: is any service truly selfless? You will likely feel something when you help — lighter, more useful, closer to the person you're becoming. That isn't a flaw in the act. It's simply true, and pretending otherwise helps no one. The danger isn't feeling good when you serve. The danger is needing someone else's need in order to feel good about yourself at all. Serve because it's needed, not because you require it to feel whole.\n\nEverything this path has built — the heart that listens, the weight set down, the voice that releases, the silence that communes — was never meant to end in a feeling. It was meant to end in your hands, doing something real for someone who actually needed it.\n\nMark each act in your Tend journal, with how long it took.",
+      libId: "lib_h_service",
+      criteria: "Accumulate 45 minutes of Service, logged in Tend.",
+      unlocks: [
+        { kind: "tend", tendKind: "Service", target: 45, unit: "minutes" },
+      ],
     },
   ],
 
@@ -380,6 +403,75 @@ const QUEST_CHAINS = {
       unlocks: [{ kind: "journal", feature: "inquire" }],
     },
   ],
+
+  mystic: [
+    {
+      id: "m_trial",
+      title: "Mystic Trial",
+      isTrial: true,
+      myth: "Every path begins the same way: not with a technique, but with a vow.\n\nBefore you unite with anything else, you sit, you stand, you walk. Three minutes each. The body has its own way of agreeing to a thing, deeper than the mind's. This is that agreement, spoken in the only language the body trusts: presence, held on purpose.\n\nBut this trial asks one thing more. As you practice each form, bring your attention to a specific place — and on the Ascend screen, after the timer, choose that center as where your awareness landed.\n\nSit, and rest your attention in the crown — alignment, the still point where separateness first loosens.\nStand, and bring it to the chest — the heart, opened rather than guarded.\nWalk, and let it settle in the belly — vitality, the aliveness that needs no permission to simply be.\n\nThree forms. Three centers. One vow. Walk through it, and the path of the Mystic opens.",
+      libId: "lib_m_trial",
+      criteria: "Complete the Mystic Foundation Trial: 3-min Sit, Stand, Walk.",
+      unlocks: [],
+    },
+    {
+      id: "m_pulse",
+      title: "Pulse",
+      myth: "Every tradition that has ever produced a mystic has, in its own language, pointed at the same underlying claim: the boundary between you and what you're looking at is thinner than it appears, and can be felt to thin further with practice. This path doesn't ask you to believe that yet. It only asks you to start somewhere small enough to actually test it.\n\nNothing is smaller, or closer, or more constantly available than your own pulse. It has been beating since before you had a self to notice it, and it will keep beating whether you notice it or not. Right now, it is the closest thing there is to you that you have probably never once fully met.\n\nSettle. Go still enough, for long enough, that you begin to feel it — in the chest, the throat, the wrists, wherever it first becomes findable. Don't watch it from a distance the way you might watch a thought passing. Let the noticing and the beat stop feeling like two things. There is no clean line between 'you' and 'your heartbeat.' See if you can feel that directly, even for a moment.\n\nIf you don't find it today, that's fine. The settling itself is the practice. The finding comes when it comes.",
+      libId: "lib_m_pulse",
+      criteria: "Accumulate 10 minutes settling into your own pulse.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Pulse", stat: "ali", target: 10, unit: "minutes" }],
+    },
+    {
+      id: "m_breath",
+      title: "Breath",
+      myth: "Pulse taught the first lesson: something can be both completely yours and not under your control at all. Breath teaches the second, stranger one — it can be both.\n\nBreathe normally, and the breath simply happens, the way the pulse simply happens. Reach for it, try to direct it, and suddenly it's you doing the breathing. Most people live entirely on one side of that line or the other — either breath is automatic and ignored, or breath is a task being performed. The space between those two — where breath is happening and you are not separate from its happening — is what this practice is actually after.\n\nDon't control it. Don't entirely ignore it either. Simply ride it, the way you'd ride a wave without trying to steer the ocean. At some point, usually without announcing itself, the sense of 'me, breathing' can soften into something closer to 'breathing, happening, here.' That softening is the union. It rarely lasts long the first dozen times. It doesn't need to.",
+      libId: "lib_m_breath",
+      criteria: "Accumulate 10 minutes uniting with the breath.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Breath", stat: "vit", target: 10, unit: "minutes" }],
+    },
+    {
+      id: "m_thought",
+      title: "Thought",
+      myth: "The Sage on this same ground learns to step back from a thought and watch it pass, the way you'd watch a wave from the shore. That is real, valuable, and not what this practice asks for. This practice asks you to walk into the water.\n\nA thought arises. Instead of stepping back to observe it, let the gap between watcher and watched go slack. Don't follow the thought's content — that's just thinking, the thing both paths agree isn't the point. Instead, notice that the thinking and the awareness of thinking have never actually been two separate events happening side by side. They have always been one continuous thing, artificially split by the habit of believing there's a watcher standing apart from what's watched.\n\nThis is subtle, and it will mostly fail at first — the mind is very good at re-installing the gap the instant you notice it's gone. That's fine. Each time you notice the gap reappear, you've also, for a moment, noticed it wasn't there. That noticing is the practice working, even when it looks like failing.",
+      libId: "lib_m_thought",
+      criteria: "Accumulate 15 minutes uniting with thought.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Thought", stat: "wis", target: 15, unit: "minutes" }],
+    },
+    {
+      id: "m_senses",
+      title: "The Senses",
+      myth: "Sound, sight, the air on your skin — ordinarily, these arrive, and then a second step happens almost instantly: you register them as things happening to a 'you' that exists separately from them. This practice asks you to notice that the second step is optional.\n\nLet a sound arrive. Don't ask whose it is. The hearing and the heard have always occurred in the same place, at the same moment — the apparent distance between 'the sound out there' and 'me hearing it in here' is added afterward, not given at the start. The same is true of a color, a texture, a temperature. Right before the mind sorts the world into self and world, there is just contact, undivided.\n\nThis is not a technique you master and then perform on command. It's closer to a noticing that gets easier to return to the more often you've genuinely tasted it. Each sense is its own small doorway into the same room.",
+      libId: "lib_m_senses",
+      criteria: "Accumulate 15 minutes uniting with the senses.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "The Senses", stat: "wis", target: 15, unit: "minutes" }],
+    },
+    {
+      id: "m_other",
+      title: "Another Person",
+      myth: "Everything so far has been practiced on something that never talks back. This is the first time the boundary you're working with belongs to someone else too.\n\nThis is not Deep Listening, and it doesn't require anyone's participation or even their knowledge. Sit or stand somewhere another person happens to be — a stranger on a bench, someone across a café, anyone at all. Don't engage them, don't perform compassion at them. Just let your attention rest in their direction, and notice the place where 'me' is quietly assumed to end and 'them' is quietly assumed to begin.\n\nThat line is real enough to be useful — you are not asked to forget where your body ends and another's begins. But it is also thinner than habit suggests. See if you can feel both at once: the practical, undeniable separateness, and underneath it, the plain fact that you are both, right now, simply here, breathing the same air, made of the same kind of aliveness. Most people brush past that fact a thousand times a day without once actually feeling it.",
+      libId: "lib_m_other",
+      criteria: "Accumulate 20 minutes uniting with another person's presence.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Another Person", stat: "hrt", target: 20, unit: "minutes" }],
+    },
+    {
+      id: "m_moment",
+      title: "The Moment",
+      myth: "Pulse, breath, thought, the senses, another person — each was a small rehearsal of the same move, applied to something progressively larger. This one is larger still: not a thing inside time, but time itself.\n\nMost suffering involves leaving now — replaying what already happened, rehearsing what hasn't. This practice asks you to let this exact moment be the only one that exists, not as a discipline of staying focused, but as a direct noticing that it's already true. The past is a memory occurring now. The future is an imagining occurring now. There has never actually been any moment available to you except this one, and there never will be.\n\nLet the sense of time passing — of moving from one moment toward the next — soften into something closer to a single, continuous present that simply keeps revealing more of itself. You are not trying to stop time. You are noticing that the stream you thought you were standing in is the same water, everywhere, always now.",
+      libId: "lib_m_moment",
+      criteria: "Accumulate 25 minutes uniting with the present moment.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "The Moment", stat: "ali", target: 25, unit: "minutes" }],
+    },
+    {
+      id: "m_henosis",
+      title: "Henosis",
+      isCapstone: true,
+      myth: "There is an old Greek word, older than any of the traditions that later borrowed its shape: henosis. Oneness. Unity. Not a feeling about the world, but a direct, unmediated contact with the fact that it was never actually divided in the first place.\n\nYou have been practicing this all along, in small, deliberately manageable doses — a pulse, a breath, a thought, a sound, a stranger, a single moment. None of those were warm-ups for something different. They were this, in miniature. Henosis is what happens when the boundary that softened in each of them stops being rebuilt in between.\n\nThis is not an escape from the world, however it might look from outside. The deepest accounts across every tradition that has ever taken this seriously insist on the same correction: real union returns you to ordinary life changed, not absent from it — contemplative in action, not fled from it. If this practice ever starts to feel like a way to avoid your own life rather than meet it more completely, that is the signal to step back, not lean in further.\n\nSit, with nothing to achieve and nothing to avoid. Let everything you've practiced — the pulse, the breath, the thought, the world, the other, the moment — stop being separate exercises and become one continuous fact you are resting inside of, rather than performing.",
+      libId: "lib_m_henosis",
+      criteria: "Accumulate 45 minutes practicing Henosis.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Henosis", stat: "ali", target: 45, unit: "minutes" }],
+    },
+  ],
 };
 
 /* Convenience: the verb shown for each unlocked practice type. */
@@ -407,9 +499,24 @@ const CLASS_LIBRARY_STUBS = (() => {
 
 /* Helper: is the class system unlockable for this player? */
 function classGateMet(presenceLevel, completedChapters) {
-  const actDone = Array.isArray(completedChapters) &&
-                  completedChapters.includes(ACT1_FINAL_CHAPTER);
-  return presenceLevel >= CLASS_UNLOCK_LEVEL && actDone;
+  /* Presence Level requirement removed — Act I completion alone is the gate.
+     The Foundation Trial (enforced, real sessions) and the 7-quest chain that
+     follows already pace "how deep are you in this path" on their own; the
+     level gate was a redundant second check on top of that, and keeping it
+     would make Act I's own closing promise ("the paths now stand open")
+     potentially false for anyone who finishes Act I before reaching level 10. */
+  return Array.isArray(completedChapters) && completedChapters.includes(ACT1_FINAL_CHAPTER);
+}
+
+/* Mystic is hidden until BOTH Healer and Sage have reached Mastery 1 — i.e.
+   both their 7-quest chains are fully complete (7/7 = Mastery 1 is a flat
+   milestone, so this is the same chainComplete check used everywhere else).
+   This is a deliberately simple first gate for testing; more requirements
+   (mastery level beyond 1, Warrior too, etc.) may be added later — keep this
+   as a single small function so additional conditions are a one-line change. */
+function mysticGateMet(classState){
+  if(!classState) return false;
+  return chainComplete("healer", classState.questProgress) && chainComplete("sage", classState.questProgress);
 }
 
 /* ── PROGRESSIVE CONTROL UNLOCKS ──────────────────────────────────────────
@@ -453,6 +560,7 @@ function freshClassState() {
     inquireAnswered: {},  // { "What am I resisting?": true, ... }
     epilogueRevealed: {}, // { warrior: bool } once chain complete
     mastery: {},           // { warrior: { xp: 0 }, ... } — exists only once chain is complete
+    trialCelebrated: {},  // { warrior: bool } — has the Trial Complete screen been shown for this class yet
   };
 }
 
@@ -471,7 +579,7 @@ function freshClassState() {
    Curve: same cubic shape as the Presence curve, own tunable constant per path
    so a path that earns more easily (e.g. Sage, via plain Sit) can be tuned to
    need proportionally more XP per level without touching the earning rules. */
-const MASTERY_XP_A = { warrior: 27, healer: 27, sage: 35 }; // placeholder — Sage tuned higher since Sit is the most common practice. Mastery 10 (advanced-class gate) lands around 50-70 hours of qualifying practice; tune after real testing.
+const MASTERY_XP_A = { warrior: 27, healer: 27, sage: 35, mystic: 27 }; // placeholder — Sage tuned higher since Sit is the most common practice; Mystic has no "free" session-type earning rule (unlike Warrior/Sit, Sage/Sit, Healer/chest-throat) so it doesn't need compensation the way Sage does. Mastery 10 (advanced-class gate) lands around 50-70 hours of qualifying practice; tune after real testing.
 const masteryTotalXPForLevel = (classId, L) => Math.round((MASTERY_XP_A[classId]??0.25) * Math.max(0,L-1) ** 3);
 const masteryLevelFromXP = (classId, xp) => {
   let L=1;
@@ -532,18 +640,113 @@ function countBonusXP(loggedCounts, activitiesById){
 /* Mastery bonuses — small unlocks granted at a given mastery level for a given
    path. Intentionally a short, easy-to-extend list; add a line, nothing else
    to wire. Only active (selectable) while that path is the player's active one. */
+/* Shown once per class, right after the Foundation Trial finishes and before
+   the quest chain takes over — a brief threshold moment so the trial's end
+   doesn't pass in silence. Distinct voice per class, matching each path's
+   established register (forge/vow for Warrior, wound/compassion for Healer,
+   witnessing/question for Sage, dissolving/union for Mystic). */
+const TRIAL_WELCOME = {
+  warrior: {
+    title: "The Vow Is Spoken",
+    body: "Three forms, three centers, one body that agreed to all of it. That's the oath kept — not promised, not intended, actually kept, the only kind of vow the Warrior's path has ever recognized.\n\nThe forge doesn't ask whether you believe in it before it gets to work. It only asks that you showed up, which you just did. Everything ahead — the strength, the strikes, the flow that eventually stops needing your permission to happen — starts from here, not from belief, but from the simple fact of having stood still long enough to mean it.",
+  },
+  healer: {
+    title: "The Heart Has Opened",
+    body: "Three forms, three centers — chest, throat, will — and the body agreed to all of it. That agreement is the real beginning. Not a feeling of readiness, just the willingness to turn toward what's there.\n\nEvery healer who ever walked this path carried something before they could tend anything else. You've just spoken that same oath, in the only language this path has ever trusted: presence, held on purpose. What comes next will ask you to keep doing exactly that — toward yourself first, then outward, then further than either.",
+  },
+  sage: {
+    title: "The Question Is Asked",
+    body: "Three forms, three centers — clarity, alignment, voice — and the body agreed to look. That's the entire vow this path has ever required: not answers, just a willingness to actually see what's there before deciding what it means.\n\nKnow thyself was carved above a temple older than almost anything else still standing, and nobody has improved on it since. You've just taken the first real step toward it — not by finding something out, but by agreeing to keep looking. Everything ahead is more of the same question, asked with progressively sharper attention.",
+  },
+  mystic: {
+    title: "The Boundary Has Thinned",
+    body: "Three forms, three centers — crown, chest, belly — and for three minutes each, the line between you and where you placed your attention got a little less solid. That's not nothing. That's the entire claim this path has ever made, tested in miniature, three times, just now.\n\nEverything ahead is the same small thinning, applied to something a little larger each time — a pulse, a breath, a thought, a stranger, a moment, and eventually all of it at once. You don't have to believe any of that's possible yet. You only have to keep showing up the way you just did.",
+  },
+};
+
 const MASTERY_BONUSES = {
   warrior: [
     { level: 1, id: "bonus_w_cold", name: "Cold Exposure", stat: "wil", practiceType: "any" },
   ],
   healer: [],
   sage: [],
+  mystic: [],
 };
 
 /* Shared: has this path's 7-quest foundation chain been fully completed? */
+/* Self-healing migration: whenever activities are loaded (initial hydration,
+   cloud restore, import, dev-mode disable), re-sync every class-skill
+   activity's metadata (target/unit/stat/practiceType/singleSession) against
+   whatever the CURRENT quest data actually says. This matters because
+   activities are only ever created ONCE, the first time their quest becomes
+   active — if a quest's numbers get tuned later (as we've done repeatedly
+   throughout this build), anyone who already has that activity from before
+   the change is silently left with the OLD metadata forever, since nothing
+   ever re-creates or re-checks it otherwise. This NEVER touches `count` —
+   real, earned progress is never reset just because a definition changed. */
+function migrateActivityMetadata(activities){
+  if(!Array.isArray(activities)) return activities;
+  const unlockByName = {};
+  Object.values(QUEST_CHAINS).forEach(chain=>{
+    chain.forEach(q=>(q.unlocks||[]).forEach(u=>{
+      if(u.kind==="activity") unlockByName[u.name]=u;
+    }));
+  });
+  return activities.map(a=>{
+    /* One-time rename: "Communion" was renamed to "Commune" — anyone who
+       already has the old-named activity gets it renamed in place (id and
+       name updated to match), with count fully preserved, rather than ending
+       up with an orphaned old activity AND a fresh duplicate at count 0. */
+    if(a.name==="Communion"){
+      a = {...a, id:"cls_commune", name:"Commune"};
+    }
+    if(a.id==="chant_voi"){
+      const inSync = a.target===CHANT_QUEST.target && a.unit===CHANT_QUEST.unit && a.practiceType==="core";
+      return inSync ? a : {...a, practiceType:"core", target:CHANT_QUEST.target, unit:CHANT_QUEST.unit};
+    }
+    if(!a.classSkill) return a; // never touch user-created activities
+    const u = unlockByName[a.name];
+    if(!u) return a; // no current quest defines this skill (shouldn't normally happen)
+    const target = u.target ?? null, unit = u.unit ?? null, singleSession = !!u.singleSession;
+    const inSync = a.target===target && a.unit===unit && a.stat===u.stat &&
+                   a.practiceType===u.practiceType && a.singleSession===singleSession;
+    return inSync ? a : {...a, stat:u.stat, practiceType:u.practiceType, target, unit, singleSession};
+  });
+}
+
+/* One-time rename migration: the Healer quest "Communion" was renamed to
+   "Commune" (id h_communion -> h_commune). Anyone who already completed it
+   under the old id would otherwise show it as incomplete forever, since the
+   new code only ever checks questProgress.h_commune. */
+function migrateClassState(cs){
+  if(!cs || typeof cs!=="object") return cs;
+  const qp = cs.questProgress;
+  if(qp && qp.h_communion!==undefined && qp.h_commune===undefined){
+    const { h_communion, ...rest } = qp;
+    return { ...cs, questProgress: { ...rest, h_commune: h_communion } };
+  }
+  return cs;
+}
+
 function chainComplete(classId, questProgress={}){
   const numbered = (QUEST_CHAINS[classId]||[]).filter(q=>!q.isTrial && !q.isEpilogue);
   return numbered.length>0 && numbered.every(q=>questProgress[q.id]);
+}
+
+/* Shared: is a given quest either already complete, or the CURRENTLY ACTIVE
+   quest in its chain (trial done, and every quest before it already done)?
+   This is what a quest's own unlock should gate on — never on the quest's
+   OWN completion, or nothing could ever reach the completion that requires
+   using the very thing the quest unlocks (e.g. Tend must be usable while
+   Deep Listening is active, not only after Deep Listening is already done). */
+function questActiveOrDone(classId, questId, questProgress={}, trialDoneFn=()=>true){
+  if(questProgress?.[questId]) return true;
+  if(!trialDoneFn(classId)) return false;
+  const numbered = (QUEST_CHAINS[classId]||[]).filter(q=>!q.isTrial && !q.isEpilogue);
+  const idx = numbered.findIndex(q=>q.id===questId);
+  if(idx===-1) return false;
+  if(idx===0) return true;
+  return numbered.slice(0,idx).every(q=>questProgress?.[q.id]);
 }
 
 /* Reverse lookup: which activity NAMES belong to each path (its own quest-chain
@@ -640,6 +843,25 @@ function migrateCh(ch){
   if(!stats.ali) stats.ali=0;
   const totalXP = ch.totalXP ?? (totalXPForLevel(ch.level||1)+(ch.xp||0));
   return {...ch, stats, totalXP, _statsFmt:"xp"};
+}
+
+const AWARENESS_STAT={root:"str",belly:"vit",solar_plexus:"wil",chest:"hrt",throat:"voi",head:"wis",top:"ali"};
+/* Redirects 30% of every OTHER stat's gain into whichever awareness center(s)
+   were selected. Pure and shared — called from BOTH the live review screen
+   (so the displayed stat badges are honest about what's about to be saved)
+   AND the actual save path in handleDone, so the two can never diverge. */
+function applyAwarenessSiphon(sg, awarenessLanding){
+  const lands = Array.isArray(awarenessLanding) ? awarenessLanding : (awarenessLanding ? [awarenessLanding] : []);
+  if(lands.length===0) return sg;
+  const selStats=[...new Set(lands.map(r=>AWARENESS_STAT[r]).filter(Boolean))];
+  if(selStats.length===0) return sg;
+  const out = {...sg};
+  const siphon=Object.keys(out).filter(k=>!selStats.includes(k)).reduce((sum,k)=>{
+    const amt=Math.round(out[k]*0.30); out[k]-=amt; return sum+amt;
+  },0);
+  const perStat=Math.round(siphon/selStats.length);
+  selStats.forEach(sk=>{ out[sk]=(out[sk]||0)+perStat; });
+  return out;
 }
 
 function rewards(typeId, sessionXP, activeActivities=[]){
@@ -918,6 +1140,8 @@ function Radar({ stats, size=210, circular=false, showLabels=true, totalXP=0 }){
 const ANCHOR_D = "m 125.19742,201.79646 c -0.89743,-0.93671 -0.92009,-1.98326 -0.0615,-2.84182 0.91045,-0.91044 2.29902,-0.88862 3.03553,0.0477 1.70595,2.16876 -1.07235,4.779 -2.974,2.79411 z m -9.07233,-9.9074 c -0.28386,-0.32742 -0.73979,-0.8632 -1.01317,-1.19062 l -0.49706,-0.59531 h 11.81497 c 7.09643,0 11.81497,0.0981 11.81497,0.24574 0,0.13516 -0.40102,0.67094 -0.89114,1.19063 l -0.89114,0.94488 h -9.91066 -9.91066 z m -8.28515,-9.43078 c -0.44879,-0.56664 -0.81598,-1.10243 -0.81598,-1.19062 0,-0.0882 8.81063,-0.16037 19.57917,-0.16037 10.76854,0 19.57594,0.0893 19.57201,0.19844 -0.004,0.10914 -0.42226,0.64492 -0.92961,1.19063 l -0.92244,0.99218 h -17.83358 -17.83358 z m -7.846182,-8.77852 c -1.382424,-1.41573 -3.590804,-1.31322 26.689412,-1.23881 l 27.41784,0.0674 -1.02152,1.10628 -1.02152,1.10628 -25.5295,-0.006 -25.52951,-0.006 z m 28.703422,-8.81838 c -0.0603,-0.0579 -1.92523,-0.14689 -4.14425,-0.19787 -4.79088,-0.11005 -4.63016,0.22708 -1.88718,-3.9586 1.18142,-1.80281 2.5065,-3.85179 2.94462,-4.55331 0.43812,-0.70151 0.88634,-1.17776 0.99604,-1.05833 0.48517,0.52823 6.34648,9.32588 6.34438,9.52274 -0.002,0.21644 -4.04088,0.44941 -4.25361,0.24537 z";
 const ASCEND_D = "m 102.78866,173.74242 c -0.59111,-0.75147 -0.53268,-1.45051 0.19003,-2.27353 0.57789,-0.6581 1.79176,-0.59194 2.29394,0.12502 1.33733,1.90931 -1.04873,3.97313 -2.48397,2.14851 z m -7.092172,-7.75397 c -0.327422,-0.41515 -0.595313,-0.82528 -0.595313,-0.9114 0,-0.0861 4.054185,-0.15659 9.009295,-0.15659 h 9.0093 l -0.70632,0.92604 -0.70633,0.92604 -7.70766,-0.0146 -7.70766,-0.0146 z m -5.851817,-6.652 c -0.344463,-0.43572 -0.57461,-0.84391 -0.511437,-0.90708 0.169748,-0.16975 29.314956,-0.16592 29.320976,0.004 0.003,0.0796 -0.2577,0.50029 -0.57892,0.93477 l -0.58405,0.78997 -13.51013,-0.0146 -13.510143,-0.0146 z m -5.922141,-6.70499 c -0.400182,-0.50154 -0.727604,-0.9707 -0.727604,-1.04257 0,-0.0719 9.346406,-0.13542 20.769794,-0.14122 11.42338,-0.006 20.76979,0.0546 20.76979,0.1342 0,0.0796 -0.31179,0.5535 -0.69286,1.05311 l -0.69286,0.90839 -19.34933,-1e-5 -19.349326,0 z m 2.447396,-4.79356 c 0,-0.2039 6.908348,-10.1668 14.298454,-20.62057 0.30862,-0.43656 1.16517,-1.67137 1.90344,-2.74401 l 1.3423,-1.95026 0.48346,0.62734 c 0.26591,0.34504 1.14204,1.57985 1.94697,2.74401 1.91178,2.76502 3.80864,5.47464 6.08982,8.6992 1.017,1.43758 2.19375,3.10445 2.61499,3.70417 0.42124,0.59971 2.05835,2.90554 3.63802,5.12406 1.57967,2.21853 2.87213,4.15793 2.87213,4.30978 0,0.17645 -0.831,0.24851 -2.30242,0.19966 l -2.30242,-0.0764 -5.24878,-7.40833 c -2.88683,-4.07459 -5.75004,-8.11382 -6.36269,-8.97607 -0.61264,-0.86225 -1.23296,-1.60445 -1.37848,-1.64933 -0.14552,-0.0449 -0.74084,0.61904 -1.32292,1.47539 -0.58208,0.85635 -3.274656,4.69418 -5.983495,8.52851 -2.708839,3.83432 -5.088963,7.23939 -5.289165,7.56681 -0.332842,0.54435 -0.562408,0.59531 -2.681609,0.59531 -1.274683,0 -2.317605,-0.0671 -2.317605,-0.14922 z m 12.699999,-1.73284 c 0,-0.28221 4.007915,-6.62274 4.625345,-7.3173 0.23112,-0.25999 0.87775,0.51712 2.86367,3.4415 1.41084,2.07753 2.56515,3.86576 2.56515,3.97384 0,0.10809 -2.26219,0.19652 -5.02708,0.19652 -3.51604,0 -5.027085,-0.0885 -5.027085,-0.29456 z";
 const ANCHOR1_D = "m 106.93366,196.06211 c -5.68445,-0.69903 -12.408411,-2.71369 -17.609225,-5.27613 -16.776897,-8.26598 -28.21456,-23.76003 -30.959779,-41.93974 -0.628459,-4.16186 -0.632731,-12.04319 -0.0087,-16.05409 2.335017,-15.0081 10.547343,-28.3633 22.8653,-37.184435 5.886675,-4.215567 13.128058,-7.341587 20.817615,-8.986721 3.28852,-0.703557 3.75915,-0.735877 10.71563,-0.735877 6.92753,0 7.43723,0.03461 10.64135,0.722634 14.7189,3.160589 26.7497,11.26521 34.9516,23.545349 8.64784,12.94783 11.4422,29.32393 7.59572,44.51398 -2.33809,9.23325 -7.03282,17.58202 -13.89178,24.7041 -8.29074,8.60879 -19.11485,14.27423 -31.1973,16.32899 -2.87949,0.48968 -11.13593,0.70436 -13.92043,0.36194 z m 10.8976,-4.48412 c 17.13625,-1.66729 32.29161,-12.28383 40.27817,-28.2154 5.11674,-10.20685 6.4775,-22.05176 3.84095,-33.43406 -2.02799,-8.75509 -6.45295,-17.27884 -12.10867,-23.32482 -0.89197,-0.95352 -1.53501,-1.84028 -1.42897,-1.97058 0.10604,-0.13029 0.1003,-0.16424 -0.0128,-0.0754 -0.11305,0.0888 -0.64883,-0.2502 -1.19062,-0.75333 -6.81494,-6.328688 -14.87029,-10.580876 -23.60695,-12.461439 -7.71803,-1.661303 -16.53979,-1.388951 -24.738537,0.763749 -2.85816,0.750451 -8.050054,2.91134 -10.897225,4.535474 -9.027578,5.149666 -15.961884,12.636596 -20.569233,22.208466 -3.304733,6.86565 -4.714257,12.51248 -5.076717,20.33833 -0.910082,19.6495 10.187723,38.32673 28.112295,47.31204 8.524469,4.27319 17.866877,6.00437 27.398267,5.077 z m -6.84986,-15.33666 c -0.87108,-0.53113 -1.45881,-1.43905 -1.76934,-2.73328 -0.27573,-1.14914 0.62236,-2.90784 1.76078,-3.44805 3.47032,-1.64677 6.76137,1.58008 4.93172,4.83551 -1.02425,1.82241 -3.17657,2.41078 -4.92316,1.34582 z M 97.559196,160.19845 c -0.540497,-0.81405 -0.933463,-1.52935 -0.873257,-1.58955 0.0602,-0.0602 7.387951,-0.0788 16.283871,-0.0413 l 16.1744,0.0682 -0.98496,1.51782 -0.98496,1.51782 -14.31619,0.004 -14.316183,0.004 z m -9.911415,-11.76256 c -0.493538,-0.72751 -0.812856,-1.40723 -0.709594,-1.51049 0.276944,-0.27694 52.010063,-0.43278 52.010063,-0.15667 0,0.12787 -0.41989,0.85598 -0.93307,1.61802 l -0.93308,1.38553 -24.26849,-0.007 -24.268487,-0.007 z m -9.084176,-11.42975 c -1.611552,-2.12667 -2.044475,-1.94648 5.16532,-2.14986 7.57223,-0.2136 62.894285,-0.20453 63.969385,0.0105 l 0.74094,0.14819 -0.9465,1.42554 -0.94651,1.42553 H 112.88073 79.215221 Z m 26.840255,-10.08966 c 1.04768,-1.94847 7.24623,-12.06453 7.39377,-12.06666 0.17367,-0.003 7.23993,11.53399 7.53382,12.29984 0.1336,0.34817 -0.80632,0.39762 -7.5571,0.39762 h -7.70967 z";
+const WORLD_LAND_D = "M37.44 46.67 L37.97 47.22 L34.94 47.39 L37.44 46.67Z M33.72 42.83 L31.75 43.89 L33.11 45.47 L28.56 46.31 L29.53 46.64 L28.33 47.00 L33.83 48.11 L42.08 47.31 L40.11 47.08 L40.19 46.69 L45.14 45.86 L48.08 44.69 L57.53 44.58 L59.42 44.03 L60.72 44.39 L65.14 43.28 L69.14 43.86 L68.86 44.97 L69.42 45.08 L74.44 43.39 L83.28 43.69 L87.53 43.14 L88.19 43.61 L97.56 44.92 L95.44 46.17 L96.39 46.89 L94.39 47.47 L100.00 48.53 L100.00 50.00 L0.00 50.00 L0.25 48.36 L10.25 48.61 L7.33 48.25 L7.53 47.78 L6.44 47.53 L9.33 47.31 L6.86 46.97 L6.00 46.36 L18.36 45.47 L22.06 45.92 L21.19 45.17 L29.19 45.53 L31.28 45.14 L31.19 43.69 L33.72 42.83Z M98.06 36.36 L98.39 36.47 L98.08 37.19 L97.03 37.94 L96.31 37.83 L98.06 36.36Z M98.50 35.06 L99.58 35.47 L98.67 36.58 L97.94 34.58 L98.50 35.06Z M63.92 28.78 L63.08 31.92 L62.22 31.94 L62.33 29.50 L63.67 28.33 L63.92 28.78Z M89.89 28.83 L92.53 32.25 L92.47 33.78 L91.67 35.39 L90.64 35.83 L89.06 35.56 L88.39 34.56 L88.00 34.81 L88.28 34.14 L87.78 34.69 L86.47 33.75 L82.78 34.75 L81.94 34.50 L81.69 31.06 L83.58 30.47 L84.92 28.94 L86.00 29.17 L86.78 28.08 L87.92 28.31 L87.64 29.17 L88.94 29.92 L89.47 28.06 L89.89 28.83Z M87.25 25.33 L87.64 25.94 L88.42 25.47 L90.17 26.08 L91.86 27.94 L90.19 27.11 L89.61 27.58 L88.22 27.33 L88.31 26.50 L86.94 26.14 L86.67 25.78 L87.14 25.61 L86.25 25.25 L87.25 25.33Z M84.78 24.61 L83.39 24.94 L83.58 25.39 L84.25 25.17 L83.75 25.53 L84.22 26.47 L83.61 25.72 L83.17 26.50 L83.33 24.83 L84.78 24.61Z M79.39 26.64 L78.50 26.17 L76.47 23.47 L78.83 24.97 L79.39 26.64Z M82.75 24.50 L83.06 24.75 L82.25 26.11 L80.61 25.81 L80.31 25.14 L80.47 24.44 L82.42 23.08 L83.11 23.50 L82.75 24.50Z M27.86 18.67 L29.39 19.36 L28.39 19.47 L27.28 18.72 L26.39 18.92 L27.86 18.67Z M89.17 14.69 L88.97 15.25 L87.72 15.69 L86.39 15.58 L86.17 16.28 L85.94 15.75 L88.72 14.39 L88.97 13.56 L89.42 13.89 L89.17 14.69Z M34.42 10.92 L35.14 11.33 L35.25 12.03 L33.53 11.78 L34.42 10.92Z M49.17 8.72 L49.14 9.44 L50.39 10.75 L48.56 11.11 L49.19 10.00 L48.31 9.22 L49.17 8.72Z M45.97 6.53 L46.22 6.92 L44.81 7.36 L43.25 6.78 L45.97 6.53Z M1.39 6.50 L2.81 6.67 L1.94 7.14 L0.36 6.64 L0.00 6.94 L0.00 5.83 L1.39 6.50Z M24.86 5.69 L25.72 6.33 L26.25 5.58 L27.06 5.64 L27.42 6.22 L24.11 7.78 L23.69 8.64 L24.36 9.14 L27.14 9.69 L27.81 10.78 L28.17 10.39 L27.83 9.81 L28.75 9.31 L28.19 8.67 L28.31 7.69 L29.50 7.67 L30.67 8.03 L31.22 8.83 L32.06 8.25 L34.53 10.53 L31.56 11.06 L30.25 12.00 L31.92 11.33 L32.08 12.17 L33.39 12.25 L31.83 12.92 L32.11 12.42 L31.36 12.47 L30.36 13.06 L30.56 13.44 L29.03 14.03 L28.92 14.67 L28.81 14.11 L28.97 15.11 L27.42 16.28 L27.67 18.00 L26.64 16.64 L23.17 17.14 L22.81 18.78 L23.25 19.64 L24.44 19.81 L25.81 19.03 L25.31 20.58 L26.83 20.75 L26.72 21.92 L27.39 22.56 L28.67 22.61 L30.06 21.56 L30.08 22.47 L30.58 21.61 L31.06 22.06 L32.81 22.03 L34.14 23.33 L35.75 23.83 L36.00 25.03 L38.89 25.81 L40.36 27.03 L39.25 28.64 L38.64 31.08 L36.78 31.92 L35.06 34.56 L33.78 34.42 L34.22 35.25 L31.92 36.42 L32.36 36.83 L31.31 37.67 L31.67 38.36 L30.28 39.94 L29.19 39.53 L29.42 38.03 L29.00 37.94 L29.81 36.78 L29.36 37.00 L30.50 30.50 L28.89 29.06 L27.44 26.69 L27.83 25.75 L27.53 25.31 L28.58 23.94 L28.28 22.69 L27.53 23.00 L26.19 22.25 L25.69 21.31 L21.25 19.92 L18.36 16.22 L18.14 16.61 L19.61 18.50 L18.83 18.14 L15.44 13.81 L15.36 11.61 L15.94 11.92 L15.89 11.39 L14.61 10.89 L12.75 8.86 L9.14 8.08 L7.86 8.56 L8.17 7.97 L6.00 9.44 L4.22 9.89 L6.39 8.64 L5.00 8.69 L3.86 7.92 L5.33 7.00 L3.31 6.75 L5.08 6.64 L3.67 6.00 L6.50 5.17 L12.08 5.86 L14.42 5.42 L19.75 6.28 L20.50 5.89 L23.31 6.31 L23.83 5.81 L23.19 5.53 L23.56 5.03 L24.86 5.69Z M18.28 4.69 L19.94 5.08 L19.89 4.69 L20.42 4.69 L21.92 5.67 L17.75 5.78 L18.78 5.44 L16.83 5.11 L18.28 4.69Z M25.94 4.67 L29.94 5.11 L32.81 6.42 L32.25 6.94 L31.11 6.58 L32.03 7.39 L30.89 7.31 L31.61 7.81 L28.42 7.17 L29.44 6.81 L29.75 6.19 L28.06 5.50 L25.36 5.44 L24.94 4.94 L25.94 4.67Z M16.53 5.17 L15.03 5.03 L15.31 4.36 L17.33 4.39 L17.92 4.58 L16.53 5.17Z M65.97 5.36 L64.33 5.14 L65.44 4.14 L69.14 3.75 L66.25 4.36 L65.39 4.89 L65.97 5.36Z M23.69 3.58 L27.83 4.19 L24.33 4.22 L23.03 3.67 L23.69 3.58Z M79.72 3.61 L81.69 3.94 L80.39 4.39 L85.28 4.56 L86.47 5.33 L89.03 4.78 L94.69 5.72 L99.61 5.72 L100.00 5.83 L100.00 6.94 L99.28 7.06 L99.86 7.61 L95.42 8.36 L95.03 9.75 L93.56 10.83 L93.31 9.22 L95.69 7.61 L94.47 8.19 L93.53 7.94 L93.06 8.58 L89.50 8.61 L87.53 9.81 L88.86 9.94 L89.28 10.50 L88.39 12.14 L85.42 13.94 L85.86 15.25 L85.14 15.44 L84.81 14.00 L83.64 14.19 L83.78 13.64 L82.78 14.11 L83.03 14.61 L84.00 14.58 L83.11 15.31 L83.86 16.19 L83.81 17.17 L82.19 18.67 L79.42 19.50 L80.36 21.28 L79.22 22.61 L77.81 21.28 L77.56 22.44 L78.94 24.64 L77.31 22.83 L77.00 20.31 L76.17 20.56 L75.39 18.67 L74.17 19.03 L72.31 20.58 L72.19 22.11 L71.53 22.78 L70.17 19.06 L69.58 19.19 L68.44 17.94 L65.94 17.86 L63.33 16.67 L64.39 18.33 L65.67 17.67 L66.61 18.81 L65.36 20.22 L62.08 21.50 L59.69 16.81 L59.42 17.33 L59.00 16.69 L61.86 21.75 L62.39 22.11 L64.19 21.67 L64.17 22.06 L63.25 23.83 L60.89 26.31 L61.33 29.08 L59.67 30.50 L59.89 31.58 L59.06 32.14 L58.94 33.00 L57.17 34.42 L55.11 34.47 L53.28 30.03 L53.81 27.97 L52.44 25.31 L52.61 23.97 L51.19 23.25 L47.50 23.67 L45.39 21.61 L45.28 18.92 L48.36 15.06 L52.64 14.61 L53.08 14.75 L52.86 15.61 L55.31 16.58 L55.97 15.89 L59.39 16.39 L60.06 14.81 L57.67 14.81 L57.28 14.03 L59.31 13.33 L61.58 13.33 L60.19 12.44 L60.86 11.86 L59.42 12.67 L58.53 12.06 L57.69 13.17 L58.00 13.58 L56.28 13.81 L56.67 14.53 L56.25 14.89 L55.42 13.42 L53.64 12.31 L53.50 12.75 L55.14 13.83 L54.69 13.78 L54.47 14.44 L52.47 12.67 L50.86 13.03 L49.42 14.81 L47.53 14.75 L47.39 13.06 L49.61 12.78 L49.67 12.22 L48.72 11.47 L52.25 10.14 L52.36 9.14 L52.94 8.97 L53.03 10.00 L55.47 9.89 L56.00 9.06 L56.69 9.17 L56.47 8.56 L58.08 8.33 L55.92 8.14 L55.97 7.44 L57.06 6.92 L56.17 6.75 L54.94 7.58 L55.22 8.31 L54.42 9.42 L53.58 9.61 L52.89 8.47 L51.58 8.72 L51.39 7.78 L56.81 5.28 L61.19 6.14 L61.11 6.58 L59.22 6.50 L60.28 7.28 L62.19 6.64 L62.08 5.94 L62.86 6.03 L62.86 6.47 L64.92 5.86 L66.64 6.03 L66.83 5.58 L69.03 6.08 L68.53 5.28 L70.17 4.78 L70.11 6.61 L70.86 6.17 L70.31 5.17 L70.75 4.78 L71.22 5.22 L72.64 5.06 L72.36 4.56 L74.22 4.14 L79.72 3.61Z M63.64 13.53 L64.00 13.81 L63.67 14.56 L64.94 14.72 L64.64 13.89 L65.19 13.61 L63.97 12.61 L64.72 12.42 L64.72 11.97 L62.97 12.61 L63.64 13.53Z M55.08 2.86 L55.97 3.06 L54.42 3.67 L52.89 2.86 L55.08 2.86Z M25.83 2.86 L24.78 3.28 L23.14 2.72 L24.33 2.42 L25.83 2.86Z M30.97 1.92 L32.81 2.11 L28.64 2.97 L29.06 3.19 L27.61 3.83 L25.14 3.75 L26.39 3.47 L25.56 3.22 L26.36 2.97 L25.86 2.69 L27.28 2.64 L24.56 2.25 L30.97 1.92Z M42.47 1.81 L44.22 2.03 L41.28 2.22 L46.61 2.42 L44.44 2.72 L45.08 2.75 L44.53 3.11 L44.86 3.61 L43.97 3.72 L44.61 4.36 L43.11 4.92 L43.94 5.36 L42.67 5.50 L43.81 5.53 L38.94 6.81 L37.94 8.31 L36.58 8.08 L35.67 7.33 L35.00 6.33 L35.86 5.58 L34.81 5.67 L35.72 5.39 L34.50 5.08 L34.81 4.83 L33.72 4.03 L29.64 3.33 L31.75 2.94 L31.11 2.75 L32.58 2.28 L42.47 1.81Z"; // simplified continent outlines, ~9KB source, viewBox 0 0 100 50
+
 
 /* ── NAV ICON FAMILY — illustration-weight, 24-grid ── */
 function NavIcon({ id, color="#8b9684", size=20 }){
@@ -1163,15 +1387,19 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
   const [feelOpen,setFeelOpen] = useState(false);
   const [activeActIds,setActiveActIds] = useState([]);
   /* Time-segmented multiplier tracking: every time an activity is toggled on
-     or off, log a real timestamp. At session end this lets XP be weighted by
-     which multiplier was actually active during which seconds — toggling
-     Horse Stance on for 3 of a 9-minute Stand only multiplies those 3 minutes,
-     not the whole session. */
+     or off, log the session's own elapsed-seconds value (t) — NOT Date.now().
+     This must stay in the same unit as totalElapsed in weightedElapsedSeconds,
+     or the weighting math produces astronomically wrong numbers (a stray
+     wall-clock millisecond timestamp compared against a near-zero session
+     cursor explodes into billions of "weighted seconds"). At session end this
+     lets XP be weighted by which multiplier was actually active during which
+     seconds — toggling Horse Stance on for 3 of a 9-minute Stand only
+     multiplies those 3 minutes, not the whole session. */
   const multEventsRef = useRef([]); // [{ts, id, on}]
   const toggleActivity = (id) => {
     setActiveActIds(p=>{
       const turningOn = !p.includes(id);
-      multEventsRef.current.push({ts:Date.now(), id, on:turningOn});
+      multEventsRef.current.push({ts:t, id, on:turningOn});
       return turningOn ? [...p, id] : p.filter(x=>x!==id);
     });
   };
@@ -1212,6 +1440,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
      forever, but only usable while you're actually walking that path. */
   const activityVisible = (a) => {
     if(a.masteryBonus && a.bonusPath!==activeClassId) return false;
+    if(a.practiceType==="core") return CORE.some(c=>c.id===pType);
     if(!a.practiceType || a.practiceType==="any") return true;
     return a.practiceType===pType;
   };
@@ -1512,26 +1741,15 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
               </div>
             )}
             {/* Count rows for target-tracked activities: + | count | +10
-                (duration-based activities log automatically from session time
-                and show live progress instead of manual entry) */}
+                (duration-based/minutes activities auto-log from session time
+                and surface their progress on the review screen instead, where
+                it's read rather than glanced at mid-practice; only reps/km
+                need real-time +/-10 interaction here, during the session) */}
             {activeActIds.map(id=>{
               const act=activities.find(a=>a.id===id);
               if(!act || !act.target) return null;
               const sc=STAT_COLORS[act.stat]||C.sageB;
-              if(act.unit==="minutes"){
-                const liveMin = act.singleSession ? elapsed/60 : (act.count||0) + elapsed/60;
-                const pct = Math.min(100, Math.round(liveMin/act.target*100));
-                return (
-                  <div key={"dur_"+id} style={{marginTop:"10px"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",...body("12px",C.muted),marginBottom:"4px"}}>
-                      <span>{act.name}</span><span>{liveMin.toFixed(1)}/{act.target} min{act.singleSession?" · this sitting":""}</span>
-                    </div>
-                    <div style={{height:"4px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}>
-                      <div style={{height:"100%",width:`${pct}%`,background:sc,transition:"width .3s"}}/>
-                    </div>
-                  </div>
-                );
-              }
+              if(act.unit==="minutes") return null;
               const entered = actCounts[id]??0;
               const bump=(n)=>setActCounts(p=>({...p,[id]:Math.max(0,(parseInt(p[id])||0)+n)}));
               return (
@@ -1572,7 +1790,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
             {(()=>{const lvBefore=levelFromTotalXP(chTotalXP),lvAfter=levelFromTotalXP(chTotalXP+xp);return lvAfter>lvBefore?(
               <span style={{fontSize:"11px",color:"#7fb3e8",background:"rgba(100,160,220,0.12)",border:"0.5px solid rgba(100,160,220,0.4)",padding:"2px 9px",borderRadius:"10px"}}>LEVEL UP! → {lvAfter}</span>
             ):null;})()}
-            {Object.entries(sg).map(([k,v])=>{
+            {Object.entries(applyAwarenessSiphon(sg, awarenessLanding)).map(([k,v])=>{
               const sc=STAT_COLORS[k]||C.sageB;
               const gain=levelFromTotalXP((chStats[k]||0)+v)-levelFromTotalXP(chStats[k]||0);
               if(gain<=0) return null;
@@ -1580,6 +1798,39 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
             }).filter(Boolean)}
           </div>
 
+          {/* What this session counted toward — moved here from the active
+              screen, since this is the moment for reading information, not
+              mid-practice. Cumulative activities show lifetime count + this
+              session; singleSession activities (Sage's Observe quests) show
+              only this sitting, since lifetime count never applies to them. */}
+          {activeActivities.filter(a=>a.target).length>0 && (
+            <div style={{textAlign:"left",marginBottom:"22px"}}>
+              {activeActivities.filter(a=>a.target).map(act=>{
+                const sc=STAT_COLORS[act.stat]||C.sageB;
+                let current, suffix="";
+                if(act.unit==="minutes"){
+                  current = act.singleSession ? elapsed/60 : (act.count||0)+elapsed/60;
+                  suffix = act.singleSession ? " · this sitting" : "";
+                } else {
+                  const entered = parseFloat(actCounts[act.id])||0;
+                  current = (act.count||0) + entered;
+                }
+                const display = act.unit==="minutes" ? current.toFixed(1) : current.toFixed(0);
+                const pct = Math.min(100, Math.round(current/act.target*100));
+                const willComplete = current >= act.target;
+                return (
+                  <div key={act.id} style={{marginBottom:"10px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",...body("12px",willComplete?C.cream:C.muted),marginBottom:"4px"}}>
+                      <span>{act.name}{suffix}</span><span>{display}/{act.target} {act.unit||""}{willComplete?" ✓":""}</span>
+                    </div>
+                    <div style={{height:"4px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${pct}%`,background:willComplete?C.sageB:sc,transition:"width .3s"}}/>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {unlocks.centers && (
           <div style={{textAlign:"left",marginBottom:"22px"}}>
@@ -2133,6 +2384,7 @@ const DOORWAY_SCENES=[
     "This practice does not end. It deepens.",
     "What was hidden becomes revealed. The mysteries slowly unravel. The truth is not always easy to accept — but those who persevere find that the reward is eternal.",
     "The Anchor is your doorway. Begin here. Begin now.",
+    "Most people live an entire life without finding this door. You just found it. That alone makes you someone different than the one who opened this chapter.",
   ]},
 ];
 const DRIFT_PRACTICES=[
@@ -2169,6 +2421,7 @@ const MASTERY_SCENES=[
     "These forms appear simple because they are familiar. But they are the foundations beneath every higher practice.",
     "To sit well is to learn stillness. To stand well is to learn power. To walk well is to learn integration.",
     "Master these three forms and every other practice rests upon solid ground.",
+    "You have sat, stood, and walked every day of your life without once asking what those acts could become. From today, you are no longer moving through a body. You are inhabiting one.",
   ]},
 ];
 
@@ -2231,6 +2484,7 @@ const GROWING_SCENES=[
   {label:"v · the cultivation path",body:[
     "The current pulls attention outward. Cultivation gathers it again.",
     "The process is simple. Return. Practice. Grow. Repeat. This is how a life changes.",
+    "You may not feel different yet. Most growth is invisible from the inside until, one day, it isn't. But something in you has already begun making this its habit rather than its exception — and that, quietly, is the whole of what changes a life.",
   ]},
 ];
 
@@ -2260,6 +2514,7 @@ const THREE_FIRES_SCENES=[
     "You have reclaimed attention from the current. You have entered the doorway. You have practiced the forms. You have claimed ground.",
     "You have remembered the living world. You have begun cultivating your capacities. Now you discover that all of it has been feeding the same thing.",
     "The fires are lit. The climb continues.",
+    "Notice what has actually changed. Not your circumstances — your relationship to them. You arrived at the first page of this Act as someone drifting, asking a question you couldn't quite finish. You leave it as someone who practices presence on purpose. That is not a small difference. It is the entire one.",
   ]},
 ];
 
@@ -2496,7 +2751,7 @@ const LIBRARY_ENTRIES = [
 
   /* ── PATH SKILLS (barebone stubs — fill detailed instruction later) ── */
   CHANT_LIBRARY_STUB,
-  ...Object.entries(QUEST_CHAINS).flatMap(([cid,chain]) =>
+  ...Object.entries(QUEST_CHAINS).filter(([cid])=>cid!=="healer"&&cid!=="mystic").flatMap(([cid,chain]) =>
     chain.filter(q=>!q.isTrial).map(q=>({
       id:q.libId, unlock:0, section:"Path Skills",
       pathId:cid, pathName:(CLASS_BY_ID[cid]?.name)||"",
@@ -2508,6 +2763,143 @@ const LIBRARY_ENTRIES = [
       practice:"",
     }))
   ),
+
+  /* ── HEALER LIBRARY (fully written) ── */
+  { id:"lib_h_heart", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_heart",
+    title:"Heart Listening", sub:"Healer", sc:"hrt",
+    body:[
+      "Heart Listening is the practice of turning the same attention you'd offer a grieving friend toward your own chest. Not analysis. Not fixing. Just arriving, fully, in the place where feeling actually lives in the body.",
+      "Sit, and let your attention settle in the chest rather than the head. Ask, gently, what's here right now? Not what should be here. Not what you'd prefer to find. Whatever's actually present — warmth, tightness, a dull ache, nothing in particular — meet it the way you'd meet a person who came to you in pain: without rushing them toward being fine.",
+      "This is harder than it sounds precisely because it asks for no agenda. The instinct will be to immediately want to feel better, or to explain the feeling away. Resist both. The skill being built here is the capacity to simply stay — present, unhurried, undefended — with whatever the heart is actually holding."
+    ],
+    practice:"During a Sit, rest attention in the chest. When a feeling arises, name it quietly ('this is sadness,' 'this is relief') without elaborating on why. Stay with it for a few breaths before letting it go." },
+
+  { id:"lib_h_forgive", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_forgive",
+    title:"Forgiveness & Gratitude", sub:"Healer", sc:"hrt",
+    body:[
+      "This practice pairs two deliberate acts. First, naming something you're ready to set down — a grudge, a disappointment, a way you've held yourself accountable for too long. Second, naming something genuinely good that's still true, right now, regardless of the first thing.",
+      "Forgiveness here doesn't mean deciding the harm didn't matter, or owing anyone an apology on their behalf. It means refusing to keep paying for something twice — once when it happened, and again, every day since, by carrying it. You can release the weight without rewriting the facts.",
+      "Gratitude isn't tacked on as a nicety. It's the second half of the same motion: once a hand opens to let something go, it has room to hold something else. Naming what's still good isn't denial of what was hard — it's simply true, at the same time, and worth saying out loud."
+    ],
+    practice:"Speak or write one sentence naming what you're releasing, and one sentence naming something you're grateful for, in the same sitting. Once both feel real, put each into its own Release entry in the journal — one tagged Forgiveness, one tagged Gratitude — to complete the quest alongside your 15 minutes of practice." },
+
+  { id:"lib_h_tension", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_tension",
+    title:"Tension Release", sub:"Healer", sc:"vit",
+    body:[
+      "The body holds what the mind has stopped tracking. A clenched jaw, shoulders pulled toward the ears, a held breath — patterns that started as a real response to something and quietly became permanent. Tension Release is the practice of noticing these and inviting them to soften, without force.",
+      "Three doors into the same room: breath (slow, deliberate exhales that tell the nervous system it's safe to stand down), stretch (lengthening what's grown tight), and self-massage (a hand returning to a sore place, asking it to soften rather than guard). None require expertise — only attention and a willingness to go slowly.",
+      "The releasing itself usually isn't forced. Bring clear attention to a held place, and it often loosens on its own, the way a fist softens once you actually look at it. The work is the noticing. The release tends to follow."
+    ],
+    practice:"Scan from scalp to feet. Wherever you find gripping, pick one door — a slow exhale into it, a gentle stretch, or a few seconds of self-massage — and stay until something shifts, even slightly." },
+
+  { id:"lib_h_voice", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_voice",
+    title:"Voice Work", sub:"Healer", sc:"voi",
+    body:[
+      "Voice Work uses sustained sound — humming, toning, a single repeated note — as a way to finish releasing what breath and stillness loosen but don't always carry all the way out. The voice moves through the chest and throat in a way silence doesn't reach.",
+      "This isn't singing, and there's no note to get right. Let a tone rise from wherever it wants to, hold it as long as a breath allows, and notice where it resonates — chest, throat, the bones of the face. Some traditions call this toning; the mechanism is simple: sustained vocal vibration is a real, felt sensation that pulls attention out of the head and into the body.",
+      "Because Voice Work is genuinely active rather than meditative, it tends to ask more of you per minute than a quiet sit — which is part of why it counts for more. Real practice here is unmistakable: your throat will know the difference between a held tone and a mumble."
+    ],
+    practice:"Take a full breath and let out a low, sustained hum until the breath runs out, several times in a row. Notice where you feel it most — chest, throat, skull — without trying to control the pitch." },
+
+  { id:"lib_h_listen", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_listen",
+    title:"Deep Listening", sub:"Healer", sc:"hrt",
+    body:[
+      "Deep Listening happens with someone else present, which is why it doesn't live in a timed session — it lives in your Tend journal, logged afterward with however long it actually lasted. The skill is the same one Heart Listening built, now turned outward.",
+      "The instinct to fix is the thing to resist hardest. Someone in pain is usually not asking for a solution — they're asking to be heard without your own reactions, advice, or discomfort crowding the space meant for theirs. Empty yourself first. Let their words land fully before deciding what they mean.",
+      "A real Deep Listening session usually runs somewhere between 10 and 30 minutes — long enough that performing presence gives way to actually holding it. Log the real length afterward; the honesty of that number is part of the practice. Across a few real instances, this adds up — 30 minutes total is well within reach without inflating anything."
+    ],
+    practice:"After holding space for someone, open Tend in the journal, select Deep Listening, and log roughly how long it lasted. Write only what you're moved to write — the duration matters more than the word count." },
+
+  { id:"lib_h_service", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_service",
+    title:"Service", sub:"Healer", sc:"wil",
+    body:[
+      "Service is the same chain made physical — listening turned into hands actually doing something. Like Deep Listening, it happens in the world rather than in a session, and gets logged afterward in Tend with however long it took.",
+      "It doesn't need to be large. A genuine act that actually helped someone who actually needed it — that's the whole bar. The act doesn't need witnesses, and it doesn't need to feel selfless to count; feeling lighter after helping is human, not a flaw to suppress.",
+      "The only real test: did this serve someone else's need, or did it mainly serve your need to feel useful? Both can be true at once, and that's fine — the practice is doing it because it was needed, not because you required it. As the path's final ask, this one accumulates across however many real acts it takes — 45 minutes total, however that's reached."
+    ],
+    practice:"After a genuine act of service, open Tend, select Service, and log roughly how long it took. No need to describe it in detail unless something about it is worth keeping." },
+
+  { id:"lib_h_commune", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_commune",
+    title:"Commune", sub:"Healer", sc:"ali",
+    body:[
+      "Commune has two halves, in order: expressing what's actually true in your heart right now, then going fully quiet and listening for whatever comes back. Neither half works without the other — speaking without listening is just venting; listening without first speaking has nothing to listen past.",
+      "The expressing doesn't need an audience or even words spoken aloud. It needs honesty. Say the real thing, not the composed thing — whatever you're actually carrying, addressed outward, to however you understand what's larger than yourself. You don't have to resolve what you don't believe about it; you only have to mean what you say.",
+      "The listening half is the harder discipline. Most people, even when they intend to listen, immediately start narrating to themselves about what they just said. Let that quiet down. You may receive something that feels like a response — an image, a felt shift, a sentence that wasn't quite yours. You may receive nothing but the texture of the silence itself. Both are real outcomes; neither is a failure."
+    ],
+    practice:"Say one true thing from your heart, aloud or silently. Then stop completely — no analyzing what you said — and simply wait, attentive, for as long as the silence holds your attention." },
+
+  /* ── MYSTIC LIBRARY (fully written) ── */
+  { id:"lib_m_trial", unlock:0, section:"Path Skills", pathId:"mystic", pathName:"Mystic", skillUnlockQuest:"m_trial",
+    title:"Mystic Trial", sub:"Mystic", sc:"ali",
+    body:[
+      "The Mystic's trial asks the same three forms every path asks for — Sit, Stand, Walk, three minutes each — with attention placed at a specific center each time. Sit settles into the crown, where alignment and separateness first begin to loosen. Stand opens at the chest, where the heart unguards itself. Walk settles into the belly, where simple aliveness needs no permission to be felt.",
+      "Nothing here requires belief in anything beyond what you can directly notice. The trial is a vow spoken through the body — three short proofs that you're willing to sit still long enough to find out what's actually there, rather than what you assume must be there."
+    ],
+    practice:"Complete one 3-minute Sit, Stand, and Walk, resting attention at the crown, chest, and belly in turn." },
+
+  { id:"lib_m_pulse", unlock:0, section:"Path Skills", pathId:"mystic", pathName:"Mystic", skillUnlockQuest:"m_pulse",
+    title:"Pulse", sub:"Mystic", sc:"ali",
+    body:[
+      "Pulse is the smallest possible test of this whole path's central claim: that the line between 'you' and what you're attending to is thinner than it appears. Nothing is closer or more constant than your own heartbeat, and most people go years without directly feeling it.",
+      "Settle — sitting upright tends to help, and a hand resting lightly on the chest or two fingers at the wrist can help locate it at first, though neither is required once you're practiced. Once found, the goal isn't to monitor it from a distance the way you might count breaths. Let the noticing and the beat become one continuous fact rather than two — an observer and an observed.",
+      "Some sessions you'll find it quickly. Others you won't find it at all, and the settling itself is still the practice on those days. This isn't a skill that improves linearly; it improves the more honestly you sit with not-finding-it too."
+    ],
+    practice:"Sit upright, settle fully, and locate your pulse (hand on chest or fingers at the wrist if needed). Once found, let the sense of 'feeling it' and 'it beating' become one event, not two." },
+
+  { id:"lib_m_breath", unlock:0, section:"Path Skills", pathId:"mystic", pathName:"Mystic", skillUnlockQuest:"m_breath",
+    title:"Breath", sub:"Mystic", sc:"vit",
+    body:[
+      "Breath sits in a strange middle ground — automatic when ignored, deliberate the moment you reach for it. Most breathing practices ask you to pick a side: control it, or let it run on its own. This one asks you to find the seam between the two, where breath is simply happening and 'you, breathing' stops feeling like two separate things.",
+      "Don't force a rhythm. Don't entirely check out either. Ride the breath the way you'd ride a wave — present to its rise and fall, without steering it. At some point, often without warning, the felt sense of 'me, doing this' can soften into something more like 'breathing, occurring, here.'",
+      "This softening rarely holds for long, especially early on. That's expected. Each glimpse of it is real practice, whether or not it lasts past the next thought."
+    ],
+    practice:"Let the breath move without controlling it. Notice when it starts to feel like something happening TO 'you' versus something you're causing — and let that distinction relax." },
+
+  { id:"lib_m_thought", unlock:0, section:"Path Skills", pathId:"mystic", pathName:"Mystic", skillUnlockQuest:"m_thought",
+    title:"Thought", sub:"Mystic", sc:"wis",
+    body:[
+      "This is the practice most easily confused with Sage's Observe Thought, and worth distinguishing clearly: Sage steps back from a thought to watch it pass, maintaining a clean distance between witness and witnessed. This practice does the opposite — it lets that distance go slack on purpose.",
+      "A thought arises. Instead of stepping back, notice that the thinking and the awareness of the thinking have never actually occurred as two separate events side by side — that gap is a habit of interpretation, not a given fact. Let watcher and watched blur rather than separate.",
+      "This will mostly fail at first, and that's fine — the mind reinstalls the gap almost instantly. Each time you catch the gap reappearing, you've also, for a flash, caught it being absent. That flash is the entire practice."
+    ],
+    practice:"When a thought arises, don't step back to observe it (that's Sage's move). Instead let the sense of a separate watcher soften, so thinking and noticing the thinking feel like one continuous event." },
+
+  { id:"lib_m_senses", unlock:0, section:"Path Skills", pathId:"mystic", pathName:"Mystic", skillUnlockQuest:"m_senses",
+    title:"The Senses", sub:"Mystic", sc:"wis",
+    body:[
+      "A sound arrives, and almost instantly the mind sorts it into 'the sound out there' and 'me hearing it in here.' This practice notices that the sorting is an extra step, added after the fact — not part of the raw contact itself.",
+      "Let a sound, a color, a texture, a temperature simply arrive. Before naming it, before placing it outside yourself, there is just contact — undivided. Each sense is a small doorway into the same room; you don't need all five at once, and you don't need anything exotic to find it.",
+      "This isn't a permanent state to achieve and hold. It's a noticing that gets easier to return to the more genuinely you've tasted it, in any single sense, even briefly."
+    ],
+    practice:"Pick one sense. Let something arrive through it before you name or place it. Notice the moment just before 'self' and 'world' get sorted into two separate things." },
+
+  { id:"lib_m_other", unlock:0, section:"Path Skills", pathId:"mystic", pathName:"Mystic", skillUnlockQuest:"m_other",
+    title:"Another Person", sub:"Mystic", sc:"hrt",
+    body:[
+      "This isn't Healer's Deep Listening, and it asks nothing of the other person — not their participation, not even their awareness. A stranger on a bench, someone across a café, anyone at all is enough.",
+      "Without engaging them, let your attention rest in their direction. Notice the line where 'me' is assumed to end and 'them' is assumed to begin — real enough to matter (you are not asked to forget your own boundaries), but thinner than habit suggests underneath. You're both, right now, simply here, made of the same kind of aliveness.",
+      "Most people pass a hundred strangers a day without once actually feeling this. The practice is just slowing down enough to feel it on purpose, even once."
+    ],
+    practice:"Near a stranger (public space, no interaction needed), let attention rest in their direction. Hold both facts at once: your real separateness, and underneath it, your shared, plain aliveness." },
+
+  { id:"lib_m_moment", unlock:0, section:"Path Skills", pathId:"mystic", pathName:"Mystic", skillUnlockQuest:"m_moment",
+    title:"The Moment", sub:"Mystic", sc:"ali",
+    body:[
+      "Pulse, breath, thought, the senses, another person — each was the same move, rehearsed on something small. This one applies it to something larger: not a thing inside time, but time itself.",
+      "Most suffering involves leaving now — replaying what already happened, rehearsing what hasn't happened yet. The past is a memory occurring now. The future is an imagining occurring now. There has never been any moment actually available to you except this one.",
+      "Let the felt sense of moving through time soften into something more like a single, continuous present that keeps revealing more of itself. You're not stopping time. You're noticing the water was never actually flowing away from you to begin with."
+    ],
+    practice:"Notice that any memory or anticipation you're having is itself happening right now. Let the sense of 'moving through time' rest into 'this, continuously, revealing more.'" },
+
+  { id:"lib_m_henosis", unlock:0, section:"Path Skills", pathId:"mystic", pathName:"Mystic", skillUnlockQuest:"m_henosis",
+    title:"Henosis", sub:"Mystic", sc:"ali",
+    body:[
+      "Henosis is an old Greek word for oneness — chosen deliberately because it belongs to no single tradition, even though nearly every tradition that has taken mysticism seriously eventually arrives at some version of the same claim under its own name.",
+      "Everything practiced so far — pulse, breath, thought, the senses, another person, the moment — was never a separate warm-up. Each was this, in miniature. Henosis is what happens when the boundary that softened in each of them simply stops being rebuilt in between.",
+      "One real caution, taken directly from those who've walked this longest: real union is supposed to return you to ordinary life changed, not absent from it. If this practice starts to feel like a way to avoid your life rather than meet it more fully, that's the signal to step back, not lean in further."
+    ],
+    practice:"Sit with nothing to achieve and nothing to avoid. Let everything practiced before — pulse, breath, thought, world, other, moment — rest together as one continuous fact rather than separate exercises." },
+
 ];
 
 const ANCHOR_SUBQUESTS = [
@@ -2542,13 +2934,21 @@ const CHAPTER_QUESTS = {
    Picking a class sets it active and drops the player into the Foundation Trial. */
 function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onReturn=()=>{}, questProgress={}, trialComplete=()=>true, mastery={} }){
   const [sel,setSel]=useState(null);
+  /* Mystic stays hidden entirely (not just disabled) until both Healer and
+     Sage have reached Mastery 1 — a deliberately simple first gate for
+     testing; already-active/walked classes always remain visible regardless,
+     so this never hides a class the player has already committed to. */
+  const visibleClasses = CLASSES.filter(c=>
+    c.id!=="mystic" || activeClass==="mystic" || alreadyChosen.includes("mystic") ||
+    (chainComplete("healer",questProgress) && chainComplete("sage",questProgress))
+  );
   return (
     <div style={{padding:"4px 4px 20px"}}>
       <div style={{...dsp("13px",C.gold,400,"0.16em"),marginBottom:"6px"}}>CHOOSE YOUR PATH</div>
       <div style={{...body("14px",C.muted),lineHeight:"1.6",marginBottom:"20px",fontStyle:"italic"}}>
         You have returned to yourself. Now choose how you will cultivate. This is a direction, not a cage — you may walk a different path later, and your progress on this one will be waiting when you return.
       </div>
-      {CLASSES.map(c=>{
+      {visibleClasses.map(c=>{
         const isOpen = sel===c.id;
         const isActive = activeClass===c.id;
         const walked = alreadyChosen.includes(c.id) && !isActive;
@@ -2609,6 +3009,80 @@ function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onRet
 /* Foundation Trial — three enforced 3-min sessions, each stat-tagged.
    Tapping a trial step opens the Anchor at that practice type. Completion of
    all three (tracked via trialProgress) is required before the chain opens. */
+/* Shown once, the moment a Foundation Trial completes, before the quest
+   chain takes over — a brief threshold so the trial's end isn't silent. */
+/* Shown once, the moment Act I's final chapter completes — a dedicated,
+   full-screen black transition, distinct from the small completion-card
+   modal used for ordinary quests. Reuses the same timed one-line-reveal
+   pattern as the first-session guide text: one line fades in, holds, fades
+   for the next. Names only the paths actually reachable at this point
+   (Mystic stays hidden until Healer + Sage both reach Mastery 1). */
+function ActCompleteScreen({ onContinue }){
+  const [t,setT]=useState(0);
+  useEffect(()=>{
+    const start=Date.now();
+    const id=setInterval(()=>setT((Date.now()-start)/1000),100);
+    return ()=>clearInterval(id);
+  },[]);
+  /* Each line: holds fully visible, then fades out into a beat of black
+     silence before the next line fades in — rather than one line cutting
+     straight to the next. fadeOut is 1s; each cue's "visible" window ends
+     1s before its nominal boundary so the fade-out completes inside a
+     silent gap, not overlapping the next line's fade-in. */
+  const CUES=[
+    {s:0,    fadeOutAt:null, e:3,    text:null},                                            // ~3s black, silence
+    {s:3,    fadeOutAt:6.5,  e:7.5,  text:"Act I Complete"},
+    {s:7.5,  fadeOutAt:null, e:8.5,  text:null},                                             // ~1s black between lines
+    {s:8.5,  fadeOutAt:12.5, e:13.5, text:"You have taken your first steps."},
+    {s:13.5, fadeOutAt:null, e:14.5, text:null},
+    {s:14.5, fadeOutAt:null, e:null, text:"The paths of the Warrior, Healer, and Sage now stand open."},
+  ];
+  const cue = CUES.find(c=>t>=c.s && (c.e==null || t<c.e)) || CUES[CUES.length-1];
+  const fadingOut = cue.fadeOutAt!=null && t>=cue.fadeOutAt;
+  const showContinue = cue.e==null;
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:500,background:"#000",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px"}}>
+      {cue.text && (
+        <div key={cue.s} style={{...dsp("17px",C.cream,400,"0.06em"),textAlign:"center",lineHeight:"1.7",
+          animation: fadingOut ? "fadeOut 1s ease both" : "fadeRise 1.4s ease both"}}>
+          {cue.text}
+        </div>
+      )}
+      {showContinue && (
+        <button onClick={onContinue} style={{marginTop:"34px",padding:"11px 26px",background:"rgba(255,255,255,0.03)",
+          border:`0.5px solid ${C.gold}`,color:C.goldB,...dsp("9px",undefined,400,"0.16em"),cursor:"pointer",borderRadius:"6px",
+          animation:"fadeRise 1.2s ease 0.6s both"}}>
+          CONTINUE
+        </button>
+      )}
+    </div>
+  );
+}
+
+function TrialCompleteScreen({ classId, onContinue }){
+  const cls = CLASS_BY_ID[classId];
+  const welcome = TRIAL_WELCOME[classId];
+  if(!cls || !welcome) return null;
+  return (
+    <div style={{padding:"4px 4px 20px",textAlign:"center"}}>
+      <div style={{...dsp("10px",cls.accent,400,"0.2em"),marginBottom:"10px"}}>TRIAL COMPLETE</div>
+      <div style={{...dsp("19px",C.cream,500,"0.04em"),marginBottom:"4px"}}>{welcome.title}</div>
+      <div style={{...dsp("11px",cls.accent,400,"0.14em"),marginBottom:"22px"}}>WELCOME TO THE PATH OF THE {cls.name.toUpperCase()}</div>
+      <div style={{textAlign:"left"}}>
+        {welcome.body.split("\n\n").map((p,i)=>(
+          <div key={i} style={{...body("15px",C.txt),lineHeight:"1.8",marginBottom:"16px"}}>{p}</div>
+        ))}
+      </div>
+      <button onClick={onContinue}
+        style={{marginTop:"8px",padding:"12px 28px",background:"rgba(255,255,255,0.04)",
+          border:`0.5px solid ${cls.accent}`,color:cls.accent,...dsp("10px",undefined,400,"0.16em"),
+          cursor:"pointer",borderRadius:"6px"}}>
+        BEGIN THE PATH OF THE {cls.name.toUpperCase()}
+      </button>
+    </div>
+  );
+}
+
 function FoundationTrial({ classId, trialProgress={}, onOpenTrial, devMode=false, onDevSkipTrial=()=>{}, onBackToChoice=()=>{} }){
   const cls = CLASS_BY_ID[classId];
   if(!cls) return null;
@@ -2655,19 +3129,30 @@ function FoundationTrial({ classId, trialProgress={}, onOpenTrial, devMode=false
 /* The class questline — a vertical chain like the Act I chapters, but separate.
    Quests unlock one at a time; each quest opens a reader showing its myth, a
    library link, and (where relevant) tappable Inquiry questions. */
-function questProgressLine(q, activities){
+function questProgressLine(q, activities, jEnt=[]){
   const targetUnlocks = (q.unlocks||[]).filter(u=>u.kind==="activity" && u.target);
-  if(targetUnlocks.length===0) return q.criteria;
-  return targetUnlocks.map(u=>{
+  const tendUnlocks = (q.unlocks||[]).filter(u=>u.kind==="tend" && u.target);
+  const entryUnlocks = (q.unlocks||[]).filter(u=>u.kind==="journalEntry");
+  if(targetUnlocks.length===0 && tendUnlocks.length===0 && entryUnlocks.length===0) return q.criteria;
+  const activityLines = targetUnlocks.map(u=>{
     if(u.singleSession) return `${u.name}: one sitting of ${u.target}${u.unit?" "+u.unit:""}`;
     const act = activities.find(a=>a.name===u.name);
     const count = act?.count||0;
     return `${u.name}: ${count}/${u.target}${u.unit?" "+u.unit:""}`;
-  }).join(" · ");
+  });
+  const tendLines = tendUnlocks.map(u=>{
+    const total = jEnt.filter(e=>e.tag==="tend" && e.tendKind===u.tendKind).reduce((s,e)=>s+(e.tendMinutes||0),0);
+    return `${u.tendKind}: ${total.toFixed(0)}/${u.target}${u.unit?" "+u.unit:""}`;
+  });
+  const entryLines = entryUnlocks.map(u=>{
+    const has = jEnt.some(e=>e.tag==="release" && e.releaseKind===u.entryKind);
+    return `${u.entryKind}: ${has?"✓":"needed"}`;
+  });
+  return [...activityLines, ...tendLines, ...entryLines].join(" · ");
 }
 
 function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epilogueRevealed={}, activities=[],
-                             masteryXP=0, isActivePath=true,
+                             masteryXP=0, isActivePath=true, jEnt=[],
                              onOpenQuest, onOpenLib }){
   const cls = CLASS_BY_ID[classId];
   if(!cls) return null;
@@ -2740,7 +3225,7 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
                 {complete?"COMPLETE":active?"ACTIVE":"LOCKED"}{q.isCapstone?" · CAPSTONE":""}
               </div>
               <div style={{...body("15px",C.cream)}}>{q.title}</div>
-              {active && <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{questProgressLine(q,activities)}</div>}
+              {active && <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{questProgressLine(q,activities,jEnt)}</div>}
             </div>
           </div>
         );
@@ -2752,7 +3237,7 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
             style={{background:C.surf,border:`0.5px solid ${cls.accent}66`,borderRadius:"6px",padding:"11px 14px",cursor:"pointer"}}>
             <div style={{...dsp("8px",cls.accent,400,"0.16em"),marginBottom:"3px"}}>EPILOGUE</div>
             <div style={{...body("15px",C.cream)}}>{epilogue.title}</div>
-            <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{questProgressLine(epilogue,activities)}</div>
+            <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{questProgressLine(epilogue,activities,jEnt)}</div>
           </div>
         </div>
       )}
@@ -2762,7 +3247,7 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
 
 /* Quest reader — shows a single class quest's myth, a library link, a complete
    button, and for Inquire, the five tappable questions with checkmarks. */
-function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=false, activities=[],
+function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=false, activities=[], jEnt=[],
                             onBack, onComplete, onOpenLib, onOpenInquire }){
   const cls = CLASS_BY_ID[classId];
   const q = (QUEST_CHAINS[classId]||[]).find(x=>x.id===questId);
@@ -2772,11 +3257,18 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
   const isInquire = !!q.inquireQuestions;
   const allAnswered = isInquire && q.inquireQuestions.every(qq=>inquireAnswered[qq]);
   const targetUnlocks = (q.unlocks||[]).filter(u=>u.kind==="activity" && u.target);
+  const tendUnlocks = (q.unlocks||[]).filter(u=>u.kind==="tend" && u.target);
+  const entryUnlocks = (q.unlocks||[]).filter(u=>u.kind==="journalEntry");
   const hasTargets = targetUnlocks.length>0;
+  const hasTendTargets = tendUnlocks.length>0;
+  const hasEntryRequirements = entryUnlocks.length>0;
   const targetsMet = hasTargets && targetUnlocks.every(u=>{
     const act=activities.find(a=>a.name===u.name);
     return act && (act.count||0) >= u.target;
   });
+  const tendTotal = (kind) => jEnt.filter(e=>e.tag==="tend" && e.tendKind===kind).reduce((s,e)=>s+(e.tendMinutes||0),0);
+  const tendsMet = hasTendTargets && tendUnlocks.every(u=>tendTotal(u.tendKind) >= u.target);
+  const entriesMet = hasEntryRequirements && entryUnlocks.every(u=>jEnt.some(e=>e.tag==="release" && e.releaseKind===u.entryKind));
   const reflectUnlock = (q.unlocks||[]).find(u=>u.kind==="reflect" && u.minDuration);
   const isReflectQuest = !!reflectUnlock;
 
@@ -2840,6 +3332,48 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
         </div>
       )}
 
+      {/* Live progress for Tend-based quests (Deep Listening, Service) — sourced
+          from journal entries logged so far, same shape as the activity bars. */}
+      {hasTendTargets && !questDone && (
+        <div style={{marginBottom:"16px"}}>
+          {tendUnlocks.map(u=>{
+            const total = tendTotal(u.tendKind);
+            const pct = Math.min(100, Math.round(total/u.target*100));
+            return (
+              <div key={u.tendKind} style={{marginBottom:"10px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",...body("12px",C.muted),marginBottom:"4px"}}>
+                  <span>{u.tendKind}</span><span>{total.toFixed(0)}/{u.target} {u.unit||""}</span>
+                </div>
+                <div style={{height:"4px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${pct}%`,background:accent,transition:"width .3s"}}/>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Required journal entries (e.g. one Release entry each of Forgiveness
+          and Gratitude) — shown as a simple checklist, same spirit as the
+          Inquire questions list, since this is a presence check, not a bar. */}
+      {hasEntryRequirements && !questDone && (
+        <div style={{marginBottom:"16px"}}>
+          {entryUnlocks.map(u=>{
+            const has = jEnt.some(e=>e.tag==="release" && e.releaseKind===u.entryKind);
+            return (
+              <div key={u.entryKind} style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"6px"}}>
+                <div style={{width:"20px",height:"20px",borderRadius:"50%",flexShrink:0,
+                  background:has?"rgba(163,192,137,0.12)":"transparent",
+                  border:`1px solid ${has?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  {has&&<span style={{color:C.sageB,fontSize:"11px"}}>✓</span>}
+                </div>
+                <span style={{...body("13px",has?C.cream:C.muted)}}>{u.entryKind} entry in the journal</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Library link */}
       <button onClick={()=>onOpenLib(q.libId)}
         style={{display:"block",marginTop:"6px",marginBottom:"16px",background:"none",border:"none",
@@ -2856,7 +3390,17 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
         </div>
       ) : hasTargets ? (
         <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
-          {targetsMet ? "Targets reached — completing…" : "Log your practice after each session to track progress."}
+          {targetsMet && (!hasEntryRequirements || entriesMet) ? "Requirements met — completing…"
+            : !targetsMet ? "Log your practice after each session to track progress."
+            : "Practice minutes are done — write the journal entries above to finish."}
+        </div>
+      ) : hasEntryRequirements ? (
+        <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
+          {entriesMet ? "Entries logged — completing…" : "Write the journal entries above to complete this quest."}
+        </div>
+      ) : hasTendTargets ? (
+        <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
+          {tendsMet ? "Logged enough — completing…" : "Log each real instance in your Tend journal to track progress."}
         </div>
       ) : isReflectQuest ? (
         <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
@@ -2878,7 +3422,8 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
 function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}, hasAnchored, sessions=[], chaptersRead=[], onMarkRead, libReadAt={}, pins=[], chStats={}, onOpenAnchor=()=>{}, onGoToLib=()=>{},
   classGateOpen=false, classState=null, onChooseClass=()=>{}, trialComplete=()=>false, onOpenClassQuest=()=>{}, devMode=false, onDevSkipTrial=()=>{},
   questCollapsed=false, setQuestCollapsed=()=>{}, classCollapsed=false, setClassCollapsed=()=>{},
-  chantGateOpen=false, chantUnlocked=false, setOpenChantQuest=()=>{}, activities=[] }){
+  chantGateOpen=false, chantUnlocked=false, setOpenChantQuest=()=>{}, activities=[], jEnt=[], onAcknowledgeTrial=()=>{},
+  showActComplete=false, setShowActComplete=()=>{} }){
   const [view,setView]               = useState("overview");
   const [questLine,setQuestLine]     = useState("main"); // "main" | "chant" | "path"
   const [autoSurfaced,setAutoSurfaced] = useState({}); // {chant:true, path:true} once auto-shown
@@ -2947,6 +3492,14 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   };
 
   const fadeGo = fn => { setFade(false); setTimeout(()=>{ fn(); setFade(true); }, 600); };
+
+  /* Act I's final chapter completing takes over the whole tab, regardless of
+     whatever view/phase would otherwise be showing — this check comes after
+     all hooks above (React's rules require that) but before any of the
+     normal view branching below. */
+  if(showActComplete){
+    return <ActCompleteScreen onContinue={()=>{ setShowActComplete(false); setView("overview"); }}/>;
+  }
 
   const openChapter = n => {
     const alreadyRead = readDone(n);
@@ -3169,7 +3722,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
               {isAlreadyComplete ? (
                 <button onClick={()=>setView("overview")} style={{width:"100%",padding:"13px",background:"transparent",border:`0.5px solid ${C.bord}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.muted,400,"0.18em")}}>BACK TO QUEST MAP</button>
               ) : qDone ? (
-                <button onClick={()=>{ onCompleteChapter(readingN); setView("overview"); }} style={{width:"100%",padding:"13px",background:"linear-gradient(rgba(201,168,76,0.18),rgba(201,168,76,0.07))",border:`0.5px solid ${C.gold}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.goldB,400,"0.18em")}}>
+                <button onClick={()=>{ onCompleteChapter(readingN); if(readingN===ACT1_FINAL_CHAPTER) setShowActComplete(true); else setView("overview"); }} style={{width:"100%",padding:"13px",background:"linear-gradient(rgba(201,168,76,0.18),rgba(201,168,76,0.07))",border:`0.5px solid ${C.gold}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.goldB,400,"0.18em")}}>
                   COMPLETE CHAPTER {readingN} ↑
                 </button>
               ) : (
@@ -3279,8 +3832,15 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
 
           // Dev-only: tap a locked chapter to unlock it (complete c.n-1);
           // long-press (550ms) any chapter to toggle its own completion.
+          // Completing Chapter 7 this way mirrors the real button — it also
+          // triggers the Act-complete cinematic, so dev mode can actually
+          // test it without playing through all seven chapters for real.
           const devUnlock = () => { if(!completedChapters.includes(c.n-1)) onCompleteChapter(c.n-1); };
-          const devToggleComplete = () => onToggleChapter(c.n);
+          const devToggleComplete = () => {
+            const wasComplete = completedChapters.includes(c.n);
+            onToggleChapter(c.n);
+            if(c.n===ACT1_FINAL_CHAPTER && !wasComplete) setShowActComplete(true);
+          };
           const onPressStart = () => {
             if(!devMode) return;
             lpFiredRef.current=false;
@@ -3381,13 +3941,17 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
               <FoundationTrial classId={classState.activeClass} trialProgress={classState.trialProgress}
                 onOpenTrial={(t)=>onOpenAnchor(t)} devMode={devMode} onDevSkipTrial={onDevSkipTrial}
                 onBackToChoice={()=>setViewingChoice(true)}/>
+            ) : !classState.trialCelebrated?.[classState.activeClass] &&
+                !(QUEST_CHAINS[classState.activeClass]||[]).some(q=>classState.questProgress?.[q.id]) ? (
+              <TrialCompleteScreen classId={classState.activeClass}
+                onContinue={()=>onAcknowledgeTrial(classState.activeClass)}/>
             ) : (
               <>
                 <button onClick={()=>setViewingChoice(true)} style={{background:"none",border:"none",cursor:"pointer",...body("12px",C.dim),marginBottom:"14px",padding:0}}>← Walk a different path</button>
                 <ClassQuestSection classId={classState.activeClass} questProgress={classState.questProgress}
                   inquireAnswered={classState.inquireAnswered} epilogueRevealed={classState.epilogueRevealed}
                   masteryXP={classState.mastery?.[classState.activeClass]?.xp||0} isActivePath={true}
-                  activities={activities} onOpenQuest={onOpenClassQuest} onOpenLib={onGoToLib}/>
+                  activities={activities} jEnt={jEnt} onOpenQuest={onOpenClassQuest} onOpenLib={onGoToLib}/>
               </>
             )}
           </div>
@@ -3440,11 +4004,88 @@ function TreeIcon({cx,cy,color}){
   );
 }
 
+/* Shared pan/zoom gesture handling — extracted from the local map's existing
+   touch/wheel/mouse logic so World view can reuse the exact same mechanics
+   rather than duplicating them. Returns [zoom, pan, setZoom, setPan, elRef]. */
+function usePanZoom(initialZoom, minZoom=0.3, maxZoom=12, controlled=null){
+  const [internalZoom,setInternalZoom]=useState(initialZoom);
+  const [internalPan,setInternalPan]=useState({x:0,y:0});
+  const zoom = controlled ? controlled.zoom : internalZoom;
+  const pan = controlled ? controlled.pan : internalPan;
+  const setZoom = controlled ? controlled.setZoom : setInternalZoom;
+  const setPan = controlled ? controlled.setPan : setInternalPan;
+  const elRef=useRef(null);
+  useEffect(()=>{
+    const el=elRef.current; if(!el) return;
+    let lastTouch=null, lastPinch=null, isDrag=false, lastMouse=null;
+    const onTouchStart=e=>{
+      if(e.touches.length===1){ lastTouch={x:e.touches[0].clientX,y:e.touches[0].clientY}; lastPinch=null; }
+      else if(e.touches.length===2){ lastPinch=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); lastTouch=null; }
+    };
+    const onTouchMove=e=>{
+      e.preventDefault();
+      if(e.touches.length===1&&lastTouch){
+        const dx=e.touches[0].clientX-lastTouch.x, dy=e.touches[0].clientY-lastTouch.y;
+        setPan(p=>({x:p.x+dx,y:p.y+dy}));
+        lastTouch={x:e.touches[0].clientX,y:e.touches[0].clientY};
+      } else if(e.touches.length===2&&lastPinch!==null){
+        const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+        setZoom(z=>Math.max(minZoom,Math.min(maxZoom,z*(d/lastPinch))));
+        lastPinch=d;
+      }
+    };
+    const onWheel=e=>{ e.preventDefault(); setZoom(z=>Math.max(minZoom,Math.min(maxZoom,z*(e.deltaY<0?1.12:0.88)))); };
+    const onMouseDown=e=>{ isDrag=true; lastMouse={x:e.clientX,y:e.clientY}; };
+    const onMouseMove=e=>{ if(!isDrag||!lastMouse) return; setPan(p=>({x:p.x+e.clientX-lastMouse.x,y:p.y+e.clientY-lastMouse.y})); lastMouse={x:e.clientX,y:e.clientY}; };
+    const onMouseUp=()=>{ isDrag=false; lastMouse=null; };
+    el.addEventListener('touchstart',onTouchStart,{passive:true});
+    el.addEventListener('touchmove',onTouchMove,{passive:false});
+    el.addEventListener('wheel',onWheel,{passive:false});
+    el.addEventListener('mousedown',onMouseDown);
+    el.addEventListener('mousemove',onMouseMove);
+    el.addEventListener('mouseup',onMouseUp);
+    el.addEventListener('mouseleave',onMouseUp);
+    return ()=>{
+      el.removeEventListener('touchstart',onTouchStart);
+      el.removeEventListener('touchmove',onTouchMove);
+      el.removeEventListener('wheel',onWheel);
+      el.removeEventListener('mousedown',onMouseDown);
+      el.removeEventListener('mousemove',onMouseMove);
+      el.removeEventListener('mouseup',onMouseUp);
+      el.removeEventListener('mouseleave',onMouseUp);
+    };
+  },[]);
+  return [zoom,pan,setZoom,setPan,elRef];
+}
+
 function haversineM(lat1,lng1,lat2,lng2){
   const R=6371000, toRad=d=>d*Math.PI/180;
   const dLat=toRad(lat2-lat1), dLng=toRad(lng2-lng1);
   const a=Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
   return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+/* Groups reveal zones into "places" for the world view — anything within
+   ~50km of an existing cluster's center joins it, so a normal local area
+   (where many small zones naturally form near each other) reads as ONE dot
+   on the world map, not a scatter of nearly-overlapping points. Distant trips
+   (hundreds/thousands of km away) naturally form their own separate cluster. */
+function clusterZones(zones, radiusM=50000){
+  const clusters=[];
+  zones.forEach(z=>{
+    let found=null;
+    for(const c of clusters){
+      if(haversineM(c.lat,c.lng,z.lat,z.lng) <= radiusM){ found=c; break; }
+    }
+    if(found){
+      found.zones.push(z);
+      found.lat=found.zones.reduce((s,zz)=>s+zz.lat,0)/found.zones.length;
+      found.lng=found.zones.reduce((s,zz)=>s+zz.lng,0)/found.zones.length;
+    } else {
+      clusters.push({id:`cluster_${clusters.length}`, lat:z.lat, lng:z.lng, zones:[z]});
+    }
+  });
+  return clusters;
 }
 
 function updateRevealZones(zones, lat, lng){
@@ -3486,6 +4127,82 @@ async function fetchZoneGeometry(lat, lng, radiusM=1300){
   }catch(e){ return null; }
 }
 
+/* World view — a simplified, non-literal atlas of every place the player has
+   ever anchored, using the bundled continent silhouette. Each cluster of
+   nearby zones (within ~50km of each other) renders as one marker; tapping a
+   marker jumps into a read-only local view of that place (no live "you are
+   here" pin, since the player isn't actually there); tapping "my location"
+   always returns to a true, live local view. */
+function WorldView({ clusters, userPos, onSelectCluster, onReturnToLocal, onClose, zoom, pan, setZoom, setPan, locating, placesCount }){
+  const W=100, H=50; // matches WORLD_LAND_D's viewBox
+  const project = (lat,lng) => ({ x:(lng+180)/360*W, y:(90-lat)/180*H });
+  const containerRef=useRef(null);
+  const [containerH,setContainerH]=useState(420);
+  useEffect(()=>{
+    if(containerRef.current) setContainerH(containerRef.current.clientHeight || 420);
+  },[]);
+  /* "Fill the height" baseline: the zoom level at which the H=50 viewBox
+     exactly fills the container's pixel height. Used as the starting point
+     ONLY the very first time world view is ever opened (zoom still at its
+     initial default) — after that, the player's own zoom/pan is remembered
+     and this is only what the zoom-out-all button returns to. */
+  const fillZoom = containerH / (H * 8); // 8px-per-viewBox-unit is the SVG's natural base scale at zoom 1
+  const [,,,,panZoomRef] = usePanZoom(zoom, 0.4, 14, {zoom,pan,setZoom,setPan});
+  useEffect(()=>{ if(fillZoom && zoom===1 && pan.x===0 && pan.y===0) setZoom(fillZoom); },[fillZoom]);
+
+  return (
+    <div style={{position:"absolute",inset:0,background:C.bg,display:"flex",flexDirection:"column"}}>
+      <div style={{display:"flex",alignItems:"center",padding:"14px 16px 8px",flexShrink:0}}>
+        <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,padding:"0 12px 0 0",...dsp("10px",C.muted,400,"0.14em")}}>← BACK</button>
+        <div style={{flex:1}}/>
+        <div style={{width:"60px"}}/>
+      </div>
+      <div ref={(el)=>{containerRef.current=el; panZoomRef.current=el;}} style={{flex:1,position:"relative",overflow:"hidden",touchAction:"none",cursor:"grab"}}>
+        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`,transformOrigin:"50% 50%"}}>
+          <svg width={W*8} height={H*8} viewBox={`0 0 ${W} ${H}`} style={{display:"block"}}>
+            <path d={WORLD_LAND_D} fill={C.surf2} stroke={C.bord} strokeWidth="0.12" fillRule="evenodd"/>
+            {userPos && (()=>{ const p=project(userPos.lat,userPos.lng); return (
+              <circle cx={p.x} cy={p.y} r="0.9" fill={C.gold} stroke={C.bg} strokeWidth="0.25"/>
+            ); })()}
+            {clusters.map(c=>{
+              const p=project(c.lat,c.lng);
+              return (
+                <g key={c.id} onClick={()=>onSelectCluster(c)} style={{cursor:"pointer"}}>
+                  <circle cx={p.x} cy={p.y} r="1.6" fill="transparent"/>
+                  <circle cx={p.x} cy={p.y} r="0.7" fill={C.sageB} opacity="0.85"/>
+                  <circle cx={p.x} cy={p.y} r="1.3" fill="none" stroke={C.sageB} strokeWidth="0.15" opacity="0.5"/>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+        {/* Fixed controls — identical markup/position to the local map's own
+            controls, so the two views feel like the same instrument. */}
+        <div style={{position:"absolute",bottom:"14px",right:"14px",display:"flex",flexDirection:"column",gap:"6px",zIndex:4}}>
+          <button onClick={onReturnToLocal} style={{width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+            {locating?<div style={{width:"12px",height:"12px",borderRadius:"50%",border:`1.5px solid ${C.sageB}`,borderTopColor:"transparent",animation:"spin 0.8s linear infinite"}}/>
+            :<svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" fill={C.sageB}/><circle cx="10" cy="10" r="7" stroke={C.sageB} strokeWidth="1" fill="none"/><line x1="10" y1="1" x2="10" y2="4" stroke={C.sageB} strokeWidth="1.2"/><line x1="10" y1="16" x2="10" y2="19" stroke={C.sageB} strokeWidth="1.2"/><line x1="1" y1="10" x2="4" y2="10" stroke={C.sageB} strokeWidth="1.2"/><line x1="16" y1="10" x2="19" y2="10" stroke={C.sageB} strokeWidth="1.2"/></svg>}
+          </button>
+          <button onClick={()=>{ setZoom(fillZoom||1); setPan({x:0,y:0}); }} title="Reset view" style={{width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",...body("11px",C.muted)}}>
+            ⌂
+          </button>
+          <div style={{width:"36px",padding:"4px 0",borderRadius:"8px",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",...body("8px",C.dim),whiteSpace:"nowrap",letterSpacing:"0"}}>
+            {Math.round(zoom*100)}%
+          </div>
+        </div>
+      </div>
+      {/* Bottom bar — identical markup to the local map's own bar */}
+      <div style={{position:"relative",background:`linear-gradient(${C.surf2}ee,${C.bg2}f8)`,borderTop:`0.5px solid ${C.bord}`,padding:"12px 18px 16px",backdropFilter:"blur(6px)",flexShrink:0}}>
+        <div style={{...body("11px",C.dim),fontStyle:"italic",marginBottom:"6px"}}>The world is waiting.</div>
+        <div style={{display:"flex",alignItems:"center",gap:"7px"}}>
+          <div style={{width:"5px",height:"5px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 5px rgba(163,192,137,0.6)`}}/>
+          <span style={{...dsp("9px",C.muted,400,"0.14em")}}>PLACES ANCHORED: {placesCount}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MapTab({ pins, revealZones=[] }){
   const [hoveredPin,setHoveredPin]=useState(null);
   const [locating,setLocating]=useState(false);
@@ -3493,22 +4210,39 @@ function MapTab({ pins, revealZones=[] }){
   const [userPos,setUserPos]=useState(null);
   const [zoom,setZoom]=useState(1);
   const [pan,setPan]=useState({x:0,y:0});
+  const [mode,setMode]=useState("local"); // "local" | "world"
+  const [viewingCluster,setViewingCluster]=useState(null); // a cluster id, when inspecting a distant place from world view
+  const [worldZoom,setWorldZoom]=useState(1);
+  const [worldPan,setWorldPan]=useState({x:0,y:0});
   const containerRef=useRef(null);
 
   const geoPins = pins.filter(p=>p.lat!=null&&p.lng!=null);
   const mapW=350, mapH=530;
   let renderPins, ringMeters=100, ringPx=52, mPerPx=10, projectPoint=()=>({rx:50,ry:50});
 
-  if(userPos){
-    const mPerDegLat=111320, mPerDegLng=111320*Math.cos(userPos.lat*Math.PI/180);
-    const withDist=geoPins.map(p=>({...p,dx:(p.lng-userPos.lng)*mPerDegLng,dy:(p.lat-userPos.lat)*mPerDegLat}));
-    const zoneDists=revealZones.map(z=>Math.hypot((z.lng-userPos.lng)*mPerDegLng,(z.lat-userPos.lat)*mPerDegLat)+z.radius);
+  /* viewCenter is what the local map is actually centered on — usually the
+     real userPos, but when inspecting a distant cluster from world view it's
+     that cluster's own coordinates instead. The live gold "you are here" dot
+     only ever shows for the real userPos, never for a viewed cluster. */
+  const viewCenter = viewingCluster ? {lat:viewingCluster.lat, lng:viewingCluster.lng} : userPos;
+
+  if(viewCenter){
+    const mPerDegLat=111320, mPerDegLng=111320*Math.cos(viewCenter.lat*Math.PI/180);
+    /* Only fit the local view to "your region" — anything genuinely distant
+       (a one-off trip, a future move) shouldn't distort the close-up view at
+       all. That's what World view is for. A real local cluster is virtually
+       never more than ~10km across in practice. */
+    const LOCAL_REGION_M = 10000;
+    const withDist=geoPins.map(p=>({...p,dx:(p.lng-viewCenter.lng)*mPerDegLng,dy:(p.lat-viewCenter.lat)*mPerDegLat}))
+      .filter(p=>Math.hypot(p.dx,p.dy)<=LOCAL_REGION_M);
+    const zoneDists=revealZones.map(z=>Math.hypot((z.lng-viewCenter.lng)*mPerDegLng,(z.lat-viewCenter.lat)*mPerDegLat)+z.radius)
+      .filter(d=>d<=LOCAL_REGION_M);
     const maxDist=Math.max(120,...withDist.map(p=>Math.hypot(p.dx,p.dy)),...zoneDists);
     const halfPx=Math.min(mapW,mapH)/2; mPerPx=maxDist/(halfPx*0.8);
     const niceM=[10,20,50,100,200,500,1000,2000,5000,10000].filter(v=>v<=halfPx/2.6*mPerPx*1.2).pop()||100;
     ringMeters=niceM; ringPx=niceM/mPerPx;
     projectPoint=(lat,lng)=>{
-      const dx=(lng-userPos.lng)*mPerDegLng, dy=(lat-userPos.lat)*mPerDegLat;
+      const dx=(lng-viewCenter.lng)*mPerDegLng, dy=(lat-viewCenter.lat)*mPerDegLat;
       return {rx:50+(dx/mPerPx/mapW)*100, ry:50-(dy/mPerPx/mapH)*100};
     };
     renderPins=pins.map(p=>{
@@ -3555,6 +4289,7 @@ function MapTab({ pins, revealZones=[] }){
   renderPins.forEach((p,i)=>{ const zid=pinZoneId[i]; if(zid!=null) zonePrimaryIdx[zid]=i; }); // last write wins = most recent pin
 
   const handleLocate=()=>{
+    setViewingCluster(null);
     if(!navigator.geolocation){setLocatePulse(true);setTimeout(()=>setLocatePulse(false),1200);return;}
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
@@ -3609,6 +4344,26 @@ function MapTab({ pins, revealZones=[] }){
       el.removeEventListener('mouseleave',onMouseUp);
     };
   },[]);
+
+  /* World mode takes over the whole tab — distinct from local pan/zoom/reveal
+     rendering entirely, since it's showing fundamentally different content
+     (every anchored place, not the detailed geometry around just one). */
+  if(mode==="world"){
+    const clusters = clusterZones(revealZones);
+    return (
+      <div style={{position:"relative",height:`${mapH}px`}}>
+        <WorldView
+          clusters={clusters}
+          userPos={userPos}
+          zoom={worldZoom} pan={worldPan} setZoom={setWorldZoom} setPan={setWorldPan}
+          locating={locating} placesCount={placesCount}
+          onSelectCluster={(c)=>{ setViewingCluster(c); setMode("local"); setZoom(1); setPan({x:0,y:0}); }}
+          onReturnToLocal={()=>{ setViewingCluster(null); setMode("local"); handleLocate(); }}
+          onClose={()=>setMode("local")}
+        />
+      </div>
+    );
+  }
 
   return (
     <div style={{position:"relative",height:"100%"}}>
@@ -3700,6 +4455,9 @@ function MapTab({ pins, revealZones=[] }){
 
         {/* Fixed controls (not part of pannable canvas) */}
         <div style={{position:"absolute",bottom:"80px",right:"14px",display:"flex",flexDirection:"column",gap:"6px",zIndex:4}}>
+          <button onClick={()=>setMode("world")} title="World view" style={{width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+            <svg width="17" height="17" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke={C.sageB} strokeWidth="1"/><ellipse cx="10" cy="10" rx="3.4" ry="8" stroke={C.sageB} strokeWidth="0.8"/><line x1="2" y1="10" x2="18" y2="10" stroke={C.sageB} strokeWidth="0.8"/><path d="M3.3 6 H16.7 M3.3 14 H16.7" stroke={C.sageB} strokeWidth="0.6"/></svg>
+          </button>
           <button onClick={handleLocate} style={{width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
             {locating?<div style={{width:"12px",height:"12px",borderRadius:"50%",border:`1.5px solid ${C.sageB}`,borderTopColor:"transparent",animation:"spin 0.8s linear infinite"}}/>
             :<svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" fill={C.sageB}/><circle cx="10" cy="10" r="7" stroke={C.sageB} strokeWidth="1" fill="none"/><line x1="10" y1="1" x2="10" y2="4" stroke={C.sageB} strokeWidth="1.2"/><line x1="10" y1="16" x2="10" y2="19" stroke={C.sageB} strokeWidth="1.2"/><line x1="1" y1="10" x2="4" y2="10" stroke={C.sageB} strokeWidth="1.2"/><line x1="16" y1="10" x2="19" y2="10" stroke={C.sageB} strokeWidth="1.2"/></svg>}
@@ -3713,6 +4471,11 @@ function MapTab({ pins, revealZones=[] }){
             {Math.round(zoom*100)}%
           </div>
         </div>
+        {viewingCluster && (
+          <div style={{position:"absolute",top:"14px",left:"50%",transform:"translateX(-50%)",zIndex:5,background:"rgba(13,20,15,0.85)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"6px 14px",...body("11px",C.sageB),fontStyle:"italic",backdropFilter:"blur(4px)"}}>
+            Viewing a distant place — not where you are now
+          </div>
+        )}
 
         <div style={{position:"absolute",bottom:0,left:0,right:0,background:`linear-gradient(${C.surf2}ee,${C.bg2}f8)`,borderTop:`0.5px solid ${C.bord}`,padding:"12px 18px 16px",zIndex:3,backdropFilter:"blur(6px)"}}>
           <div style={{...body("11px",C.dim),fontStyle:"italic",marginBottom:"6px"}}>The world is waiting.</div>
@@ -3777,8 +4540,10 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
 
   // Anchor type map for practice entries
   const ANCHOR_TYPE = {
-    // Anchors
-    alignment:"sitting", release:"sitting", breath:"sitting",
+    // Anchors — these three conditions apply to any practice, not just
+    // Sitting specifically, so they open generically ("ANCHOR NOW ↗") rather
+    // than forcing Sitting and labeling the button with it.
+    alignment:null, release:null, breath:null,
     // Practices
     sit_prac:"sitting", stand_prac:"standing", walk_prac:"walking", placed:"walking",
     // Capacities — open with remembered type (null → falls back to anchInitType)
@@ -3878,7 +4643,7 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
       {bySec.map(({s,items})=>{
         const isCollapsed=!!collapsed[s];
         /* Path Skills get sub-grouped by path (Foundation / Warrior / Healer / Sage) */
-        const pathOrder=["Foundation","Warrior","Healer","Sage"];
+        const pathOrder=["Foundation","Warrior","Healer","Sage","Mystic"];
         const subGroups = s==="Path Skills"
           ? pathOrder.map(pn=>({pn,its:items.filter(e=>e.pathName===pn)})).filter(g=>g.its.length>0)
           : null;
@@ -3962,13 +4727,15 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
   );
 }
 
-function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, tendUnlocked=false, inquireUnlocked=false }){
+function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, tendUnlocked=false, inquireUnlocked=false, releaseUnlocked=false }){
   const [mood,setMood]=useState(null),[bdy,setBdy]=useState(null),[entry,setEntry]=useState(""),[saved,setSaved]=useState(false);
-  /* mode: "normal" | "inquire" | "tend"; inquire auto-selected if pre-filled */
+  /* mode: "normal" | "inquire" | "tend". Release (Forgiveness/Gratitude) is an
+     optional tag within normal Entry, not its own mode. */
   const [mode,setMode]=useState(pendingInquiry?"inquire":"normal");
   const [question,setQuestion]=useState(pendingInquiry||"");
   const [tendKind,setTendKind]=useState(null); // "Deep Listening" | "Service"
   const [tendMins,setTendMins]=useState("");
+  const [releaseKind,setReleaseKind]=useState(null); // null | "Forgiveness" | "Gratitude"
   useEffect(()=>{ if(pendingInquiry){ setMode("inquire"); setQuestion(pendingInquiry); } },[pendingInquiry]);
 
   const canSave = entry.trim() && (mode!=="inquire" || question.trim());
@@ -3978,14 +4745,15 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, ten
     const e={text:entry.trim(),mood,body:bdy,date};
     if(mode==="inquire"){ e.tag="inquire"; e.question=question.trim(); }
     else if(mode==="tend"){ e.tag="tend"; e.tendKind=tendKind||"Deep Listening"; const m=parseFloat(tendMins); if(!isNaN(m)&&m>0) e.tendMinutes=m; }
+    else if(mode==="normal" && releaseKind){ e.tag="release"; e.releaseKind=releaseKind; }
     onSave(e);
     setSaved(true);
-    setTimeout(()=>{setEntry("");setMood(null);setBdy(null);setSaved(false);setTendMins("");},1100);
+    setTimeout(()=>{setEntry("");setMood(null);setBdy(null);setSaved(false);setTendMins("");setReleaseKind(null);},1100);
   };
 
   const modeTabs=[["normal","Entry"]];
   if(inquireUnlocked) modeTabs.push(["inquire","Inquire"]);
-  if(tendUnlocked) modeTabs.push(["tend","Tend"]);
+  if(tendUnlocked) modeTabs.push(["tend","Restore"]);
 
   return (
     <Overlay title="Journal" onBack={onBack}>
@@ -4016,13 +4784,19 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, ten
       )}
 
       {mode==="normal" && <>
+        {releaseUnlocked && (
+          <div style={{marginBottom:"16px"}}>
+            <div style={{...body("12px",C.muted),marginBottom:"7px"}}>Tag this entry (optional)</div>
+            <Chips opts={["Forgiveness","Gratitude"]} sel={releaseKind} onSel={k=>setReleaseKind(p=>p===k?null:k)}/>
+          </div>
+        )}
         <SL title="How are you right now?"/>
         <div style={{marginBottom:"14px"}}><div style={{...body("12px",C.muted),marginBottom:"7px"}}>Mood</div><Chips opts={MOODS} sel={mood} onSel={setMood}/></div>
         <div style={{marginBottom:"22px"}}><div style={{...body("12px",C.muted),marginBottom:"7px"}}>Body</div><Chips opts={BODY} sel={bdy} onSel={setBdy}/></div>
       </>}
 
-      <SL title={mode==="inquire"?"Sit with it. Then answer.":mode==="tend"?"Reflect":"Entry"}/>
-      <textarea value={entry} onChange={e=>{setEntry(e.target.value);setSaved(false);onEntryChange&&onEntryChange(e.target.value);}} placeholder={mode==="inquire"?"Let the question work on you before you work on it…":mode==="tend"?"What happened? What did you notice?":"What do you notice right now?"} rows={7} style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("15px"),padding:"12px",resize:"none",boxSizing:"border-box",outline:"none",lineHeight:"1.7",caretColor:C.sageB}}/>
+      <SL title={mode==="inquire"?"Sit with it. Then answer.":mode==="tend"?"Reflect":releaseKind==="Gratitude"?"What's still good?":releaseKind==="Forgiveness"?"What are you setting down?":"Entry"}/>
+      <textarea value={entry} onChange={e=>{setEntry(e.target.value);setSaved(false);onEntryChange&&onEntryChange(e.target.value);}} placeholder={mode==="inquire"?"Let the question work on you before you work on it…":mode==="tend"?"What happened? What did you notice?":releaseKind==="Gratitude"?"What's still true, still good, never taken?":releaseKind==="Forgiveness"?"Name it. You don't have to excuse it, just set it down.":"What do you notice right now?"} rows={7} style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("15px"),padding:"12px",resize:"none",boxSizing:"border-box",outline:"none",lineHeight:"1.7",caretColor:C.sageB}}/>
       <button onClick={save} style={{marginTop:"10px",padding:"10px 20px",background:canSave&&!saved?"rgba(163,192,137,0.12)":"transparent",border:`0.5px solid ${canSave&&!saved?C.sageB:C.bord}`,color:canSave&&!saved?C.sageB:C.muted,...dsp("9px",undefined,400,"0.14em"),cursor:"pointer",borderRadius:"6px"}}>{saved?"✓ SAVED":"SAVE ENTRY"}</button>
     </Overlay>
   );
@@ -4201,7 +4975,8 @@ function Toggle({ on, onToggle }){
 function SettingsScreen({ onBack, name, setName, anchorImmediate, setAnchorImmediate, theme, setTheme,
     devMode, enableDevMode, disableDevMode, exportData, applyImport, resetData,
     fontScale, setFontScale, guidedSession, setGuidedSession,
-    cloudUser, cloudSyncing, cloudMsg, onSaveCloud, onLoadCloud, onSignOut, onVerified }){
+    cloudUser, cloudSyncing, cloudMsg, onSaveCloud, onLoadCloud, onSignOut, onVerified,
+    autoCloudSync, setAutoCloudSync }){
   const [resetConfirm,setResetConfirm]=useState(false);
   const [importDone,setImportDone]=useState(false);
   const [cloudEmail,setCloudEmail]=useState("");
@@ -4311,6 +5086,13 @@ function SettingsScreen({ onBack, name, setName, anchorImmediate, setAnchorImmed
               {cloudMsg&&(
                 <div style={{...body("11px",cloudMsg.type==="ok"?C.sageB:"rgba(220,120,120,0.9)"),marginBottom:"8px",fontStyle:"italic"}}>{cloudMsg.text}</div>
               )}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`0.5px solid ${C.bord}`,marginBottom:"10px"}}>
+                <div style={{flex:1,paddingRight:"12px"}}>
+                  <div style={{...body("14px",C.cream)}}>Auto-sync to cloud</div>
+                  <div style={{...body("11px",C.dim),fontStyle:"italic"}}>Saves automatically as you practice — survives reinstalling the app</div>
+                </div>
+                <Toggle on={autoCloudSync} onToggle={()=>setAutoCloudSync(v=>!v)}/>
+              </div>
               <div style={{display:"flex",gap:"8px",marginBottom:"8px"}}>
                 <button onClick={onSaveCloud} disabled={cloudSyncing} style={{flex:1,padding:"9px",background:"rgba(163,192,137,0.08)",border:`0.5px solid ${C.sageB}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.sageB,400,"0.12em")}}>
                   {cloudSyncing?"…":"↑ SAVE TO CLOUD"}
@@ -4512,6 +5294,25 @@ async function sbLoadData(token,userId){
   }catch{return null;}
 }
 
+/* Guarded cloud save: peeks at what's already in the cloud before overwriting
+   it. Refuses to push if the cloud's total XP is HIGHER than the local save's
+   — this is what stops an empty/wiped/lower-progress local state (a fresh
+   reinstall mid-restore, a dev-mode wipe, a second device with less progress)
+   from silently clobbering further-along progress that already exists in the
+   cloud. Total XP is used rather than the displayed Presence Level since it's
+   strictly more precise — any real difference in level implies a difference
+   in XP in the same direction, but XP also distinguishes two saves that
+   happen to sit at the same level with different real progress underneath. */
+async function sbSaveDataGuarded(token,userId,localBlob){
+  try{
+    const cloudData = await sbLoadData(token,userId);
+    const localXP = localBlob?.ch?.totalXP ?? 0;
+    const cloudXP = cloudData?.ch?.totalXP ?? -1; // -1 so a first-ever save always proceeds
+    if(cloudXP > localXP) return false; // cloud is further along — refuse, don't clobber it
+    return await sbSaveData(token,userId,localBlob);
+  }catch{ return false; }
+}
+
 export default function AscendApp(){
   /* hydrate once on mount */
   const P = useMemo(loadPersisted, []);
@@ -4526,7 +5327,7 @@ export default function AscendApp(){
     if(scr==="journal" && journalDraft.trim()){
       setSavePending(()=>action);
     } else {
-      setJournalDraft(""); setScr(null); action();
+      setJournalDraft(""); setScr(null); setOpenClassQuest(null); setOpenChantQuest(false); setJustCompletedQuest(null); action();
     }
   };
   const [anch,setAnch]=useState(false);
@@ -4539,7 +5340,7 @@ export default function AscendApp(){
   const [capacities,setCapacities]=useState(false);
   const [chaptersRead,setChaptersRead]=useState(P.chaptersRead??[]);
   const [libReadAt,setLibReadAt]=useState(P.libReadAt??{});
-  const [activities,setActivities]=useState(P.activities??[]);
+  const [activities,setActivities]=useState(()=>migrateActivityMetadata(P.activities??[]));
   const addActivity=(name,stat,practiceType)=>setActivities(p=>[...p,{id:`act_${Date.now()}_${Math.random().toString(36).substr(2,4)}`,name,stat,practiceType}]);
   const deleteActivity=id=>setActivities(p=>p.filter(a=>a.id!==id));
   // onboarding: "brand" | "intro" | "done"
@@ -4563,13 +5364,28 @@ export default function AscendApp(){
   const [zonesMigrated,setZonesMigrated]=useState(P.zonesMigrated ?? false);
   const [libCollapsed,setLibCollapsed]=useState(P.libCollapsed ?? {});
   const [completedChapters,setCompletedChapters]=useState(P.completedChapters ?? []);
-  const [classState,setClassState]=useState(P.classState ?? freshClassState());
+  const [classState,setClassState]=useState(()=>migrateClassState(P.classState ?? freshClassState()));
   const [chantUnlocked,setChantUnlocked]=useState(P.chantUnlocked ?? false);
   const [openChantQuest,setOpenChantQuest]=useState(false);
   const [questCollapsed,setQuestCollapsed]=useState(P.questCollapsed ?? false);
   const [classCollapsed,setClassCollapsed]=useState(P.classCollapsed ?? false);
   /* Which class quest is open in the reader, if any: {classId, questId} */
   const [openClassQuest,setOpenClassQuest]=useState(null);
+  const [showActComplete,setShowActComplete]=useState(false);
+  /* Set the moment ANY quest completes (session-save, Tend, Reflect, or
+     journalEntry path) — a brief, calm confirmation, not a celebration banner.
+     Cleared once the player dismisses it. */
+  const [justCompletedQuest,setJustCompletedQuest]=useState(null); // {title, accent, kind, isCapstone} | null
+
+  /* Generic completion notification — designed so ANY quest source can call
+     this with the same shape: Act I chapters today, and later Chant, the
+     class chains, or future user-created quests, without rebuilding the
+     mechanism each time. `kind` is just a label for the header text
+     ("CHAPTER COMPLETE" vs "QUEST COMPLETE" etc.) — add new kinds freely. */
+  const notifyQuestComplete = ({title, accent=C.gold, kind="QUEST COMPLETE", isCapstone=false}) => {
+    setJustCompletedQuest({title, accent, kind, isCapstone});
+  };
+
   /* Pending inquiry question to pre-fill the journal with, if any. */
   const [pendingInquiry,setPendingInquiry]=useState(null);
   const [hasAnchored,setHasAnchored]=useState(P.hasAnchored ?? false);
@@ -4577,6 +5393,7 @@ export default function AscendApp(){
   const [theme,setTheme]=useState(P.theme ?? "navy");
   const [fontScale,setFontScale]=useState(P.fontScale ?? 1.0);
   const [guidedSession,setGuidedSession]=useState(P.guidedSession ?? true);
+  const [autoCloudSync,setAutoCloudSync]=useState(P.autoCloudSync ?? true);
   const [splashImgLoaded,setSplashImgLoaded]=useState(false);
   const [anchorImmediate,setAnchorImmediate]=useState(true);
   applyTheme(theme);
@@ -4700,6 +5517,25 @@ export default function AscendApp(){
   const handleVerified = (token, user) => {
     setCloudToken(token);
     setCloudUser(user);
+    /* Auto-restore from the cloud right after signing in — but ONLY if the
+       cloud's total XP is actually HIGHER than this device's local total XP.
+       This is the general form of "don't let a fresh reinstall or a second
+       device with less progress silently overwrite further-along progress" —
+       it correctly covers the reinstall case (local XP is 0), a second device
+       with some-but-less progress (still restores, correctly), AND refuses to
+       touch local data when local is already ahead or equal (no clobbering). */
+    (async ()=>{
+      setCloudSyncing(true);
+      const data = await sbLoadData(token, user.id);
+      setCloudSyncing(false);
+      if(!data) return; // nothing in the cloud yet — nothing to restore
+      const cloudXP = data?.ch?.totalXP ?? 0;
+      const localXP = ch?.totalXP ?? 0;
+      if(cloudXP > localXP){
+        applyImport(data);
+        showCloudMsg("ok","Restored from cloud ✓");
+      }
+    })();
   };
 
   const handleSignOut = () => {
@@ -4741,7 +5577,9 @@ export default function AscendApp(){
         setZonesMigrated(true);
       }
       if(data.libCollapsed) setLibCollapsed(data.libCollapsed);
-      if(data.activities) setActivities(data.activities);
+      if(data.activities) setActivities(migrateActivityMetadata(data.activities));
+      if(data.classState) setClassState(migrateClassState(data.classState));
+      if(data.chantUnlocked!==undefined) setChantUnlocked(data.chantUnlocked);
       if(data.chaptersRead) setChaptersRead(data.chaptersRead);
       if(data.libReadAt) setLibReadAt(data.libReadAt);
       if(data.completedChapters) setCompletedChapters(data.completedChapters);
@@ -4773,7 +5611,7 @@ export default function AscendApp(){
      sees the latest without re-binding listeners. */
   const blob = {
     v:1, tab, fontScale, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, revealZones, zonesMigrated, libCollapsed,
-    completedChapters, hasAnchored, theme, guidedSession, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, onboardingDone: onboarding==="done",
+    completedChapters, hasAnchored, theme, guidedSession, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, autoCloudSync, onboardingDone: onboarding==="done",
   };
   const blobRef = useRef(blob);
   blobRef.current = blob;
@@ -4784,7 +5622,7 @@ export default function AscendApp(){
     const json = JSON.stringify(blobRef.current);
     const t = setTimeout(()=>writeStorage(json), 250);
     return ()=>clearTimeout(t);
-  },[hydrated, devMode, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, revealZones, zonesMigrated, libCollapsed]);
+  },[hydrated, devMode, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, autoCloudSync, revealZones, zonesMigrated, libCollapsed]);
 
   /* ── FLUSH: write immediately when the page is hidden or unloaded ── */
   useEffect(()=>{
@@ -4798,6 +5636,46 @@ export default function AscendApp(){
       window.removeEventListener("beforeunload", flush);
     };
   },[devMode, hydrated]);
+
+  /* ── AUTO CLOUD SYNC ──────────────────────────────────────────────────────
+     Mirrors the local autosave above, but only when signed in, and far less
+     frequently — a real network call, not a free local write. Debounced 8s
+     after the last change (so a burst of activity coalesces into one push),
+     and also flushed on pagehide/visibilitychange so closing the app right
+     after a session doesn't lose that last save to the cloud. This exists
+     specifically so deleting and reinstalling the iOS PWA (which wipes
+     localStorage entirely) doesn't lose anything — the cloud becomes the
+     real source of truth, local storage just the fast/offline cache. */
+  const cloudSyncTimerRef = useRef(null);
+  const lastCloudPushRef = useRef(0);
+  useEffect(()=>{
+    if(devMode || !hydrated || !cloudUser || !cloudToken || !autoCloudSync) return;
+    clearTimeout(cloudSyncTimerRef.current);
+    cloudSyncTimerRef.current = setTimeout(async ()=>{
+      try{
+        await sbSaveDataGuarded(cloudToken, cloudUser.id, blobRef.current);
+        lastCloudPushRef.current = Date.now();
+      }catch(e){ /* silent — local save already protects the data either way */ }
+    }, 8000);
+    return ()=>clearTimeout(cloudSyncTimerRef.current);
+  },[devMode, hydrated, cloudUser, cloudToken, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, autoCloudSync, revealZones, zonesMigrated, libCollapsed]);
+
+  useEffect(()=>{
+    if(!cloudUser || !cloudToken) return;
+    const flushCloud = ()=>{
+      if(devMode || !hydrated || !autoCloudSync) return;
+      // best-effort — fire and forget on the way out, same spirit as the local
+      // flush, but still guarded: if this races page teardown and never
+      // completes, the worst case is a missed save (safe), not an overwrite.
+      sbSaveDataGuarded(cloudToken, cloudUser.id, blobRef.current).catch(()=>{});
+    };
+    window.addEventListener("pagehide", flushCloud);
+    window.addEventListener("visibilitychange", flushCloud);
+    return ()=>{
+      window.removeEventListener("pagehide", flushCloud);
+      window.removeEventListener("visibilitychange", flushCloud);
+    };
+  },[cloudUser, cloudToken, devMode, hydrated, autoCloudSync]);
 
   /* ── BOOTSTRAP: recover from window.storage when localStorage is empty
      OR unavailable (sandboxed iframes often block localStorage entirely) ── */
@@ -4817,7 +5695,9 @@ export default function AscendApp(){
         if(P2.revealZones) setRevealZones(P2.revealZones);
         if(P2.zonesMigrated!==undefined) setZonesMigrated(P2.zonesMigrated);
         if(P2.libCollapsed) setLibCollapsed(P2.libCollapsed);
-        if(P2.activities) setActivities(P2.activities);
+        if(P2.activities) setActivities(migrateActivityMetadata(P2.activities));
+        if(P2.classState) setClassState(migrateClassState(P2.classState));
+        if(P2.chantUnlocked!==undefined) setChantUnlocked(P2.chantUnlocked);
         if(P2.chaptersRead) setChaptersRead(P2.chaptersRead);
         if(P2.libReadAt) setLibReadAt(P2.libReadAt);
         if(P2.completedChapters) setCompletedChapters(P2.completedChapters);
@@ -4848,25 +5728,31 @@ export default function AscendApp(){
   const classGateOpen = devMode || classGateMet(presenceLevel, completedChapters);
   const chantGateOpen = devMode || completedChapters.includes(CHANT_UNLOCK_CHAPTER);
 
-  const completeChant = () => {
-    setChantUnlocked(true);
-    setActivities(p=> p.some(a=>a.name==="Chant") ? p : [...p,{
-      id:"chant_voi", name:"Chant", stat:"voi", classSkill:true, practiceType:"any",
-    }]);
-  };
-
   /* Apply a quest's unlocks (activities, journal features, practice types)
      immediately — this is called the moment a quest becomes ACTIVE, not when
-     it's completed, so the player can practice the skill the quest asks about. */
+     it's completed, so the player can practice the skill the quest asks about.
+     If the activity already exists (created before a later tuning pass), its
+     metadata is re-synced to the current quest data rather than left stale —
+     `count` (real, earned progress) is the one thing this never touches. */
   const applyQuestUnlocks = (quest) => {
     if(!quest?.unlocks) return;
     quest.unlocks.forEach(u=>{
       if(u.kind==="activity"){
-        setActivities(p=> p.some(a=>a.name===u.name) ? p : [...p,{
-          id:`cls_${u.name.replace(/\s+/g,'_').toLowerCase()}`,
-          name:u.name, stat:u.stat, classSkill:true, practiceType:u.practiceType,
-          count:0, target: u.target ?? null, unit: u.unit ?? null, singleSession: !!u.singleSession,
-        }]);
+        const target = u.target ?? null, unit = u.unit ?? null, singleSession = !!u.singleSession;
+        setActivities(p=>{
+          const existing = p.find(a=>a.name===u.name);
+          if(!existing){
+            return [...p, {
+              id:`cls_${u.name.replace(/\s+/g,'_').toLowerCase()}`,
+              name:u.name, stat:u.stat, classSkill:true, practiceType:u.practiceType,
+              count:0, target, unit, singleSession,
+            }];
+          }
+          const inSync = existing.target===target && existing.unit===unit && existing.stat===u.stat &&
+                         existing.practiceType===u.practiceType && existing.singleSession===singleSession;
+          if(inSync) return p;
+          return p.map(a=>a.name===u.name ? {...a, stat:u.stat, practiceType:u.practiceType, target, unit, singleSession} : a);
+        });
       }
       /* kind:"journal" (tend/inquire) and kind:"practiceType" are read directly
          off questProgress/trialComplete elsewhere — no extra state needed here. */
@@ -4896,6 +5782,13 @@ export default function AscendApp(){
     trialProgress:{...cs.trialProgress, [classId]: cs.trialProgress[classId]||{}},
   }));
 
+  /* Marks the Trial Complete welcome screen as seen for a class, so it shows
+     exactly once — the next time the player visits that path, they go
+     straight to the quest chain rather than seeing the welcome again. */
+  const acknowledgeTrialComplete = (classId) => setClassState(cs=>({
+    ...cs, trialCelebrated:{...cs.trialCelebrated, [classId]:true},
+  }));
+
   /* Trial step recorded when a qualifying session finishes (see handleDone).
      The moment all three trial steps are done, the chain's first quest
      becomes active — apply its unlocks right then. */
@@ -4923,10 +5816,11 @@ export default function AscendApp(){
   const completeClassQuest = (questId) => {
     const quest = findQuest(questId);
     setClassState(cs=>({ ...cs, questProgress:{...cs.questProgress, [questId]:true} }));
-    /* the moment this quest completes, the NEXT quest in its chain becomes
-       active — apply its unlocks now, immediately, not on its own completion */
     if(quest){
       const chainId = Object.keys(QUEST_CHAINS).find(cid=>QUEST_CHAINS[cid].includes(quest));
+      notifyQuestComplete({title:quest.title, accent:CLASS_BY_ID[chainId]?.accent||C.sageB, kind:quest.isCapstone?"CHAIN COMPLETE":"QUEST COMPLETE"});
+      /* the moment this quest completes, the NEXT quest in its chain becomes
+         active — apply its unlocks now, immediately, not on its own completion */
       const chain = QUEST_CHAINS[chainId]||[];
       const numbered = chain.filter(q=>!q.isTrial && !q.isEpilogue);
       const idx = numbered.findIndex(q=>q.id===questId);
@@ -4995,6 +5889,17 @@ export default function AscendApp(){
     });
   },[classState]);
 
+  /* Chant activates the moment its quest becomes available (Chapter 5) — the
+     activity exists immediately so it can be practiced toward the 3-minute
+     target; completion itself is checked in handleDone once that's met. */
+  useEffect(()=>{
+    if(!chantGateOpen || chantUnlocked) return;
+    setActivities(prev=> prev.some(a=>a.id==="chant_voi") ? prev : [...prev, {
+      id:"chant_voi", name:"Chant", stat:"voi", classSkill:true, practiceType:"core",
+      count:0, target:CHANT_QUEST.target, unit:CHANT_QUEST.unit,
+    }]);
+  },[chantGateOpen, chantUnlocked]);
+
   const awardJournalXP = () => setCh(p=>{
     const st={...p.stats};
     ["hrt","voi","wis"].forEach(k=>{ st[k]=(st[k]||0)+3; });
@@ -5021,6 +5926,55 @@ export default function AscendApp(){
     }
   };
 
+  /* Cumulative minutes logged in Tend under a given kind (Deep Listening,
+     Service), summed fresh from journal entries each time — no separate
+     running counter needed since jEnt is already the source of truth. */
+  const tendMinutesTotal = (entries, tendKind) =>
+    (entries||[]).filter(e=>e.tag==="tend" && e.tendKind===tendKind)
+      .reduce((sum,e)=>sum+(e.tendMinutes||0), 0);
+
+  /* After a Tend entry is saved, check every quest with a kind:"tend" unlock
+     to see if its cumulative target is now met, and complete it if so — the
+     same auto-complete spirit as session-activity targets, just sourced from
+     journal entries instead of session activities. */
+  const checkTendQuestCompletion = (updatedEntries) => {
+    Object.keys(QUEST_CHAINS).forEach(cid=>{
+      QUEST_CHAINS[cid].forEach(q=>{
+        if(classState.questProgress?.[q.id]) return;
+        const tendUnlock = (q.unlocks||[]).find(u=>u.kind==="tend" && u.target);
+        if(!tendUnlock) return;
+        const total = tendMinutesTotal(updatedEntries, tendUnlock.tendKind);
+        if(total >= tendUnlock.target) completeClassQuest(q.id);
+      });
+    });
+  };
+
+  /* For quests that need at least one journal entry of each required kind
+     (e.g. Forgiveness & Gratitude: one Release entry tagged "Forgiveness" AND
+     one tagged "Gratitude") — checked alongside any duration target the same
+     quest also carries, so writing the SECOND missing entry only completes it
+     if the practice-minutes requirement is already satisfied too, and vice
+     versa (the session-save path below re-checks this same combination). */
+  const checkJournalEntryQuestCompletion = (updatedEntries) => {
+    Object.keys(QUEST_CHAINS).forEach(cid=>{
+      QUEST_CHAINS[cid].forEach(q=>{
+        if(classState.questProgress?.[q.id]) return;
+        const entryUnlocks = (q.unlocks||[]).filter(u=>u.kind==="journalEntry");
+        if(entryUnlocks.length===0) return;
+        const entriesOk = entryUnlocks.every(u=>
+          updatedEntries.some(e=>e.tag==="release" && e.releaseKind===u.entryKind)
+        );
+        if(!entriesOk) return;
+        const targetUnlocks = (q.unlocks||[]).filter(u=>u.kind==="activity" && u.target);
+        const activitiesOk = targetUnlocks.every(u=>{
+          const act = activities.find(a=>a.name===u.name);
+          return act && (act.count||0) >= u.target;
+        });
+        if(activitiesOk) completeClassQuest(q.id);
+      });
+    });
+  };
+
   const handleDone=({type,typeId,duration,elapsed:elapsedSecs,weightedElapsed,activeActivities=[],tags,reflection,pinSession,pinTag,quickAnchor,awarenessLanding,loggedCounts={}})=>{
     const wasFirstSession = !hasAnchored;
     const isA=quickAnchor||!type;
@@ -5036,52 +5990,26 @@ export default function AscendApp(){
     const bonusXP = countBonusXP(loggedCounts||{}, activitiesById);
     const baseSecs = isA ? 0 : (weightedElapsed!=null ? weightedElapsed : (elapsedSecs??0));
     const xpE = isA ? 0 : Math.floor(baseSecs/10) + Math.round(bonusXP);
-    const {sg}=isA?{sg:{}}:rewards(typeId||"sitting",xpE,activeActivities);
-    const AWARENESS_STAT={root:"str",belly:"vit",solar_plexus:"wil",chest:"hrt",throat:"voi",head:"wis",top:"ali"};
+    const {sg:sgRaw}=isA?{sg:{}}:rewards(typeId||"sitting",xpE,activeActivities);
     // backward compat: old sessions stored a string, new ones store an array
     const lands = Array.isArray(awarenessLanding) ? awarenessLanding : (awarenessLanding ? [awarenessLanding] : []);
-    if(lands.length>0){
-      const selStats=[...new Set(lands.map(r=>AWARENESS_STAT[r]).filter(Boolean))];
-      if(selStats.length>0){
-        const siphon=Object.keys(sg).filter(k=>!selStats.includes(k)).reduce((sum,k)=>{
-          const amt=Math.round(sg[k]*0.30); sg[k]-=amt; return sum+amt;
-        },0);
-        const perStat=Math.round(siphon/selStats.length);
-        selStats.forEach(sk=>{ sg[sk]=(sg[sk]||0)+perStat; });
-      }
-    }
+    const sg = applyAwarenessSiphon(sgRaw, lands);
     const s={type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),activities:activeActivities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg,awarenessLanding:lands,loggedCounts:loggedCounts||{}};
     setSessions(p=>[s,...p]);
     setHasAnchored(true);
-    /* Route this session's XP to mastery for whichever path(s) it qualifies
-       for — only paths that have already reached Mastery 1 actually accrue
-       anything; awardMasteryXP is a no-op for any path still mid-chain. */
-    if(!isA && xpE>0){
-      const qualifying = masteryPathsForSession(s);
-      if(qualifying.length>0) setClassState(cs=>awardMasteryXP(cs, qualifying, xpE));
-    }
-    /* Reflect quest: complete once a single sitting session reaches the
-       required minutes AND a reflection note was actually written for it —
-       checked against this session directly, not the activity-count system. */
-    Object.keys(QUEST_CHAINS).forEach(cid=>{
-      QUEST_CHAINS[cid].forEach(q=>{
-        if(classState.questProgress?.[q.id]) return;
-        const reflectUnlock = (q.unlocks||[]).find(u=>u.kind==="reflect" && u.minDuration);
-        if(!reflectUnlock) return;
-        const longEnough = s.typeId==="sitting" && s.elapsed >= reflectUnlock.minDuration*60;
-        const noteWritten = !!(s.reflection && s.reflection.trim());
-        if(longEnough && noteWritten) completeClassQuest(q.id);
-      });
-    });
-    /* Accumulate any logged reps/distance onto the activity's running count,
-       and auto-complete the owning quest once every target activity is met. */
+
+    /* Accumulate any logged reps/minutes onto each activity's running count,
+       and auto-complete the owning quest once every target is met. This runs
+       FIRST and unconditionally — it's the most important effect of saving a
+       session (your actual practice, counted), so nothing that runs after it
+       in this function should ever be able to prevent it from happening. */
+    let updatedActivities = activities;
     if(Object.keys(loggedCounts).length>0){
-      const updatedActivities = activities.map(a=>
+      updatedActivities = activities.map(a=>
         loggedCounts[a.id]!=null ? {...a, count:(a.count||0)+loggedCounts[a.id]} : a
       );
       setActivities(updatedActivities);
-      /* find any active, not-yet-complete quest whose target activities are
-         now met, and mark it complete. Two modes:
+      /* Two modes:
          - singleSession: THIS session alone must reach the target (e.g. one
            20-minute sit with Observe Attention selected) — checked against
            loggedCounts directly, not the lifetime running count.
@@ -5101,10 +6029,56 @@ export default function AscendApp(){
             }
             return (act.count||0) >= u.target;
           });
-          if(allMet) completeClassQuest(q.id);
+          if(!allMet) return;
+          /* If this quest ALSO requires specific journal entries (e.g.
+             Forgiveness & Gratitude needs one Release entry of each kind),
+             those must already exist too — finishing the practice minutes
+             alone isn't enough if the writing half hasn't happened yet. */
+          const entryUnlocks = (q.unlocks||[]).filter(u=>u.kind==="journalEntry");
+          const entriesOk = entryUnlocks.every(u=>
+            jEnt.some(e=>e.tag==="release" && e.releaseKind===u.entryKind)
+          );
+          if(entriesOk) completeClassQuest(q.id);
         });
       });
+      /* Chant is standalone (not part of any class's QUEST_CHAINS), so it gets
+         its own small completion check here, same accumulated-target pattern. */
+      if(!chantUnlocked){
+        const chantAct = updatedActivities.find(a=>a.id==="chant_voi");
+        if(chantAct && (chantAct.count||0) >= CHANT_QUEST.target){ setChantUnlocked(true); notifyQuestComplete({title:CHANT_QUEST.title, accent:C.sageB, kind:"QUEST COMPLETE"}); }
+      }
     }
+
+    /* Everything below is defensively isolated: each block is wrapped so that
+       if any one of them ever throws, it can't take the others down with it
+       (and, critically, can never retroactively undo the accumulation above —
+       that already happened and already called setActivities). */
+    try {
+      /* Route this session's XP to mastery for whichever path(s) it qualifies
+         for — only paths that have already reached Mastery 1 actually accrue
+         anything; awardMasteryXP is a no-op for any path still mid-chain. */
+      if(!isA && xpE>0){
+        const qualifying = masteryPathsForSession(s);
+        if(qualifying.length>0) setClassState(cs=>awardMasteryXP(cs, qualifying, xpE));
+      }
+    } catch(e) { /* mastery routing failure should never block anything else */ }
+
+    try {
+      /* Reflect quest: complete once a single sitting session reaches the
+         required minutes AND a reflection note was actually written for it —
+         checked against this session directly, not the activity-count system. */
+      Object.keys(QUEST_CHAINS).forEach(cid=>{
+        QUEST_CHAINS[cid].forEach(q=>{
+          if(classState.questProgress?.[q.id]) return;
+          const reflectUnlock = (q.unlocks||[]).find(u=>u.kind==="reflect" && u.minDuration);
+          if(!reflectUnlock) return;
+          const longEnough = s.typeId==="sitting" && s.elapsed >= reflectUnlock.minDuration*60;
+          const noteWritten = !!(s.reflection && s.reflection.trim());
+          if(longEnough && noteWritten) completeClassQuest(q.id);
+        });
+      });
+    } catch(e) { /* reflect-quest check failure should never block anything else */ }
+
     /* Foundation Trial: a qualifying ≥3-min sit/stand/walk advances the active
        class's trial while it's still in progress. */
     if(!isA && classState.activeClass && (elapsedSecs||0)>=180 &&
@@ -5149,6 +6123,13 @@ export default function AscendApp(){
   };
 
   // Fade in first scene when intro loads
+  /* Whenever a quest completes — from a session save, a Tend/Release journal
+     entry, or a Reflect note — bring the player to the Quest tab so the calm
+     confirmation (rendered below) has the right context behind it. */
+  useEffect(()=>{
+    if(justCompletedQuest) setTab("quest");
+  },[justCompletedQuest]);
+
   useEffect(()=>{
     if(onboarding==="intro"){ const t=setTimeout(()=>setObFade(true),80); return ()=>clearTimeout(t); }
   },[onboarding]);
@@ -5378,12 +6359,14 @@ export default function AscendApp(){
         ::-webkit-scrollbar { width: 0 !important; height: 0 !important; background: transparent !important; }
         * { scrollbar-width: none !important; -ms-overflow-style: none !important; touch-action: pan-y; }
         input, textarea, select { touch-action: auto; }
+        @keyframes fadeRise { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeOut { from { opacity:1; } to { opacity:0; } }
       `}</style>
       <div style={phoneStyle}>
         {/* floating DEV indicator */}
 
         {/* header */}
-        <div style={{padding:"14px 20px 10px",borderBottom:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+        <div style={{padding:"14px 20px 10px",borderBottom:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0,opacity:showActComplete?0:1,transition:"opacity .8s ease",pointerEvents:showActComplete?"none":"auto"}}>
           <div style={{display:"flex",alignItems:"center",gap:"11px"}}>
             <button onClick={()=>setScr("settings")} aria-label="Settings" style={{background:"none",border:"none",cursor:"pointer",padding:0,lineHeight:0}}>
               <Emblem size={38}/>
@@ -5405,13 +6388,13 @@ export default function AscendApp(){
         <div style={{flex:1,overflowY:"auto",paddingBottom:"118px"}}>
           <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities}/></div>
           <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>setCompletedChapters(p=>p.includes(n)?p:[...p,n])} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
-            classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} questCollapsed={questCollapsed} setQuestCollapsed={setQuestCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities}/></div>
+            classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} questCollapsed={questCollapsed} setQuestCollapsed={setQuestCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete}/></div>
           <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones}/></div>
           <div style={{display:tab==="library"?"block":"none"}}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)} collapsed={libCollapsed} setCollapsed={setLibCollapsed} classState={classState} chantUnlocked={chantUnlocked}/></div>
         </div>
 
         {/* floating anchor button */}
-        <button onClick={()=>{setScr(null);setAnch(true);}} aria-label="Anchor" style={{position:"absolute",bottom:"-7px",left:"50%",transform:"translateX(-50%)",zIndex:261,border:"none",background:"none",cursor:"pointer",padding:0,filter:anch?`drop-shadow(0 0 16px rgba(201,168,76,0.85)) drop-shadow(0 -2px 8px ${C.glow})`:`drop-shadow(0 -2px 10px ${C.glow})`}}>
+        <button onClick={()=>{setScr(null);setAnch(true);}} aria-label="Anchor" style={{position:"absolute",bottom:"-7px",left:"50%",transform:"translateX(-50%)",zIndex:showActComplete?0:261,opacity:showActComplete?0:1,transition:"opacity .8s ease",pointerEvents:showActComplete?"none":"auto",border:"none",background:"none",cursor:"pointer",padding:0,filter:anch?`drop-shadow(0 0 16px rgba(201,168,76,0.85)) drop-shadow(0 -2px 8px ${C.glow})`:`drop-shadow(0 -2px 10px ${C.glow})`}}>
           <svg width="82" height="103" viewBox="0 0 70 88" style={{display:"block"}}>
             {/* ── Anchor_1.svg glyph (active) ── */}
             <circle cx="35" cy="30" r="28" fill={C.surf}/>
@@ -5443,7 +6426,7 @@ export default function AscendApp(){
             </button>
           </>
         )}
-        <nav style={{position:"absolute",bottom:0,left:0,width:"100%",height:"64px",boxSizing:"border-box",background:C.surf,borderTop:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 0 2px",zIndex:260}}>
+        <nav style={{position:"absolute",bottom:0,left:0,width:"100%",height:"64px",boxSizing:"border-box",background:C.surf,borderTop:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 0 2px",zIndex:showActComplete?0:260,opacity:showActComplete?0:1,transition:"opacity .8s ease",pointerEvents:showActComplete?"none":"auto"}}>
           <div style={{display:"flex",flex:1,justifyContent:"space-around",alignItems:"center"}}>
             {NAV.slice(0,2).map(({id,l})=>(
               <button key={id} onClick={()=>navigateTo(()=>{setTab(id);setAnch(false);if(id==="character")setCapacities(false);})} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",padding:"2px 12px",border:"none",background:"none",cursor:"pointer",flexShrink:0}}>
@@ -5486,13 +6469,28 @@ export default function AscendApp(){
             </div>
           </div>
         )}
-        {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");setPendingInquiry(null);}} onSave={e=>{setJEnt(p=>[e,...p]);awardJournalXP();awardEntryMasteryXP(e);if(e.tag==="inquire"&&e.question)recordInquiry(e.question);setScr(null);setJournalDraft("");setPendingInquiry(null);}} onEntryChange={setJournalDraft} pendingInquiry={pendingInquiry} tendUnlocked={!!classState?.questProgress?.h_listen} inquireUnlocked={!!(classState?.activeClass==="sage")}/>}
+        {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");setPendingInquiry(null);}} onSave={e=>{const updated=[e,...jEnt];setJEnt(updated);awardJournalXP();awardEntryMasteryXP(e);if(e.tag==="inquire"&&e.question)recordInquiry(e.question);if(e.tag==="tend")checkTendQuestCompletion(updated);if(e.tag==="release")checkJournalEntryQuestCompletion(updated);setScr(null);setJournalDraft("");setPendingInquiry(null);}} onEntryChange={setJournalDraft} pendingInquiry={pendingInquiry} tendUnlocked={questActiveOrDone("healer","h_listen",classState?.questProgress||{},trialComplete)} releaseUnlocked={questActiveOrDone("healer","h_forgive",classState?.questProgress||{},trialComplete)} inquireUnlocked={!!(classState?.activeClass==="sage")}/>}
         {openChantQuest && (
           <Overlay title={CHANT_QUEST.title} onBack={()=>setOpenChantQuest(false)}>
             <div style={{...dsp("9px",C.sageB,400,"0.16em"),marginBottom:"14px"}}>FOUNDATION · VOICE</div>
             {CHANT_QUEST.myth.split("\n\n").map((p,i)=>(
               <div key={i} style={{...body("15px",C.txt),lineHeight:"1.8",marginBottom:"14px"}}>{p}</div>
             ))}
+            {(() => {
+              const chantAct = activities.find(a=>a.id==="chant_voi");
+              const count = chantAct?.count||0;
+              const pct = Math.min(100, Math.round(count/CHANT_QUEST.target*100));
+              return !chantUnlocked && (
+                <div style={{marginBottom:"16px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",...body("12px",C.muted),marginBottom:"4px"}}>
+                    <span>Chant</span><span>{count.toFixed(0)}/{CHANT_QUEST.target} {CHANT_QUEST.unit}</span>
+                  </div>
+                  <div style={{height:"4px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${pct}%`,background:C.sageB,transition:"width .3s"}}/>
+                  </div>
+                </div>
+              );
+            })()}
             <button onClick={()=>{setOpenChantQuest(false);setTab("library");setLibOpenId(CHANT_QUEST.libId);}}
               style={{display:"block",marginTop:"6px",marginBottom:"16px",background:"none",border:"none",
                 ...body("13px",C.sageB),fontStyle:"italic",cursor:"pointer",padding:0}}>
@@ -5501,23 +6499,39 @@ export default function AscendApp(){
             {chantUnlocked ? (
               <div style={{...dsp("10px",C.sageB,400,"0.14em"),padding:"10px 0"}}>✓ COMPLETE</div>
             ) : (
-              <button onClick={()=>{completeChant();setOpenChantQuest(false);}}
-                style={{marginTop:"4px",padding:"11px 22px",background:"rgba(163,192,137,0.1)",
-                  border:`0.5px solid ${C.sageB}`,color:C.sageB,...dsp("9px",undefined,400,"0.14em"),
-                  cursor:"pointer",borderRadius:"6px"}}>
-                MARK COMPLETE
-              </button>
+              <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
+                Find Chant under Activities the next time you Sit, Stand, or Walk.
+              </div>
             )}
           </Overlay>
         )}
+        {/* A quest just completed — brief, calm confirmation. Not a banner,
+            not confetti: a small card naming what happened, dismissed with
+            one tap. Shown regardless of which path completed it (session,
+            Tend, Reflect, journalEntry). */}
+        {justCompletedQuest && (
+          <div onClick={()=>setJustCompletedQuest(null)} style={{position:"fixed",inset:0,zIndex:60,background:"rgba(8,10,8,0.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:C.surf,border:`0.5px solid ${justCompletedQuest.accent}88`,borderRadius:"10px",padding:"26px 24px",maxWidth:"320px",textAlign:"center"}}>
+              <div style={{...dsp("9px",justCompletedQuest.accent,400,"0.18em"),marginBottom:"10px"}}>
+                {justCompletedQuest.kind}
+              </div>
+              <div style={{...dsp("18px",C.cream,500,"0.04em"),marginBottom:"18px"}}>{justCompletedQuest.title}</div>
+              <button onClick={()=>setJustCompletedQuest(null)}
+                style={{padding:"9px 22px",background:"rgba(255,255,255,0.04)",border:`0.5px solid ${justCompletedQuest.accent}`,
+                  color:justCompletedQuest.accent,...dsp("9px",undefined,400,"0.14em"),cursor:"pointer",borderRadius:"6px"}}>
+                CONTINUE
+              </button>
+            </div>
+          </div>
+        )}
         {openClassQuest&&<ClassQuestReader classId={openClassQuest.classId} questId={openClassQuest.questId}
-          inquireAnswered={classState?.inquireAnswered||{}} questDone={!!classState?.questProgress?.[openClassQuest.questId]} activities={activities}
+          inquireAnswered={classState?.inquireAnswered||{}} questDone={!!classState?.questProgress?.[openClassQuest.questId]} activities={activities} jEnt={jEnt}
           onBack={()=>setOpenClassQuest(null)}
           onComplete={()=>{completeClassQuest(openClassQuest.questId);setOpenClassQuest(null);}}
           onOpenLib={(id)=>{setOpenClassQuest(null);setTab("library");setLibOpenId(id);}}
           onOpenInquire={(question)=>{setPendingInquiry(question);setOpenClassQuest(null);setScr("journal");}}/>}
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
-        {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} anchorImmediate={anchorImmediate} setAnchorImmediate={setAnchorImmediate} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} guidedSession={guidedSession} setGuidedSession={setGuidedSession} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onSignOut={handleSignOut} onVerified={handleVerified}/>}
+        {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} anchorImmediate={anchorImmediate} setAnchorImmediate={setAnchorImmediate} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} guidedSession={guidedSession} setGuidedSession={setGuidedSession} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onSignOut={handleSignOut} onVerified={handleVerified} autoCloudSync={autoCloudSync} setAutoCloudSync={setAutoCloudSync}/>}
         {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={anchorImmediate || !anchorUnlocks(completedChapters).pause} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType} reflectUnlocked={!!classState?.questProgress?.s_reflect || (classState?.activeClass==="sage" && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={classState?.activeClass||null} unlocks={anchorUnlocks(completedChapters)} guideCues={!anchorUnlocks(completedChapters).modifiers ? [
           {s:0,  e:5,  text:"Sit comfortably."},
           {s:5,  e:10, text:"Let your eyes soften or close."},
