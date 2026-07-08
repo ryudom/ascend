@@ -1062,11 +1062,6 @@ function RidgelineScene({ h=190 }){
       <path d="M0,128 L70,96 L140,120 L210,82 L290,116 L360,90 L400,112 L400,190 L0,190 Z" fill="#2c3826" opacity="0.6"/>
       <path d="M0,150 L60,128 L130,148 L200,120 L270,150 L340,128 L400,150 L400,190 L0,190 Z" fill="#1f2a1c" opacity="0.85"/>
       <path d="M0,190 L120,150 L200,138 L280,152 L400,190 Z" fill="#121b10"/>
-      <g transform="translate(200,128)">
-        <ellipse cx="0" cy="14" rx="10" ry="2.5" fill="#0b110a" opacity="0.5"/>
-        <circle cx="0" cy="-9" r="2.6" fill="#0b110a"/>
-        <path d="M0,-7 C-3,-3 -3,4 -2.4,11 L2.4,11 C3,4 3,-3 0,-7 Z" fill="#0b110a"/>
-      </g>
     </svg>
   );
 }
@@ -1294,7 +1289,7 @@ function spiralPath(turns, Rout, Rin){
   }
   return d;
 }
-function SpiralCircle({ t, running }){
+function SpiralCircle({ t, running, tappable=false, onTap=()=>{} }){
   const cycle  = Math.floor(t/600);
   const cycleT = t%600;
   const turns  = cycleT/60;
@@ -1326,7 +1321,7 @@ function SpiralCircle({ t, running }){
   },[glowO]);
 
   return (
-    <div style={{position:"relative",width:182,height:182,display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div onClick={tappable?onTap:undefined} style={{position:"relative",width:182,height:182,display:"flex",alignItems:"center",justifyContent:"center",cursor:tappable?"pointer":"default"}}>
       <svg width="182" height="182" viewBox="0 0 182 182" style={{position:"absolute",overflow:"visible"}}>
         <defs>
           <radialGradient id="warmGlow" cx="50%" cy="50%" r="50%">
@@ -1442,10 +1437,20 @@ function playGong(ctx){
   }catch(e){}
 }
 
-function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting", reflectUnlocked=false, unlockedPracticeTypes=[], unlocks={modifiers:true,pause:true,pin:true,practiceType:true,activities:true,centers:true}, guideCues=null, activeClassId=null }){
+function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting", reflectUnlocked=false, unlockedPracticeTypes=[], unlocks={modifiers:true,pause:true,pin:true,practiceType:true,activities:true,centers:true}, guideCues=null, activeClassId=null, anchorQuestPending=false, timerVisibility="reveal" }){
   const [phase,setPhase]       = useState("active");
   const [running,setRunning]   = useState(startImmediately);
   const [t,setT]               = useState(0);
+  const [revealed,setRevealed] = useState(false);           // tap-to-reveal: briefly shown, then fades
+  const revealTimerRef = useRef(null);
+  useEffect(()=>()=>clearTimeout(revealTimerRef.current),[]);
+  const revealTimer = () => {
+    if(timerVisibility!=="reveal") return;
+    setRevealed(true);
+    clearTimeout(revealTimerRef.current);
+    revealTimerRef.current = setTimeout(()=>setRevealed(false), 3200);
+  };
+  const showNumeral = timerVisibility==="visible" || (timerVisibility==="reveal" && revealed);
   /* Wall-clock anchoring: tRef.current is the true elapsed seconds at the start
      of the current "running" segment; runStartRef is when that segment began
      (Date.now()). Using real timestamps — not accumulated tick counts — means
@@ -1582,7 +1587,14 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
     if(elapsed>=alarmSecs){ setAlarmFired(true); setRunning(false); playGong(audioCtxRef.current); }
   },[elapsed]);
 
-  const finish = () => { setRunning(false); if(elapsed<10){ onClose(); return; } if(skipReview) onDone({quickAnchor:true,elapsed}); else setPhase("review"); };
+  const finish = () => {
+    /* The save/review screen always shows, regardless of duration — a
+       session under 10s is real and saves like any other, it simply won't
+       read as having "established the anchor" if that's still pending
+       (see the review screen below). No forced minimum, no blocked exit. */
+    setRunning(false);
+    if(skipReview) onDone({quickAnchor:true,elapsed}); else setPhase("review");
+  };
   const ret = () => {
     const loggedCounts = {};
     activeActivities.forEach(act=>{
@@ -1624,7 +1636,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
             </div>
           )}
           <div style={{display:"flex",justifyContent:"center",padding:"10px 0 2px"}}>
-            <SpiralCircle t={t} running={running}/>
+            <SpiralCircle t={t} running={running} tappable={timerVisibility==="reveal"} onTap={revealTimer}/>
           </div>
 
           {/* Guided arrival cues — first-session guide text replaces the normal cues */}
@@ -1652,12 +1664,12 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
 
           {unlocks.pause && (
           <div style={{textAlign:"center"}}>
-            {/* Timer row: elapsed + alarm bell — time gets a fixed-width box so the
-                alarm icon never shifts as the digits change width */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",alignItems:"center",gap:"14px"}}>
-              <div/>
-              <div style={{...dsp("15px",W(running?0.3:0.22),400,"0.08em"),minWidth:"86px",textAlign:"center",fontVariantNumeric:"tabular-nums"}}>{sec(elapsed)}</div>
-              <button onClick={()=>{ setAlarmOpen(v=>!v); unlockAudio(audioCtxRef); }} title="Set alarm" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",background:"none",border:"none",cursor:"pointer",padding:"4px",opacity:alarmOpen?1:0.7,justifySelf:"start"}}>
+            {/* Alarm bell — always visible regardless of timer-visibility
+                setting; a self-set alarm is a real question being answered,
+                not idle clock-watching. Dimmed slightly since it now stands
+                alone rather than sharing a row. */}
+            <div style={{display:"flex",justifyContent:"center",marginBottom:"10px"}}>
+              <button onClick={()=>{ setAlarmOpen(v=>!v); unlockAudio(audioCtxRef); }} title="Set alarm" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",background:"none",border:"none",cursor:"pointer",padding:"4px",opacity:alarmOpen?0.7:0.49}}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                   <path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 002 2z" fill={alarmFired?C.gold:alarmSecs?C.sageB:C.muted}/>
                   <path d="M18 16v-5a6 6 0 00-5-5.91V4a1 1 0 00-2 0v1.09A6 6 0 006 11v5l-2 2v1h16v-1l-2-2z" fill={alarmFired?C.gold:alarmSecs?C.sageB:C.muted} opacity={alarmFired?"1":"0.85"}/>
@@ -1666,6 +1678,13 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 {alarmSecs&&!alarmFired&&<span style={{...body("8px",C.sageB),lineHeight:1}}>{sec(alarmSecs)}</span>}
                 {alarmFired&&<span style={{...body("8px",C.gold),lineHeight:1}}>✓</span>}
               </button>
+            </div>
+            {/* Elapsed numeral — now sits under the bell. Ambient time is
+                always felt in the spiral's own glow and turning line; the
+                exact number only surfaces per the chosen visibility mode. */}
+            <div style={{...dsp("15px",C.cream,400,"0.08em"),minHeight:"20px",
+              fontVariantNumeric:"tabular-nums",opacity:showNumeral?0.5:0,transition:"opacity 0.45s ease"}}>
+              {sec(elapsed)}
             </div>
 
             {/* Alarm fired banner */}
@@ -1714,11 +1733,6 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 </div>
               </div>
             )}
-
-            {/* Start/Pause */}
-            <div style={{display:"flex",justifyContent:"center",marginTop:"14px"}}>
-              <button onClick={()=>{setRunning(r=>!r); unlockAudio(audioCtxRef);}} style={{padding:"9px 24px",background:"rgba(163,192,137,0.08)",border:"none",borderRadius:"3px",cursor:"pointer",...dsp("11px",C.sageB,400,"0.2em")}}>{running?"PAUSE":(elapsed>0?"RESUME":"START")}</button>
-            </div>
           </div>
           )}
 
@@ -1876,6 +1890,14 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
             }).filter(Boolean)}
           </div>
 
+          {anchorQuestPending && xp<=0 && (
+            <div style={{textAlign:"left",background:"rgba(255,255,255,0.03)",border:`0.5px solid ${C.bord}`,borderRadius:"6px",padding:"11px 14px",marginBottom:"22px",opacity:0.7}}>
+              <div style={{...body("13px",C.cream),fontStyle:"italic",lineHeight:"1.65"}}>
+                This practice was too brief to establish the anchor.<br/>Spend a little longer before ending the session.
+              </div>
+            </div>
+          )}
+
           {/* What this session counted toward — moved here from the active
               screen, since this is the moment for reading information, not
               mid-practice. Cumulative activities show lifetime count + this
@@ -1991,7 +2013,10 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
           </>)}
         </div>
 
-        {/* SAVE — same position as anchor/ascend button */}
+        {/* SAVE — only appears once the session is long enough to actually
+            save something real. Under 10s, RESUME/DISCARD below are the
+            only options — no dead end, just no premature save. */}
+        {elapsed>=10 && (
         <button onClick={ret} style={{position:"absolute",bottom:"-7px",left:"50%",transform:"translateX(-50%)",zIndex:10,border:"none",background:"none",cursor:"pointer",padding:0,filter:`drop-shadow(0 0 14px rgba(201,168,76,0.5))`}}>
           <svg width="82" height="103" viewBox="0 0 70 88" style={{display:"block"}}>
             <circle cx="35" cy="30" r="28" fill={C.surf}/>
@@ -1999,9 +2024,10 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
             <text x="35" y="34" textAnchor="middle" fontSize="12" fill={C.gold} fontFamily="Cinzel,serif" letterSpacing="1">SAVE</text>
           </svg>
         </button>
+        )}
 
         {/* RESUME — back to active; DISCARD — close without saving */}
-        <button onClick={()=>setPhase("active")} style={{position:"absolute",bottom:"12px",left:"12%",transform:"translateX(-50%)",zIndex:10,background:"none",border:"none",cursor:"pointer",padding:"4px 6px",...dsp("8px",C.muted,400,"0.14em")}}>RESUME</button>
+        <button onClick={()=>{setPhase("active");setRunning(true);}} style={{position:"absolute",bottom:"12px",left:"12%",transform:"translateX(-50%)",zIndex:10,background:"none",border:"none",cursor:"pointer",padding:"4px 6px",...dsp("8px",C.muted,400,"0.14em")}}>RESUME</button>
         <button onClick={onClose} style={{position:"absolute",bottom:"12px",right:"12%",transform:"translateX(50%)",zIndex:10,background:"none",border:"none",cursor:"pointer",padding:"4px 6px",...dsp("8px",C.muted,400,"0.14em")}}>DISCARD</button>
 
       </>}
@@ -4397,16 +4423,6 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
             borderRadius:"50%",background:mood.wisp,filter:"blur(5px)",
             animation:`wispDrift ${w.d}s linear ${w.del}s infinite`,pointerEvents:"none",zIndex:0}}/>
         ))}
-        {/* Background spiral mark */}
-        <svg width="220" height="220" viewBox="-110 -110 220 220"
-          style={{position:"absolute",top:"38%",left:"50%",transform:"translate(-50%,-50%)",
-            opacity:0.035,animation:"slowSpin 60s linear infinite",pointerEvents:"none",zIndex:0}}>
-          {[0.25,0.45,0.65,0.85,1.0].map((r,i)=>(
-            <circle key={i} cx="0" cy="0" r={r*100} fill="none" stroke={mood.accent} strokeWidth="0.8"/>
-          ))}
-          <line x1="0" y1="-108" x2="0" y2="108" stroke={mood.accent} strokeWidth="0.8"/>
-          <line x1="-108" y1="0" x2="108" y2="0" stroke={mood.accent} strokeWidth="0.8"/>
-        </svg>
 
         {/* Header */}
         <div style={{position:"relative",zIndex:2,padding:"14px 20px 8px",display:"flex",alignItems:"center",gap:"12px"}}>
@@ -4626,7 +4642,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
 
         {/* Pinned bottom bar — only in narrative mode */}
         {!onQuestScreen && (
-          <div style={{position:"relative",zIndex:2,padding:"12px 26px 28px",background:`linear-gradient(transparent,${mood.bg1}ee 30%)`,flexShrink:0}}>
+          <div style={{position:"relative",zIndex:2,padding:"12px 26px 40px",background:`linear-gradient(transparent,${mood.bg1}ee 30%)`,flexShrink:0}}>
             <div style={{display:"flex",gap:"6px",justifyContent:"center",marginBottom:"14px"}}>
               {scenes.flatMap((sc,si)=>
                 Array.from({length:Math.ceil((sc.body?.length||1)/(sc.perPage||2))},(_,pi)=>{
@@ -4788,7 +4804,8 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                 <div style={{width:"12px",height:"12px",borderRadius:"50%",flexShrink:0,
                   background:complete?C.gold:active?"transparent":"transparent",
                   border:`1.5px solid ${complete?C.gold:active?C.sageB:C.dim}`,
-                  boxShadow:active?`0 0 8px rgba(163,192,137,0.4)`:"none",
+                  boxShadow:active?`0 0 14px rgba(163,192,137,0.7)`:"none",
+                  animation:active?"emberPulse 2.6s ease-in-out infinite":"none",
                   display:"flex",alignItems:"center",justifyContent:"center",
                 }}>
                   {complete&&<div style={{width:"5px",height:"5px",borderRadius:"50%",background:C.goldB}}/>}
@@ -4800,7 +4817,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                 onClick={()=>{ if(active||complete) openChapter(c.n); }}
                 onMouseDown={devMode?onPressStart:undefined} onMouseUp={devMode?onPressEnd:undefined} onMouseLeave={devMode?()=>clearTimeout(lpTimerRef.current):undefined}
                 onTouchStart={devMode?onPressStart:undefined} onTouchEnd={devMode?onPressEnd:undefined}
-                style={{flex:1,background:complete?"rgba(201,168,76,0.04)":active?C.surf:"transparent",border:`0.5px solid ${complete?C.goldDim:active?C.sageB:devMode?"rgba(180,100,100,0.4)":C.bord}`,borderRadius:"6px",padding:"11px 14px",cursor:(active||complete||devMode)?"pointer":"default",opacity:active||complete?1:devMode?0.7:0.4,marginBottom:"8px",transition:"all .2s"}}
+                style={{flex:1,background:complete?"rgba(201,168,76,0.04)":active?C.surf:"transparent",border:`${active?1.5:0.5}px solid ${complete?C.goldDim:active?C.sageB:devMode?"rgba(180,100,100,0.4)":C.bord}`,borderRadius:"6px",padding:"11px 14px",cursor:(active||complete||devMode)?"pointer":"default",opacity:active||complete?1:devMode?0.7:0.4,marginBottom:"8px",transition:"all .2s",animation:active?"questGlow 2.6s ease-in-out infinite":"none"}}
               >
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                   <div style={{flex:1}}>
@@ -5925,12 +5942,14 @@ function Toggle({ on, onToggle }){
   );
 }
 
-function SettingsScreen({ onBack, name, setName, anchorImmediate, setAnchorImmediate, theme, setTheme,
+function SettingsScreen({ onBack, name, setName, theme, setTheme,
+  timerVisibility, setTimerVisibility,
     devMode, enableDevMode, disableDevMode, exportData, applyImport, resetData,
-    fontScale, setFontScale, guidedSession, setGuidedSession,
-    cloudUser, cloudSyncing, cloudMsg, onSaveCloud, onLoadCloud, onSignOut, onVerified,
+    fontScale, setFontScale,
+    cloudUser, cloudSyncing, cloudMsg, onSaveCloud, onLoadCloud, onDeleteCloud, onSignOut, onVerified,
     autoCloudSync, setAutoCloudSync }){
   const [resetConfirm,setResetConfirm]=useState(false);
+  const [deleteCloudConfirm,setDeleteCloudConfirm]=useState(false);
   const [importDone,setImportDone]=useState(false);
   const [cloudEmail,setCloudEmail]=useState("");
   const [cloudCode,setCloudCode]=useState("");
@@ -5981,18 +6000,20 @@ function SettingsScreen({ onBack, name, setName, anchorImmediate, setAnchorImmed
       <button onClick={devMode?disableDevMode:enableDevMode} style={{position:"absolute",top:"6px",left:"50%",transform:"translateX(-50%)",zIndex:5,background:"none",border:"none",cursor:"pointer",padding:"2px 5px",fontSize:"8px",fontFamily:"monospace",letterSpacing:"0.12em",color:devMode?"rgba(180,100,100,0.85)":"rgba(150,150,150,0.3)",lineHeight:1}}>DEV</button>
     }>
       <SL title="Preferences"/>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:`0.5px solid ${C.bord}`}}>
-        <div style={{flex:1,paddingRight:"12px"}}>
-          <div style={{...body("14px",C.cream)}}>Guided arrival cues</div>
-          <div style={{...body("11px",C.dim),fontStyle:"italic"}}>Gentle prompts at the start of each session</div>
+      <div style={{padding:"12px 0",borderBottom:`0.5px solid ${C.bord}`}}>
+        <div style={{...body("14px",C.cream),marginBottom:"2px"}}>Display Anchor Time</div>
+        <div style={{...body("11px",C.dim),fontStyle:"italic",marginBottom:"10px"}}>How much you see while the session is running</div>
+        <div style={{display:"flex",gap:"6px"}}>
+          {[["reveal","Tap to Reveal"],["hidden","Hidden"],["visible","Visible"]].map(([id,label])=>(
+            <button key={id} onClick={()=>setTimerVisibility(id)}
+              style={{flex:1,padding:"8px 6px",borderRadius:"6px",cursor:"pointer",textAlign:"center",
+                background:timerVisibility===id?"rgba(163,192,137,0.12)":"transparent",
+                border:`0.5px solid ${timerVisibility===id?C.sageB:C.bord}`,
+                ...body("11px",timerVisibility===id?C.sageB:C.muted)}}>
+              {label}
+            </button>
+          ))}
         </div>
-        <Toggle on={guidedSession} onToggle={()=>setGuidedSession(v=>!v)}/>
-      </div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:`0.5px solid ${C.bord}`}}>
-        <div style={{flex:1,paddingRight:"12px"}}>
-          <div style={{...body("14px",C.cream)}}>Anchor starts timer immediately</div>
-        </div>
-        <Toggle on={anchorImmediate} onToggle={()=>setAnchorImmediate(v=>!v)}/>
       </div>
 
       <div style={{padding:"16px 0 4px"}}>
@@ -6055,6 +6076,20 @@ function SettingsScreen({ onBack, name, setName, anchorImmediate, setAnchorImmed
                 </button>
               </div>
               <button onClick={onSignOut} style={{width:"100%",padding:"7px",background:"transparent",border:"none",cursor:"pointer",...body("10px",C.dim),fontStyle:"italic"}}>Sign out</button>
+
+              {/* Delete cloud save — only removes the remote copy; this
+                  device's own local save is untouched either way. */}
+              {!deleteCloudConfirm
+                ? <button onClick={()=>setDeleteCloudConfirm(true)} style={{width:"100%",padding:"7px",marginTop:"6px",background:"transparent",border:"none",cursor:"pointer",...body("10px","rgba(180,100,100,0.7)"),fontStyle:"italic"}}>Delete cloud save</button>
+                : <div style={{border:`0.5px solid rgba(180,60,60,0.4)`,borderRadius:"6px",padding:"12px",background:"rgba(180,60,60,0.06)",marginTop:"8px"}}>
+                    <div style={{...body("12px","rgba(220,140,140,0.9)"),marginBottom:"10px"}}>Delete the cloud copy of your save? Your device keeps its own data — this only removes what's stored remotely.</div>
+                    <div style={{display:"flex",gap:"8px"}}>
+                      <button onClick={()=>{onDeleteCloud();setDeleteCloudConfirm(false);}} disabled={cloudSyncing} style={{flex:1,padding:"8px",background:"rgba(180,60,60,0.15)",border:`0.5px solid rgba(180,60,60,0.5)`,borderRadius:"4px",cursor:"pointer",...dsp("9px","rgba(220,120,120,0.9)",400,"0.12em")}}>
+                        {cloudSyncing?"…":"CONFIRM DELETE"}
+                      </button>
+                      <button onClick={()=>setDeleteCloudConfirm(false)} style={{flex:1,padding:"8px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.muted,400,"0.12em")}}>CANCEL</button>
+                    </div>
+                  </div>}
             </div>
           ) : (
             <div style={{marginBottom:"16px"}}>
@@ -6247,6 +6282,17 @@ async function sbLoadData(token,userId){
   }catch{return null;}
 }
 
+async function sbDeleteData(token,userId){
+  if(!SB_URL||!SB_KEY||!token) return false;
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/user_data?user_id=eq.${userId}`,{
+      method:"DELETE",
+      headers:{"Authorization":`Bearer ${token}`,"apikey":SB_KEY}
+    });
+    return r.ok;
+  }catch{return false;}
+}
+
 /* Guarded cloud save: peeks at what's already in the cloud before overwriting
    it. Refuses to push if the cloud's total XP is HIGHER than the local save's
    — this is what stops an empty/wiped/lower-progress local state (a fresh
@@ -6348,9 +6394,9 @@ export default function AscendApp(){
   const [theme,setTheme]=useState(P.theme ?? "navy");
   const [fontScale,setFontScale]=useState(P.fontScale ?? 1.0);
   const [guidedSession,setGuidedSession]=useState(P.guidedSession ?? true);
+  const [timerVisibility,setTimerVisibility]=useState(P.timerVisibility ?? "reveal"); // "visible" | "hidden" | "reveal"
   const [autoCloudSync,setAutoCloudSync]=useState(P.autoCloudSync ?? true);
   const [splashImgLoaded,setSplashImgLoaded]=useState(false);
-  const [anchorImmediate,setAnchorImmediate]=useState(true);
   applyTheme(theme);
   // Fade out the HTML loading splash when React mounts
   useEffect(()=>{
@@ -6469,6 +6515,17 @@ export default function AscendApp(){
     showCloudMsg("ok","Restored from cloud ✓");
   };
 
+  const handleDeleteCloud = async () => {
+    if(!cloudUser||!cloudToken) return;
+    setCloudSyncing(true);
+    const ok = await sbDeleteData(cloudToken, cloudUser.id);
+    setCloudSyncing(false);
+    /* Deleting the cloud copy only removes what's stored remotely — it
+       never touches the device's own local save, so nothing on this
+       device is lost by doing this. */
+    showCloudMsg(ok?"ok":"err", ok?"Cloud save deleted":"Delete failed — try again");
+  };
+
   const handleVerified = (token, user) => {
     setCloudToken(token);
     setCloudUser(user);
@@ -6567,7 +6624,7 @@ export default function AscendApp(){
      sees the latest without re-binding listeners. */
   const blob = {
     v:1, tab, fontScale, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, revealZones, zonesMigrated, libCollapsed,
-    completedChapters, hasAnchored, theme, guidedSession, anchInitType, classState, chantUnlocked, way, questCollapsed, classCollapsed, autoCloudSync, onboardingDone: onboarding==="done",
+    completedChapters, hasAnchored, theme, guidedSession, timerVisibility, anchInitType, classState, chantUnlocked, way, questCollapsed, classCollapsed, autoCloudSync, onboardingDone: onboarding==="done",
   };
   const blobRef = useRef(blob);
   blobRef.current = blob;
@@ -6578,7 +6635,7 @@ export default function AscendApp(){
     const json = JSON.stringify(blobRef.current);
     const t = setTimeout(()=>writeStorage(json), 250);
     return ()=>clearTimeout(t);
-  },[hydrated, devMode, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, way, questCollapsed, classCollapsed, autoCloudSync, revealZones, zonesMigrated, libCollapsed]);
+  },[hydrated, devMode, tab, fontScale, guidedSession, timerVisibility, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, way, questCollapsed, classCollapsed, autoCloudSync, revealZones, zonesMigrated, libCollapsed]);
 
   /* ── FLUSH: write immediately when the page is hidden or unloaded ── */
   useEffect(()=>{
@@ -6614,7 +6671,7 @@ export default function AscendApp(){
       }catch(e){ /* silent — local save already protects the data either way */ }
     }, 8000);
     return ()=>clearTimeout(cloudSyncTimerRef.current);
-  },[devMode, hydrated, cloudUser, cloudToken, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, autoCloudSync, revealZones, zonesMigrated, libCollapsed]);
+  },[devMode, hydrated, cloudUser, cloudToken, tab, fontScale, guidedSession, timerVisibility, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, autoCloudSync, revealZones, zonesMigrated, libCollapsed]);
 
   useEffect(()=>{
     if(!cloudUser || !cloudToken) return;
@@ -6661,6 +6718,7 @@ export default function AscendApp(){
         if(P2.theme){ setTheme(P2.theme); applyTheme(P2.theme); }
         if(P2.fontScale) setFontScale(P2.fontScale);
         if(P2.guidedSession!==undefined) setGuidedSession(P2.guidedSession);
+        if(P2.timerVisibility) setTimerVisibility(P2.timerVisibility);
         if(P2.anchInitType) setAnchInitType(P2.anchInitType);
         if(P2.tab) setTab(P2.tab);
         if(P2.types) setTypes(P2.types);
@@ -6948,8 +7006,10 @@ export default function AscendApp(){
   const handleDone=({type,typeId,duration,elapsed:elapsedSecs,weightedElapsed,activeActivities=[],tags,reflection,pinSession,pinTag,quickAnchor,awarenessLanding,loggedCounts={}})=>{
     const wasFirstSession = !hasAnchored;
     const isA=quickAnchor||!type;
-    /* sessions < 10 s are discarded silently */
-    if(!isA && (elapsedSecs??0) < 10){ setAnch(false); return; }
+    /* Every session saves and shows its review screen, regardless of
+       duration — a sub-10s attempt is real and gets logged (at 0 XP, per
+       the formula below). It just won't establish the anchor on its own;
+       see setHasAnchored below and the review screen's own message. */
     if(!isA && typeId) setAnchInitType(typeId); // remember last used type
     /* XP is based on multiplier-weighted seconds (Run 2x, Horse Stance 3x, etc.,
        time-segmented) when available, falling back to raw elapsed for quick
@@ -6966,7 +7026,7 @@ export default function AscendApp(){
     const sg = applyAwarenessSiphon(sgRaw, lands);
     const s={type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),activities:activeActivities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg,awarenessLanding:lands,loggedCounts:loggedCounts||{}};
     setSessions(p=>[s,...p]);
-    setHasAnchored(true);
+    if(isA || (elapsedSecs??0) >= 10) setHasAnchored(true);
 
     /* Accumulate any logged reps/minutes onto each activity's running count,
        and auto-complete the owning quest once every target is met. This runs
@@ -7202,6 +7262,8 @@ export default function AscendApp(){
               types={types} library={library} setLibrary={setLibrary}
               addType={addType} startImmediately={true}
               skipReview={false}
+              anchorQuestPending={false}
+              timerVisibility="hidden"
               unlocks={{modifiers:false,pause:false,pin:false,practiceType:false,activities:false,centers:false}}
               guideCues={[
                 {s:0,  e:5,  text:"Sit comfortably."},
@@ -7333,6 +7395,7 @@ export default function AscendApp(){
         @keyframes fadeOut { from { opacity:1; } to { opacity:0; } }
         @keyframes emberPulse { 0%{opacity:0.35;} 40%{opacity:1;} 100%{opacity:0.35;} }
         @keyframes fireBreathe { 0%,100%{opacity:0.55; transform:scale(1);} 50%{opacity:0.9; transform:scale(1.06);} }
+        @keyframes questGlow { 0%,100%{box-shadow:0 0 10px rgba(163,192,137,0.25);} 50%{box-shadow:0 0 22px rgba(163,192,137,0.55);} }
       `}</style>
       <div style={phoneStyle}>
         {/* floating DEV indicator */}
@@ -7503,13 +7566,31 @@ export default function AscendApp(){
           onOpenLib={(id)=>{setOpenClassQuest(null);setTab("library");setLibOpenId(id);}}
           onOpenInquire={(question)=>{setPendingInquiry(question);setOpenClassQuest(null);setScr("journal");}}/>}
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
-        {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} anchorImmediate={anchorImmediate} setAnchorImmediate={setAnchorImmediate} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} guidedSession={guidedSession} setGuidedSession={setGuidedSession} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onSignOut={handleSignOut} onVerified={handleVerified} autoCloudSync={autoCloudSync} setAutoCloudSync={setAutoCloudSync}/>}
-        {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={anchorImmediate || !anchorUnlocks(completedChapters).pause} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType} reflectUnlocked={!!classState?.questProgress?.s_reflect || (classState?.activeClass==="sage" && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={classState?.activeClass||null} unlocks={anchorUnlocks(completedChapters)} guideCues={!anchorUnlocks(completedChapters).modifiers ? [
+        {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} timerVisibility={timerVisibility} setTimerVisibility={setTimerVisibility} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onDeleteCloud={handleDeleteCloud} onSignOut={handleSignOut} onVerified={handleVerified} autoCloudSync={autoCloudSync} setAutoCloudSync={setAutoCloudSync}/>}
+        {(()=>{
+          /* Mirrors QuestTab's own ANCHOR_SUBQUESTS logic exactly: is there a
+             currently-active, not-yet-done Alignment/Release/Breath quest?
+             (Chapter 2 must be read, and a "qualifying" session — xp>0 —
+             is what actually satisfies "Practice once" for each.) */
+          const qualSessions = sessions.filter(s=>s.xp>0).length;
+          /* "Active" here matches getState's own definition exactly
+             (chapter 1 done, chapter 2 not yet) — not a proxy for it. */
+          const ch2Active = completedChapters.includes(1) && !completedChapters.includes(2);
+          const anchorSubqPending = ch2Active && ANCHOR_SUBQUESTS.some((sq,i)=>{
+            const isRead = libReadAt[sq.libId]!==undefined;
+            const isDone = isRead && qualSessions>libReadAt[sq.libId];
+            if(isDone) return false;
+            return i===0 || ANCHOR_SUBQUESTS.slice(0,i).every(prev=>{
+              const pr=libReadAt[prev.libId]; return pr!==undefined && qualSessions>pr;
+            });
+          });
+          return anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} anchorQuestPending={anchorSubqPending} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType} reflectUnlocked={!!classState?.questProgress?.s_reflect || (classState?.activeClass==="sage" && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={classState?.activeClass||null} unlocks={anchorUnlocks(completedChapters)} guideCues={!anchorUnlocks(completedChapters).modifiers ? [
           {s:0,  e:5,  text:"Sit comfortably."},
           {s:5,  e:10, text:"Let your eyes soften or close."},
           {s:10, e:50, text:"This is your time to simply be here, breathing, for as long as feels right."},
           {s:50, e:null, text:"Press the Ascend button below when you are finished.", gold:true},
-        ] : null}/>}
+        ] : null}/>;
+        })()}
       </div>
     </div>
   );
