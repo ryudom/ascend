@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 
 /* ───────────────────────── THEMES — three dark palettes ──────────────────── */
 const ACCENTS = { gold:"#C9A84C", goldB:"#e0c068", sage:"#7d9a6a", sageB:"#a3c089",
@@ -1437,7 +1437,7 @@ function playGong(ctx){
   }catch(e){}
 }
 
-function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting", reflectUnlocked=false, unlockedPracticeTypes=[], unlocks={modifiers:true,pause:true,pin:true,practiceType:true,activities:true,centers:true}, guideCues=null, activeClassId=null, anchorQuestPending=false, timerVisibility="reveal" }){
+function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting", reflectUnlocked=false, unlockedPracticeTypes=[], unlocks={modifiers:true,pause:true,pin:true,practiceType:true,activities:true,centers:true}, guideCues=null, activeClassId=null, timerVisibility="reveal" }){
   const [phase,setPhase]       = useState("active");
   const [running,setRunning]   = useState(startImmediately);
   const [t,setT]               = useState(0);
@@ -1890,7 +1890,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
             }).filter(Boolean)}
           </div>
 
-          {anchorQuestPending && xp<=0 && (
+          {xp<=0 && (
             <div style={{textAlign:"left",background:"rgba(255,255,255,0.03)",border:`0.5px solid ${C.bord}`,borderRadius:"6px",padding:"11px 14px",marginBottom:"22px",opacity:0.7}}>
               <div style={{...body("13px",C.cream),fontStyle:"italic",lineHeight:"1.65"}}>
                 This practice was too brief to establish the anchor.<br/>Spend a little longer before ending the session.
@@ -1981,7 +1981,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
           </div>
           )}
 
-          {unlocks.pin && (<>
+          {unlocks.pin && elapsed>=10 && (<>
           <button
             onClick={()=>setPinSession(p=>!p)}
             style={{width:"100%",display:"flex",alignItems:"center",gap:"12px",padding:"11px 14px",background:pinSession?"rgba(163,192,137,0.08)":"transparent",border:`0.5px solid ${pinSession?C.sageB:C.bord}`,borderRadius:"6px",cursor:"pointer",marginBottom:pinSession?"10px":"0",transition:"all .2s",textAlign:"left"}}
@@ -3521,7 +3521,8 @@ function questProgressLine(q, activities, jEnt=[]){
     if(u.singleSession) return `${u.name}: one sitting of ${u.target}${u.unit?" "+u.unit:""}`;
     const act = activities.find(a=>a.name===u.name);
     const count = act?.count||0;
-    return `${u.name}: ${count}/${u.target}${u.unit?" "+u.unit:""}`;
+    const countDisp = u.unit==="minutes" ? count.toFixed(1) : count.toFixed(0);
+    return `${u.name}: ${countDisp}/${u.target}${u.unit?" "+u.unit:""}`;
   });
   const tendLines = tendUnlocks.map(u=>{
     const total = jEnt.filter(e=>e.tag==="tend" && e.tendKind===u.tendKind).reduce((s,e)=>s+(e.tendMinutes||0),0);
@@ -3700,11 +3701,12 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
               );
             }
             const count=act?.count||0;
+            const countDisp = u.unit==="minutes" ? count.toFixed(1) : count.toFixed(0);
             const pct=Math.min(100,Math.round(count/u.target*100));
             return (
               <div key={u.name} style={{marginBottom:"10px"}}>
                 <div style={{display:"flex",justifyContent:"space-between",...body("12px",C.muted),marginBottom:"4px"}}>
-                  <span>{u.name}</span><span>{count}/{u.target} {u.unit||""}</span>
+                  <span>{u.name}</span><span>{countDisp}/{u.target} {u.unit||""}</span>
                 </div>
                 <div style={{height:"4px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}>
                   <div style={{height:"100%",width:`${pct}%`,background:accent,transition:"width .3s"}}/>
@@ -4282,7 +4284,7 @@ function ForgeQuestline({ way, onWayChange, jEnt, forgeOpen, onOpenAnchor, onSea
 
 function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}, hasAnchored, sessions=[], chaptersRead=[], onMarkRead, libReadAt={}, pins=[], chStats={}, onOpenAnchor=()=>{}, onGoToLib=()=>{},
   classGateOpen=false, classState=null, onChooseClass=()=>{}, trialComplete=()=>false, onOpenClassQuest=()=>{}, devMode=false, onDevSkipTrial=()=>{},
-  questCollapsed=false, setQuestCollapsed=()=>{}, classCollapsed=false, setClassCollapsed=()=>{},
+  actCollapsed={}, setActCollapsed=()=>{}, classCollapsed=false, setClassCollapsed=()=>{},
   chantGateOpen=false, chantUnlocked=false, setOpenChantQuest=()=>{}, activities=[], jEnt=[], onAcknowledgeTrial=()=>{},
   showActComplete=false, setShowActComplete=()=>{},
   way=null, onWayChange=()=>{}, onOpenReflection=()=>{}, onAwardWayXP=()=>{} }){
@@ -4753,11 +4755,31 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
         {questLine==="main" && <>
         <div style={{...body("14px",C.muted),lineHeight:"1.6",marginBottom:"20px",fontStyle:"italic"}}>The personal climb — from seeing the situation clearly to no longer walking it alone.</div>
 
-        <button onClick={()=>setQuestCollapsed(v=>!v)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",cursor:"pointer",padding:"0 0 10px"}}>
-          <span style={{...dsp("11px",C.gold,400,"0.16em")}}>CHAPTERS</span>
-          <span style={{...body("13px",C.muted),transform:questCollapsed?"rotate(-90deg)":"none",transition:"transform .2s"}}>▾</span>
-        </button>
-        {!questCollapsed && CHAPTER_META.map((c,i)=>{
+        {(()=>{
+          /* One collapsible header per Act, not one flat toggle for everything.
+             Default (no manual override yet): an act auto-collapses once it's
+             fully complete AND isn't the act the player is currently in — so
+             starting Act II quietly folds up a finished Act I on its own,
+             without ever fighting a choice the player made themselves. */
+          const actNames = [...new Set(CHAPTER_META.map(c=>c.act))];
+          const actTitles = { "ACT I":"ACT I · THE DRIFT", "ACT II":"ACT II · THE AUTHORING" };
+          const isActCollapsed = (actName) => {
+            if(actCollapsed[actName]!==undefined) return actCollapsed[actName];
+            const chNums = CHAPTER_META.filter(c=>c.act===actName).map(c=>c.n);
+            const actDone = chNums.every(n=>completedChapters.includes(n));
+            const activeAct = CHAPTER_META.find(c=>c.n===activeN)?.act;
+            return actDone && actName!==activeAct;
+          };
+          return actNames.map(actName=>{
+            const chaptersInAct = CHAPTER_META.filter(c=>c.act===actName);
+            const collapsed = isActCollapsed(actName);
+            return (
+              <div key={actName} style={{marginBottom:"6px"}}>
+                <button onClick={()=>setActCollapsed(prev=>({...prev,[actName]:!collapsed}))} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",cursor:"pointer",padding:"10px 0 10px"}}>
+                  <span style={{...dsp("11px",C.gold,400,"0.16em")}}>{actTitles[actName]||actName}</span>
+                  <span style={{...body("13px",C.muted),transform:collapsed?"rotate(-90deg)":"none",transition:"transform .2s"}}>▾</span>
+                </button>
+                {!collapsed && chaptersInAct.map((c)=>{
           const st=getState(c.n);
           const complete=st==="complete";
           const active=st==="active";
@@ -4788,16 +4810,8 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
             if(!lpFiredRef.current && locked) devUnlock();
           };
 
-          const actBreak = i>0 && CHAPTER_META[i-1].act!==c.act;
           return (
             <React.Fragment key={c.n}>
-            {actBreak && (
-              <div style={{display:"flex",alignItems:"center",gap:"10px",margin:"18px 0 10px"}}>
-                <div style={{flex:1,height:"1px",background:C.bord}}/>
-                <span style={{...dsp("10px",locked&&!completedChapters.includes(c.n-1)?C.dim:C.gold,400,"0.22em")}}>{c.act} · THE AUTHORING</span>
-                <div style={{flex:1,height:"1px",background:C.bord}}/>
-              </div>
-            )}
             <div style={{display:"flex",gap:"12px"}}>
               <div style={{display:"flex",flexDirection:"column",alignItems:"center",paddingTop:"14px"}}>
                 {/* node */}
@@ -4810,7 +4824,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                 }}>
                   {complete&&<div style={{width:"5px",height:"5px",borderRadius:"50%",background:C.goldB}}/>}
                 </div>
-                {i<CHAPTER_META.length-1&&<div style={{width:"1px",flex:1,minHeight:"22px",background:complete?`rgba(201,168,76,0.3)`:C.bord,marginTop:"4px"}}/>}
+                {c.n!==CHAPTER_META[CHAPTER_META.length-1].n&&<div style={{width:"1px",flex:1,minHeight:"22px",background:complete?`rgba(201,168,76,0.3)`:C.bord,marginTop:"4px"}}/>}
               </div>
 
               <div
@@ -4849,6 +4863,10 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
             </React.Fragment>
           );
         })}
+              </div>
+            );
+          });
+        })()}
         </>}
 
         {/* ── VOICE (Chant) — its own questline view ── */}
@@ -4987,8 +5005,21 @@ function usePanZoom(initialZoom, minZoom=0.3, maxZoom=12, controlled=null){
         setPan(p=>({x:p.x+dx,y:p.y+dy}));
         lastTouch={x:e.touches[0].clientX,y:e.touches[0].clientY};
       } else if(e.touches.length===2&&lastPinch!==null){
-        const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-        setZoom(z=>Math.max(minZoom,Math.min(maxZoom,z*(d/lastPinch))));
+        const t0=e.touches[0], t1=e.touches[1];
+        const d=Math.hypot(t0.clientX-t1.clientX,t0.clientY-t1.clientY);
+        const rawRatio=d/lastPinch;
+        /* Same fix as the local map: anchor zoom on the pinch midpoint,
+           not the fixed container center, by compensating pan. */
+        const rect=el.getBoundingClientRect();
+        const midX=(t0.clientX+t1.clientX)/2 - rect.left;
+        const midY=(t0.clientY+t1.clientY)/2 - rect.top;
+        const offX=midX - rect.width/2, offY=midY - rect.height/2;
+        setZoom(z=>{
+          const newZ=Math.max(minZoom,Math.min(maxZoom,z*rawRatio));
+          const applied=newZ/z;
+          setPan(p=>({ x: offX*(1-applied) + applied*p.x, y: offY*(1-applied) + applied*p.y }));
+          return newZ;
+        });
         lastPinch=d;
       }
     };
@@ -5173,6 +5204,7 @@ function MapTab({ pins, revealZones=[] }){
   const [worldZoom,setWorldZoom]=useState(1);
   const [worldPan,setWorldPan]=useState({x:0,y:0});
   const containerRef=useRef(null);
+  const panZoomCleanupRef=useRef(null); // holds the teardown fn for whichever DOM node is currently bound
 
   const geoPins = pins.filter(p=>p.lat!=null&&p.lng!=null);
   const mapW=350, mapH=530;
@@ -5259,9 +5291,19 @@ function MapTab({ pins, revealZones=[] }){
 
   const resetView=()=>{ setZoom(1); setPan({x:0,y:0}); };
 
-  // Attach zoom/pan gesture handlers via DOM (needed for passive:false on touchmove/wheel)
-  useEffect(()=>{
-    const el=containerRef.current; if(!el) return;
+  /* Callback ref, not useRef+useEffect([]) — MapTab itself never unmounts
+     when toggling to World mode (only its returned JSX subtree does, via
+     the early `if(mode==="world") return` below), so a one-time effect
+     would bind listeners to the local map's DOM node once and never again.
+     Switch to World and back, and React hands the local map a brand-new
+     DOM node — a plain useEffect([]) misses that entirely, leaving the
+     listeners orphaned on the old, detached node and the visible map with
+     none at all. A callback ref fires on every node swap, so gestures
+     always attach to whatever's actually on screen. */
+  const setContainerEl = useCallback((el) => {
+    if(panZoomCleanupRef.current){ panZoomCleanupRef.current(); panZoomCleanupRef.current=null; }
+    containerRef.current = el;
+    if(!el) return;
     let lastTouch=null, lastPinch=null, isDrag=false, lastMouse=null;
 
     const onTouchStart=e=>{
@@ -5275,8 +5317,23 @@ function MapTab({ pins, revealZones=[] }){
         setPan(p=>({x:p.x+dx,y:p.y+dy}));
         lastTouch={x:e.touches[0].clientX,y:e.touches[0].clientY};
       } else if(e.touches.length===2&&lastPinch!==null){
-        const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-        setZoom(z=>Math.max(0.3,Math.min(10,z*(d/lastPinch))));
+        const t0=e.touches[0], t1=e.touches[1];
+        const d=Math.hypot(t0.clientX-t1.clientX,t0.clientY-t1.clientY);
+        const rawRatio=d/lastPinch;
+        /* Anchor the zoom on the pinch midpoint, not the container's fixed
+           center. transformOrigin stays at 50%/50%, so we compensate by
+           shifting pan: the content point under the fingers should stay
+           under the fingers as zoom changes, not drift toward center. */
+        const rect=el.getBoundingClientRect();
+        const midX=(t0.clientX+t1.clientX)/2 - rect.left;
+        const midY=(t0.clientY+t1.clientY)/2 - rect.top;
+        const offX=midX - rect.width/2, offY=midY - rect.height/2;
+        setZoom(z=>{
+          const newZ=Math.max(0.3,Math.min(10,z*rawRatio));
+          const applied=newZ/z; // the ratio actually used, after clamping
+          setPan(p=>({ x: offX*(1-applied) + applied*p.x, y: offY*(1-applied) + applied*p.y }));
+          return newZ;
+        });
         lastPinch=d;
       }
     };
@@ -5292,7 +5349,7 @@ function MapTab({ pins, revealZones=[] }){
     el.addEventListener('mousemove',onMouseMove);
     el.addEventListener('mouseup',onMouseUp);
     el.addEventListener('mouseleave',onMouseUp);
-    return ()=>{
+    panZoomCleanupRef.current = () => {
       el.removeEventListener('touchstart',onTouchStart);
       el.removeEventListener('touchmove',onTouchMove);
       el.removeEventListener('wheel',onWheel);
@@ -5301,7 +5358,7 @@ function MapTab({ pins, revealZones=[] }){
       el.removeEventListener('mouseup',onMouseUp);
       el.removeEventListener('mouseleave',onMouseUp);
     };
-  },[]);
+  }, []); // setPan/setZoom are stable useState setters; every handler uses functional updates, so no stale-closure risk
 
   /* World mode takes over the whole tab — distinct from local pan/zoom/reveal
      rendering entirely, since it's showing fundamentally different content
@@ -5325,7 +5382,7 @@ function MapTab({ pins, revealZones=[] }){
 
   return (
     <div style={{position:"relative",height:"100%"}}>
-      <div ref={containerRef} style={{background:`linear-gradient(160deg,${C.bg2},${C.surf2} 60%,${C.bg2})`,height:`${mapH}px`,position:"relative",overflow:"hidden",cursor:"grab",touchAction:"none"}}>
+      <div ref={setContainerEl} style={{background:`linear-gradient(160deg,${C.bg2},${C.surf2} 60%,${C.bg2})`,height:`${mapH}px`,position:"relative",overflow:"hidden",cursor:"grab",touchAction:"none"}}>
         {/* Pannable / zoomable canvas */}
         <div style={{position:"absolute",inset:0,transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`,transformOrigin:"50% 50%"}}>
           {/* Revealed geography — water & forest, only within anchored reveal zones */}
@@ -5772,6 +5829,7 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, pen
 
 function LogsScreen({ onBack, sessions, jEntries }){
   const [tab,setTab]=useState("timeline"),[exp,setExp]=useState(null);
+  const [range,setRange]=useState("week"); // "week" | "month" | "3months" — charts tab only
   const TC={"Sit":C.gold,"Stand":C.sage,"Walk":C.slate,"Move":"#b06a52","Train":"#9b8550","Create":"#6b9e8e","Serve":"#b8834a","Anchor":"rgba(163,192,137,0.55)"};
   const todayISO=new Date().toISOString().slice(0,10);
   const formatDate=d=>{
@@ -5861,24 +5919,58 @@ function LogsScreen({ onBack, sessions, jEntries }){
       {tab==="charts" && (()=>{
         const TC={"Sit":C.gold,"Stand":C.sage,"Walk":C.slate,"Move":"#b06a52","Train":"#9b8550","Create":"#6b9e8e","Serve":"#b8834a"};
         const todayISO=new Date().toISOString().slice(0,10);
-        const order=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));return d.toISOString().slice(0,10);});
+        const RANGE_DAYS={week:7,month:30,"3months":90};
+        const daysBack=RANGE_DAYS[range];
+        const order=Array.from({length:daysBack},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(daysBack-1-i));return d.toISOString().slice(0,10);});
         // Build per-day, per-type minutes
         const dayData={};
         order.forEach(d=>{ dayData[d]={}; });
         sessions.filter(s=>s.type!=="Anchor").forEach(s=>{
           const d=s.date==="Today"?todayISO:(s.date||todayISO);
-          if(!dayData[d]) dayData[d]={};
+          if(!dayData[d]) return; // outside the selected range — not counted in this chart
           dayData[d][s.type]=(dayData[d][s.type]||0)+s.duration;
         });
-        const activeDays=order.filter(d=>Object.keys(dayData[d]||{}).length>0);
-        const maxMins=Math.max(30,...activeDays.map(d=>Object.values(dayData[d]||{}).reduce((a,v)=>a+v,0)));
+        /* Week: one bar per day, exactly as before. Month/3-months: bars would
+           be too thin to read at daily resolution, so group into weekly
+           buckets instead — same underlying data, just aggregated for legibility. */
+        let buckets;
+        if(range==="week"){
+          buckets = order.filter(d=>Object.keys(dayData[d]||{}).length>0).map(d=>({
+            key:d, label: d===todayISO?"Today":d.slice(8), data: dayData[d]
+          }));
+        } else {
+          const bucketSize=7, numBuckets=Math.ceil(daysBack/bucketSize), raw=[];
+          for(let b=0;b<numBuckets;b++){
+            const days=order.slice(b*bucketSize, Math.min((b+1)*bucketSize, daysBack));
+            const merged={};
+            days.forEach(d=>{ Object.entries(dayData[d]||{}).forEach(([t,m])=>{ merged[t]=(merged[t]||0)+m; }); });
+            if(Object.keys(merged).length>0){
+              const start=new Date(days[0]+"T12:00:00");
+              raw.push({ key:days[0], label: start.toLocaleDateString("en-US",{month:"short",day:"numeric"}), data: merged });
+            }
+          }
+          buckets = raw;
+        }
+        const activeDays = buckets; // kept name for minimal downstream diff
+        const maxMins=Math.max(30,...activeDays.map(b=>Object.values(b.data||{}).reduce((a,v)=>a+v,0)));
         const chartH=120, chartW=290, barW=Math.min(32, (chartW-20)/Math.max(activeDays.length,1)-8);
         const barX=(i)=> 10 + i*(barW+8) + (chartW - activeDays.length*(barW+8))/2;
         // Legend: unique types present
         const typesUsed=[...new Set(sessions.filter(s=>s.type!=="Anchor").map(s=>s.type))];
         return (
           <div>
-            <SL title="Time anchored · by day"/>
+            <div style={{display:"flex",gap:"6px",marginBottom:"14px"}}>
+              {[["week","Week"],["month","Month"],["3months","3 Months"]].map(([id,label])=>(
+                <button key={id} onClick={()=>setRange(id)}
+                  style={{flex:1,padding:"7px 6px",borderRadius:"6px",cursor:"pointer",textAlign:"center",
+                    background:range===id?"rgba(163,192,137,0.12)":"transparent",
+                    border:`0.5px solid ${range===id?C.sageB:C.bord}`,
+                    ...body("11px",range===id?C.sageB:C.muted)}}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <SL title={`Time anchored · by ${range==="week"?"day":"week"}`}/>
             <div style={{background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"10px",padding:"16px 12px 10px",marginBottom:"16px"}}>
               {activeDays.length===0
                 ? <div style={{...body("12px",C.muted),fontStyle:"italic",textAlign:"center",padding:"20px 0"}}>No sessions yet.</div>
@@ -5891,19 +5983,19 @@ function LogsScreen({ onBack, sessions, jEntries }){
                       <text key={i} x="6" y={chartH*(1-r)+3} textAnchor="end" fontSize="7" fill={C.dim} fontFamily="Cinzel,serif">{Math.round(maxMins*r)}</text>
                     ))}
                     {/* bars */}
-                    {activeDays.map((date,i)=>{
-                      const data=dayData[date]||{};
+                    {activeDays.map((bucket,i)=>{
+                      const data=bucket.data||{};
                       const types=Object.entries(data);
                       let yOff=0;
                       return (
-                        <g key={date}>
+                        <g key={bucket.key}>
                           {types.map(([type,mins])=>{
                             const h=(mins/maxMins)*chartH;
                             const y=chartH-yOff-h;
                             yOff+=h;
                             return <rect key={type} x={barX(i)} y={y} width={barW} height={h} fill={TC[type]||C.muted} rx="2" opacity="0.85"/>;
                           })}
-                          <text x={barX(i)+barW/2} y={chartH+14} textAnchor="middle" fontSize="7.5" fill={C.muted} fontFamily="Cinzel,serif">{date===todayISO?"Today":date.slice(8)}</text>
+                          <text x={barX(i)+barW/2} y={chartH+14} textAnchor="middle" fontSize="7.5" fill={C.muted} fontFamily="Cinzel,serif">{bucket.label}</text>
                         </g>
                       );
                     })}
@@ -6368,7 +6460,7 @@ export default function AscendApp(){
   const [pendingReflection,setPendingReflection]=useState(null); // guided reflection routed to Journal
   const [chantUnlocked,setChantUnlocked]=useState(P.chantUnlocked ?? false);
   const [openChantQuest,setOpenChantQuest]=useState(false);
-  const [questCollapsed,setQuestCollapsed]=useState(P.questCollapsed ?? false);
+  const [actCollapsed,setActCollapsed]=useState(P.actCollapsed ?? {});
   const [classCollapsed,setClassCollapsed]=useState(P.classCollapsed ?? false);
   /* Which class quest is open in the reader, if any: {classId, questId} */
   const [openClassQuest,setOpenClassQuest]=useState(null);
@@ -6394,6 +6486,17 @@ export default function AscendApp(){
   const [theme,setTheme]=useState(P.theme ?? "navy");
   const [fontScale,setFontScale]=useState(P.fontScale ?? 1.0);
   const [guidedSession,setGuidedSession]=useState(P.guidedSession ?? true);
+  /* Guided cues are intro-quest scaffolding only. The old off-switch only
+     ever fired once, at the exact moment the very first session completed —
+     any account whose save already had guidedSession:true persisted from
+     before (or that reached this point some other way) would keep seeing
+     cues forever, since nothing else ever revisited the setting. This is
+     self-healing instead: it re-checks on every load, so an existing
+     account that's already past Chapter 2 gets corrected immediately,
+     not just players who haven't gotten there yet. */
+  useEffect(()=>{
+    if(completedChapters.includes(2) && guidedSession) setGuidedSession(false);
+  },[completedChapters, guidedSession]);
   const [timerVisibility,setTimerVisibility]=useState(P.timerVisibility ?? "reveal"); // "visible" | "hidden" | "reveal"
   const [autoCloudSync,setAutoCloudSync]=useState(P.autoCloudSync ?? true);
   const [splashImgLoaded,setSplashImgLoaded]=useState(false);
@@ -6624,7 +6727,7 @@ export default function AscendApp(){
      sees the latest without re-binding listeners. */
   const blob = {
     v:1, tab, fontScale, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, revealZones, zonesMigrated, libCollapsed,
-    completedChapters, hasAnchored, theme, guidedSession, timerVisibility, anchInitType, classState, chantUnlocked, way, questCollapsed, classCollapsed, autoCloudSync, onboardingDone: onboarding==="done",
+    completedChapters, hasAnchored, theme, guidedSession, timerVisibility, anchInitType, classState, chantUnlocked, way, actCollapsed, classCollapsed, autoCloudSync, onboardingDone: onboarding==="done",
   };
   const blobRef = useRef(blob);
   blobRef.current = blob;
@@ -6635,7 +6738,7 @@ export default function AscendApp(){
     const json = JSON.stringify(blobRef.current);
     const t = setTimeout(()=>writeStorage(json), 250);
     return ()=>clearTimeout(t);
-  },[hydrated, devMode, tab, fontScale, guidedSession, timerVisibility, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, way, questCollapsed, classCollapsed, autoCloudSync, revealZones, zonesMigrated, libCollapsed]);
+  },[hydrated, devMode, tab, fontScale, guidedSession, timerVisibility, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, way, actCollapsed, classCollapsed, autoCloudSync, revealZones, zonesMigrated, libCollapsed]);
 
   /* ── FLUSH: write immediately when the page is hidden or unloaded ── */
   useEffect(()=>{
@@ -6671,7 +6774,7 @@ export default function AscendApp(){
       }catch(e){ /* silent — local save already protects the data either way */ }
     }, 8000);
     return ()=>clearTimeout(cloudSyncTimerRef.current);
-  },[devMode, hydrated, cloudUser, cloudToken, tab, fontScale, guidedSession, timerVisibility, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, autoCloudSync, revealZones, zonesMigrated, libCollapsed]);
+  },[devMode, hydrated, cloudUser, cloudToken, tab, fontScale, guidedSession, timerVisibility, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, actCollapsed, classCollapsed, autoCloudSync, revealZones, zonesMigrated, libCollapsed]);
 
   useEffect(()=>{
     if(!cloudUser || !cloudToken) return;
@@ -7262,7 +7365,6 @@ export default function AscendApp(){
               types={types} library={library} setLibrary={setLibrary}
               addType={addType} startImmediately={true}
               skipReview={false}
-              anchorQuestPending={false}
               timerVisibility="hidden"
               unlocks={{modifiers:false,pause:false,pin:false,practiceType:false,activities:false,centers:false}}
               guideCues={[
@@ -7423,7 +7525,7 @@ export default function AscendApp(){
         <div style={{flex:1,overflowY:"auto",paddingBottom:"118px"}}>
           <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities}/></div>
           <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>setCompletedChapters(p=>p.includes(n)?p:[...p,n])} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
-            classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} questCollapsed={questCollapsed} setQuestCollapsed={setQuestCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}/></div>
+            classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}/></div>
           <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones}/></div>
           <div style={{display:tab==="library"?"block":"none"}}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)} collapsed={libCollapsed} setCollapsed={setLibCollapsed} classState={classState} chantUnlocked={chantUnlocked}/></div>
         </div>
@@ -7567,30 +7669,12 @@ export default function AscendApp(){
           onOpenInquire={(question)=>{setPendingInquiry(question);setOpenClassQuest(null);setScr("journal");}}/>}
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
         {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} timerVisibility={timerVisibility} setTimerVisibility={setTimerVisibility} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onDeleteCloud={handleDeleteCloud} onSignOut={handleSignOut} onVerified={handleVerified} autoCloudSync={autoCloudSync} setAutoCloudSync={setAutoCloudSync}/>}
-        {(()=>{
-          /* Mirrors QuestTab's own ANCHOR_SUBQUESTS logic exactly: is there a
-             currently-active, not-yet-done Alignment/Release/Breath quest?
-             (Chapter 2 must be read, and a "qualifying" session — xp>0 —
-             is what actually satisfies "Practice once" for each.) */
-          const qualSessions = sessions.filter(s=>s.xp>0).length;
-          /* "Active" here matches getState's own definition exactly
-             (chapter 1 done, chapter 2 not yet) — not a proxy for it. */
-          const ch2Active = completedChapters.includes(1) && !completedChapters.includes(2);
-          const anchorSubqPending = ch2Active && ANCHOR_SUBQUESTS.some((sq,i)=>{
-            const isRead = libReadAt[sq.libId]!==undefined;
-            const isDone = isRead && qualSessions>libReadAt[sq.libId];
-            if(isDone) return false;
-            return i===0 || ANCHOR_SUBQUESTS.slice(0,i).every(prev=>{
-              const pr=libReadAt[prev.libId]; return pr!==undefined && qualSessions>pr;
-            });
-          });
-          return anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} anchorQuestPending={anchorSubqPending} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType} reflectUnlocked={!!classState?.questProgress?.s_reflect || (classState?.activeClass==="sage" && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={classState?.activeClass||null} unlocks={anchorUnlocks(completedChapters)} guideCues={!anchorUnlocks(completedChapters).modifiers ? [
+        {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType} reflectUnlocked={!!classState?.questProgress?.s_reflect || (classState?.activeClass==="sage" && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={classState?.activeClass||null} unlocks={anchorUnlocks(completedChapters)} guideCues={!anchorUnlocks(completedChapters).modifiers ? [
           {s:0,  e:5,  text:"Sit comfortably."},
           {s:5,  e:10, text:"Let your eyes soften or close."},
           {s:10, e:50, text:"This is your time to simply be here, breathing, for as long as feels right."},
           {s:50, e:null, text:"Press the Ascend button below when you are finished.", gold:true},
-        ] : null}/>;
-        })()}
+        ] : null}/>}
       </div>
     </div>
   );
