@@ -1380,7 +1380,7 @@ function Chips({ opts, sel, onSel }){
 
 function Overlay({ title, onBack, right, devBadge, children }){
   return (
-    <div style={{position:"absolute",top:0,left:0,width:"100%",height:"calc(100% - 50px)",background:`linear-gradient(${C.bg},${C.bg2})`,zIndex:200,display:"flex",flexDirection:"column"}}>
+    <div style={{position:"absolute",top:0,left:0,width:"100%",height:"calc(100% - 50px)",background:`linear-gradient(${C.bg},${C.bg2})`,zIndex:255,display:"flex",flexDirection:"column"}}>
       <div style={{position:"relative",padding:"16px 20px",borderBottom:`0.5px solid ${C.bord}`,display:"flex",alignItems:"center",gap:"12px",flexShrink:0}}>
         <button onClick={onBack} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:"20px",padding:0}}>←</button>
         <span style={{...dsp("11px",C.cream,400,"0.16em"),flex:1}}>{title.toUpperCase()}</span>
@@ -1946,8 +1946,8 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 const on=awarenessLanding.includes(k);
                 return (
                   <button key={k} onClick={()=>setAwarenessLanding(p=>p.includes(k)?p.filter(x=>x!==k):[...p,k])}
-                    style={{flex:1,padding:"7px 2px",borderRadius:"5px",border:`0.5px solid ${on?sc:C.bord}`,background:on?sc+"22":"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",transition:"all .15s"}}>
-                    <span style={{fontSize:"8px",fontFamily:"Cinzel,serif",letterSpacing:"0.04em",color:on?sc:C.dim}}>{label.toUpperCase()}</span>
+                    style={{flex:1,padding:"7px 2px",borderRadius:"5px",border:`0.5px solid ${on?sc:C.muted}`,background:on?sc+"22":"rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",transition:"all .15s"}}>
+                    <span style={{fontSize:"8px",fontFamily:"Cinzel,serif",letterSpacing:"0.04em",color:on?sc:C.cream}}>{label.toUpperCase()}</span>
                   </button>
                 );
               })}
@@ -1964,8 +1964,8 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 const on=awarenessLanding.includes(k);
                 return (
                   <button key={k} onClick={()=>setAwarenessLanding(p=>p.includes(k)?p.filter(x=>x!==k):[...p,k])}
-                    style={{flex:1,padding:"7px 2px",borderRadius:"5px",border:`0.5px solid ${on?sc:C.bord}`,background:on?sc+"22":"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",transition:"all .15s"}}>
-                    <span style={{fontSize:"8px",fontFamily:"Cinzel,serif",letterSpacing:"0.04em",color:on?sc:C.dim}}>{label.toUpperCase()}</span>
+                    style={{flex:1,padding:"7px 2px",borderRadius:"5px",border:`0.5px solid ${on?sc:C.muted}`,background:on?sc+"22":"rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",transition:"all .15s"}}>
+                    <span style={{fontSize:"8px",fontFamily:"Cinzel,serif",letterSpacing:"0.04em",color:on?sc:C.cream}}>{label.toUpperCase()}</span>
                   </button>
                 );
               })}
@@ -5930,31 +5930,26 @@ function LogsScreen({ onBack, sessions, jEntries }){
           if(!dayData[d]) return; // outside the selected range — not counted in this chart
           dayData[d][s.type]=(dayData[d][s.type]||0)+s.duration;
         });
-        /* Week: one bar per day, exactly as before. Month/3-months: bars would
-           be too thin to read at daily resolution, so group into weekly
-           buckets instead — same underlying data, just aggregated for legibility. */
-        let buckets;
-        if(range==="week"){
-          buckets = order.filter(d=>Object.keys(dayData[d]||{}).length>0).map(d=>({
-            key:d, label: d===todayISO?"Today":d.slice(8), data: dayData[d]
-          }));
-        } else {
-          const bucketSize=7, numBuckets=Math.ceil(daysBack/bucketSize), raw=[];
-          for(let b=0;b<numBuckets;b++){
-            const days=order.slice(b*bucketSize, Math.min((b+1)*bucketSize, daysBack));
-            const merged={};
-            days.forEach(d=>{ Object.entries(dayData[d]||{}).forEach(([t,m])=>{ merged[t]=(merged[t]||0)+m; }); });
-            if(Object.keys(merged).length>0){
-              const start=new Date(days[0]+"T12:00:00");
-              raw.push({ key:days[0], label: start.toLocaleDateString("en-US",{month:"short",day:"numeric"}), data: merged });
-            }
+        /* Every calendar day in range gets its own bar, empty or not — the
+           axis represents the actual range you asked for, not just the
+           days that happened to have data. Only the LABEL density thins out
+           for longer ranges (a label under all 90 daily bars would just be
+           unreadable clutter); the bars themselves are always one-per-day. */
+        const labelEvery = range==="week" ? 1 : range==="month" ? 5 : 15;
+        const activeDays = order.map((d,i)=>{
+          const showLabel = i%labelEvery===0 || d===todayISO;
+          let label = "";
+          if(showLabel){
+            if(range==="week") label = d===todayISO?"Today":d.slice(8);
+            else label = new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
           }
-          buckets = raw;
-        }
-        const activeDays = buckets; // kept name for minimal downstream diff
+          return { key:d, label, data: dayData[d]||{} };
+        });
         const maxMins=Math.max(30,...activeDays.map(b=>Object.values(b.data||{}).reduce((a,v)=>a+v,0)));
-        const chartH=120, chartW=290, barW=Math.min(32, (chartW-20)/Math.max(activeDays.length,1)-8);
-        const barX=(i)=> 10 + i*(barW+8) + (chartW - activeDays.length*(barW+8))/2;
+        const chartH=120, chartW=290;
+        const perSlot=(chartW-20)/Math.max(activeDays.length,1);
+        const barW=Math.max(1, Math.min(32, perSlot*0.72));
+        const barX=(i)=> 10 + i*perSlot + (perSlot-barW)/2;
         // Legend: unique types present
         const typesUsed=[...new Set(sessions.filter(s=>s.type!=="Anchor").map(s=>s.type))];
         return (
@@ -5970,7 +5965,7 @@ function LogsScreen({ onBack, sessions, jEntries }){
                 </button>
               ))}
             </div>
-            <SL title={`Time anchored · by ${range==="week"?"day":"week"}`}/>
+            <SL title="Time anchored · by day"/>
             <div style={{background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"10px",padding:"16px 12px 10px",marginBottom:"16px"}}>
               {activeDays.length===0
                 ? <div style={{...body("12px",C.muted),fontStyle:"italic",textAlign:"center",padding:"20px 0"}}>No sessions yet.</div>
@@ -6485,18 +6480,17 @@ export default function AscendApp(){
   const [devMode,setDevMode]=useState(false);
   const [theme,setTheme]=useState(P.theme ?? "navy");
   const [fontScale,setFontScale]=useState(P.fontScale ?? 1.0);
-  const [guidedSession,setGuidedSession]=useState(P.guidedSession ?? true);
-  /* Guided cues are intro-quest scaffolding only. The old off-switch only
-     ever fired once, at the exact moment the very first session completed —
-     any account whose save already had guidedSession:true persisted from
-     before (or that reached this point some other way) would keep seeing
-     cues forever, since nothing else ever revisited the setting. This is
-     self-healing instead: it re-checks on every load, so an existing
-     account that's already past Chapter 2 gets corrected immediately,
-     not just players who haven't gotten there yet. */
-  useEffect(()=>{
-    if(completedChapters.includes(2) && guidedSession) setGuidedSession(false);
-  },[completedChapters, guidedSession]);
+  const [guidedSession,setGuidedSession]=useState(()=>{
+    /* One-time migration, computed once at load — not a recurring check.
+       Guided cues are intro-quest scaffolding; if this save already had
+       Chapter 2 done when it was written (e.g. an older save from before
+       this rule existed), correct it right here, once, at hydration.
+       The forward-looking half of this — turning cues off the moment
+       Chapter 2 is actually completed during a live session — lives at
+       the completion event itself (onCompleteChapter below), not here. */
+    if((P.completedChapters??[]).includes(2)) return false;
+    return P.guidedSession ?? true;
+  });
   const [timerVisibility,setTimerVisibility]=useState(P.timerVisibility ?? "reveal"); // "visible" | "hidden" | "reveal"
   const [autoCloudSync,setAutoCloudSync]=useState(P.autoCloudSync ?? true);
   const [splashImgLoaded,setSplashImgLoaded]=useState(false);
@@ -7524,7 +7518,7 @@ export default function AscendApp(){
         {/* content — all tabs stay mounted so internal state (quest screen, library entry) persists */}
         <div style={{flex:1,overflowY:"auto",paddingBottom:"118px"}}>
           <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities}/></div>
-          <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>setCompletedChapters(p=>p.includes(n)?p:[...p,n])} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
+          <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
             classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}/></div>
           <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones}/></div>
           <div style={{display:tab==="library"?"block":"none"}}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)} collapsed={libCollapsed} setCollapsed={setLibCollapsed} classState={classState} chantUnlocked={chantUnlocked}/></div>
