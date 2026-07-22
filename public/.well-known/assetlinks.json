@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "ca.ascensionproject.ascend",
+      "sha256_cert_fingerprints": [
+        "93:6D:98:9C:AA:72:41:0B:4A:7C:27:58:87:C1:8E:4E:A3:A1:61:3A:C1:F8:96:35:95:5E:17:6B:01:E4:CF:1E"
+      ]
+    }
+  }
+]
