@@ -6133,6 +6133,15 @@ function SettingsScreen({ onBack, name, setName, theme, setTheme,
         </div>
       </div>
 
+      {typeof navigator!=="undefined" && /Android/i.test(navigator.userAgent) && (
+        <div style={{padding:"12px 0 4px",borderBottom:`0.5px solid ${C.bord}`}}>
+          <a href="https://play.google.com/store/apps/details?id=ca.ascensionproject.ascend" target="_blank" rel="noopener noreferrer"
+            style={{display:"block",width:"100%",padding:"9px",background:"rgba(163,192,137,0.08)",border:`0.5px solid ${C.sageB}`,borderRadius:"4px",cursor:"pointer",textAlign:"center",textDecoration:"none",boxSizing:"border-box",...dsp("9px",C.sageB,400,"0.12em")}}>
+            ★ RATE ASCEND
+          </a>
+        </div>
+      )}
+
       <div style={{marginTop:"26px"}}>
         <SL title="Account"/>
         <div style={{...body("12px",C.muted),marginBottom:"6px"}}>Name</div>
