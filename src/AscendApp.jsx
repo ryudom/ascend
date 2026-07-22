@@ -2747,16 +2747,14 @@ const DOORS_SCENES=[
     "A map that claims to be the territory becomes a cage. A teacher who cannot be outgrown was never a teacher. So hear it from the map itself: this scaffolding was built to be climbed, and then, one day, climbed past. What is being cultivated is not loyalty to a system. It is you.",
     "Keep what works. Question all of it. The path is verified in one place only — your own direct experience. Nothing here asks to be believed. It asks to be tested.",
   ]},
-  {label:"iv · the pull and the avoidance",body:[
+  {label:"iv · many doors, one truth",body:[
     "How, then, does anyone choose among a thousand doors?",
     "Not by ranking them. By listening. Somewhere in that list a door pulled at you — a slight lean of the attention, quiet as a preference. That pull is data. It is how a path announces it is yours right now.",
-    "And somewhere a door made you look away. That is data too — often the better kind. We avoid the doors that ask for what we have been protecting. The one who avoids stillness is guarding something stillness would reveal. The one who avoids the body has reasons stored in the body. The avoided door usually knows something.",
-    "You are not asked to force the locked rooms open. Only to notice, honestly, which doors pull and which repel — and to remember that both are the path speaking.",
+    "And here is the thing every mapmaker eventually discovers, walking far enough down their own road: the doors lead to the same room. Different language, different posture, different hour of arrival — but the same stillness on the other side. Many doors. One truth, wearing a thousand coats.",
   ]},
-  {label:"v · the choosing",body:[
-    "Here is what makes this chapter different from every one before it.",
-    "Until now, the path chose for you. Sit, stand, walk — the forms were given, because a beginning needs givens. But you are past the beginning. You have read the script, found the bridge, strung the instrument. The next thing cannot be given, because the next thing is choice itself.",
-    "So before this chapter closes: listen for your doors. Name the pull and the avoidance. And walk once through the form you have used least — not because it is better, but because you have not yet heard what it has to say.",
+  {label:"v · your map, your door",body:[
+    "So the choosing is smaller than it looks. Not which truth — there is only one. Only which door.",
+    "Before this chapter closes: look back at the ground you've covered. Not the whole thousand-year map — yours. The one drawn in your own footprints, from the first current to this page. And look forward to the one door that keeps pulling, quieter than the rest, patient as a held breath.",
     "The path is real, and it is yours to choose. No one can walk it for you — and from this point on, no one here will choose it for you either. That is not abandonment. That is the difference between a map and a cage.",
   ]},
 ];
@@ -2764,7 +2762,7 @@ const FORGE_CH_SCENES=[
   {label:"i · the fire is lit",body:[
     "There is a place that has been waiting for you since you arrived. Grey, cold, unlit — perhaps you noticed it, sitting at the edge of the path, and wondered.",
     "It is a forge. And a forge does nothing until two things are present: fire, and something worth shaping.",
-    "You have gathered both without knowing it. The script, written down in your own hand. The moment when nothing was missing. The strings you are made of, and their honest pitch. The doors that pull you and the doors you avoid. All of it — every reflection, every session, every return — has been fuel, carried here one armload at a time.",
+    "You have gathered both without knowing it. The script, written down in your own hand. The moment when nothing was missing. The strings you are made of, and their honest pitch. The map you have walked, and the door that keeps pulling. All of it — every reflection, every session, every return — has been fuel, carried here one armload at a time.",
     "Tonight the fire is lit. What burns first is the question underneath every other question: what are you actually here for?",
   ]},
   {label:"ii · the buried thing",body:[
@@ -2978,8 +2976,8 @@ const CHAPTER_REQUIREMENTS = {
       ] },
   11:{ needsRead:true,
       reflections:[
-        { refId:"a2_doors", label:"The pull and the avoidance",
-          prompt:"Which door pulls you — body, mind, heart, hands, wild, stillness, sound, the ordinary? Which do you avoid? Name both honestly. The avoided one usually knows something — you don't have to open it. Just name it." },
+        { refId:"a2_doors", label:"What is your Path",
+          prompt:"Describe your map — the path you've walked so far, in your own words, from the first current to this page. Then name your door: which practice, which form, keeps pulling at you right now?" },
       ],
       invitations:[
         { t:"The unfamiliar form", d:"One session in the form you've used least — not because it is better, but because you have not yet heard what it has to say." },
@@ -3284,7 +3282,7 @@ const CHAPTER_META = [
   {n:8, title:"The Script",                sub:"A life written elsewhere",           act:"ACT II"},
   {n:9, title:"Heaven and Earth",          sub:"The bridge between",                 act:"ACT II"},
   {n:10,title:"The Instrument",            sub:"Tuning the strings",                 act:"ACT II"},
-  {n:11,title:"The Thousand Doors",        sub:"Ten thousand years of practice",     act:"ACT II"},
+  {n:11,title:"Many Doors to One Truth",   sub:"Ten thousand years of practice",     act:"ACT II"},
   {n:12,title:"Forging the Way",           sub:"The pen changes hands",              act:"ACT II"},
 ];
 const CHAPTER_SCENES = { 1:DRIFT_SCENES, 2:DOORWAY_SCENES, 3:PLACED_SCENES, 4:MASTERY_SCENES, 5:LIVING_WORLD_SCENES, 6:GROWING_SCENES, 7:THREE_FIRES_SCENES,
@@ -3300,7 +3298,7 @@ const CHAPTER_QUESTS = {
   8: { label:"Write the story you are living", desc:"Read the script of your days — then write it down, and read it back as a stranger would." },
   9: { label:"The remembered contact", desc:"Find the moment when nothing was missing. Write it down while it is still warm. Then stand between earth and sky." },
   10:{ label:"String the instrument", desc:"Name what you are made of — near strings and great strings, their honest pitch. Then begin the tuning." },
-  11:{ label:"The pull and the avoidance", desc:"Listen for your doors. Name the one that pulls and the one you avoid — both are the path speaking." },
+  11:{ label:"What is your Path",           desc:"Describe the map you've walked and the door that keeps pulling — both are the path speaking." },
   12:{ label:"Forge the Way",        desc:"Four fires: the Calling, the Cultivation, the Rhythm, the Horizon. Leave holding a Way written in your own hand." },
 };
 
@@ -4109,10 +4107,12 @@ function ForgeFlow({ way, onWayChange, jEnt, onOpenAnchor, onSeal }){
                 {st==="active"&&<span style={{...body("11px",FORGE_ACCENT_B)}}>Enter the fire →</span>}
               </div>
             </button>
-            {/* between-fires practice — appears once the part is done, gates the next */}
+            {/* between-fires practice — appears once the part is done, gates the next.
+                Glows while pending so completing a part never *looks* like a
+                dead end — the one remaining step stays impossible to miss. */}
             {st==="done" && g && (
-              <div style={{margin:"6px 0 0 18px",padding:"10px 12px",background:"rgba(255,255,255,0.02)",border:`0.5px solid ${gMet?`${C.sageB}55`:C.bord}`,borderRadius:"6px"}}>
-                <div style={{...dsp("9px",gMet?C.sageB:C.muted,400,"0.14em"),marginBottom:"4px"}}>{gMet?"✓ ":""}BETWEEN THE FIRES · {g.label.toUpperCase()}</div>
+              <div style={{margin:"6px 0 0 18px",padding:"10px 12px",background:gMet?"rgba(255,255,255,0.02)":"rgba(216,120,60,0.05)",border:`0.5px solid ${gMet?`${C.sageB}55`:`${FORGE_ACCENT}77`}`,borderRadius:"6px",animation:gMet?"none":"questGlow 2.6s ease-in-out infinite"}}>
+                <div style={{...dsp("9px",gMet?C.sageB:FORGE_ACCENT_B,400,"0.14em"),marginBottom:"4px"}}>{gMet?"✓ BETWEEN THE FIRES · ":"ONE STEP BEFORE THE NEXT FIRE · "}{g.label.toUpperCase()}</div>
                 <div style={{...body("11px",C.muted),fontStyle:"italic",lineHeight:"1.6",marginBottom:gMet?0:"8px"}}>{g.desc}</div>
                 {!gMet && g.key!=="strikeOnce" && (
                   <div style={{display:"flex",gap:"8px"}}>
@@ -4298,19 +4298,21 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
 
   const [emberPulse,setEmberPulse] = useState(0); // veiled-anvil tap feedback
 
-  /* Auto-surface a newly-available questline in the switcher (once each). */
+  /* Auto-surface a newly-available questline in the switcher (once each).
+     The Forge is deliberately NOT included here — it should only ever be
+     reached by the explicit "complete the four fires" tap on Chapter 12's
+     quest screen, never forced open automatically just because Chapter 11
+     completed. The anvil pill still ignites visually on its own; it just
+     no longer yanks the player's view over to it. */
   useEffect(()=>{
     const pNew = classGateOpen && (!classState || !classState.activeClass);
     const cNew = chantGateOpen && !chantUnlocked;
-    const fNew = completedChapters.includes(FORGE_CHAPTER-1) && way && !way.forged;
-    if(fNew && !autoSurfaced.forge){
-      setQuestLine("forge"); setAutoSurfaced(p=>({...p,forge:true}));
-    } else if(pNew && !autoSurfaced.path && !fNew){
+    if(pNew && !autoSurfaced.path){
       setQuestLine("path"); setAutoSurfaced(p=>({...p,path:true}));
-    } else if(cNew && !autoSurfaced.chant && !autoSurfaced.path && !fNew){
+    } else if(cNew && !autoSurfaced.chant && !autoSurfaced.path){
       setQuestLine("chant"); setAutoSurfaced(p=>({...p,chant:true}));
     }
-  },[classGateOpen, chantGateOpen, chantUnlocked, classState, autoSurfaced, completedChapters, way]);
+  },[classGateOpen, chantGateOpen, chantUnlocked, classState, autoSurfaced]);
 
   /* Voice drops out of the switcher the moment it's unlocked — if the player
      is currently looking at it, return them to Main rather than stranding them. */
@@ -4771,7 +4773,8 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
             return actDone && actName!==activeAct;
           };
           return actNames.map(actName=>{
-            const chaptersInAct = CHAPTER_META.filter(c=>c.act===actName);
+            const chaptersInAct = CHAPTER_META.filter(c=>c.act===actName && (devMode || getState(c.n)!=="locked"));
+            if(chaptersInAct.length===0) return null; // nothing unlocked in this act yet — don't even show its header
             const collapsed = isActCollapsed(actName);
             return (
               <div key={actName} style={{marginBottom:"6px"}}>
@@ -4779,7 +4782,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                   <span style={{...dsp("11px",C.gold,400,"0.16em")}}>{actTitles[actName]||actName}</span>
                   <span style={{...body("13px",C.muted),transform:collapsed?"rotate(-90deg)":"none",transition:"transform .2s"}}>▾</span>
                 </button>
-                {!collapsed && chaptersInAct.map((c)=>{
+                {!collapsed && chaptersInAct.map((c,ci)=>{
           const st=getState(c.n);
           const complete=st==="complete";
           const active=st==="active";
@@ -4824,7 +4827,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                 }}>
                   {complete&&<div style={{width:"5px",height:"5px",borderRadius:"50%",background:C.goldB}}/>}
                 </div>
-                {c.n!==CHAPTER_META[CHAPTER_META.length-1].n&&<div style={{width:"1px",flex:1,minHeight:"22px",background:complete?`rgba(201,168,76,0.3)`:C.bord,marginTop:"4px"}}/>}
+                {ci<chaptersInAct.length-1&&<div style={{width:"1px",flex:1,minHeight:"22px",background:complete?`rgba(201,168,76,0.3)`:C.bord,marginTop:"4px"}}/>}
               </div>
 
               <div
@@ -5196,7 +5199,18 @@ function MapTab({ pins, revealZones=[] }){
   const [hoveredPin,setHoveredPin]=useState(null);
   const [locating,setLocating]=useState(false);
   const [locatePulse,setLocatePulse]=useState(false);
-  const [userPos,setUserPos]=useState(null);
+  const [userPos,setUserPos]=useState(()=>{
+    /* Last known anchor point as the starting center — so pins render
+       correctly positioned relative to something real on first paint,
+       instead of all collapsing to a meaningless single point. Location
+       is never requested automatically; this stays in place until the
+       player taps "your location" themselves, at which point the real
+       fix replaces it. */
+    const withCoords = pins.filter(p=>p.lat!=null&&p.lng!=null);
+    if(withCoords.length===0) return null;
+    const mostRecent = withCoords[withCoords.length-1];
+    return {lat:mostRecent.lat, lng:mostRecent.lng};
+  });
   const [zoom,setZoom]=useState(1);
   const [pan,setPan]=useState({x:0,y:0});
   const [mode,setMode]=useState("local"); // "local" | "world"
@@ -5821,7 +5835,7 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, pen
       </>}
 
       <SL title={mode==="inquire"?"Sit with it. Then answer.":mode==="tend"?"Reflect":releaseKind==="Gratitude"?"What's still good?":releaseKind==="Forgiveness"?"What are you setting down?":"Entry"}/>
-      <textarea value={entry} onChange={e=>{setEntry(e.target.value);setSaved(false);onEntryChange&&onEntryChange(e.target.value);}} placeholder={mode==="inquire"?"Let the question work on you before you work on it…":mode==="tend"?"What happened? What did you notice?":releaseKind==="Gratitude"?"What's still true, still good, never taken?":releaseKind==="Forgiveness"?"Name it. You don't have to excuse it, just set it down.":"What do you notice right now?"} rows={7} style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("15px"),padding:"12px",resize:"none",boxSizing:"border-box",outline:"none",lineHeight:"1.7",caretColor:C.sageB}}/>
+      <textarea value={entry} onChange={e=>{setEntry(e.target.value);setSaved(false);onEntryChange&&onEntryChange(e.target.value);}} placeholder={mode==="inquire"?"Let the question work on you before you work on it…":mode==="reflect"?"Begin wherever it starts.":mode==="tend"?"What happened? What did you notice?":releaseKind==="Gratitude"?"What's still true, still good, never taken?":releaseKind==="Forgiveness"?"Name it. You don't have to excuse it, just set it down.":"What do you notice right now?"} rows={7} style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("15px"),padding:"12px",resize:"none",boxSizing:"border-box",outline:"none",lineHeight:"1.7",caretColor:C.sageB}}/>
       <button onClick={save} style={{marginTop:"10px",padding:"10px 20px",background:canSave&&!saved?"rgba(163,192,137,0.12)":"transparent",border:`0.5px solid ${canSave&&!saved?C.sageB:C.bord}`,color:canSave&&!saved?C.sageB:C.muted,...dsp("9px",undefined,400,"0.14em"),cursor:"pointer",borderRadius:"6px"}}>{saved?"✓ SAVED":"SAVE ENTRY"}</button>
     </Overlay>
   );
@@ -6132,15 +6146,6 @@ function SettingsScreen({ onBack, name, setName, theme, setTheme,
           })}
         </div>
       </div>
-
-      {typeof navigator!=="undefined" && /Android/i.test(navigator.userAgent) && (
-        <div style={{padding:"12px 0 4px",borderBottom:`0.5px solid ${C.bord}`}}>
-          <a href="https://play.google.com/store/apps/details?id=ca.ascensionproject.ascend" target="_blank" rel="noopener noreferrer"
-            style={{display:"block",width:"100%",padding:"9px",background:"rgba(163,192,137,0.08)",border:`0.5px solid ${C.sageB}`,borderRadius:"4px",cursor:"pointer",textAlign:"center",textDecoration:"none",boxSizing:"border-box",...dsp("9px",C.sageB,400,"0.12em")}}>
-            ★ RATE ASCEND
-          </a>
-        </div>
-      )}
 
       <div style={{marginTop:"26px"}}>
         <SL title="Account"/>
