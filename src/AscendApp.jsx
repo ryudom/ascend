@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 
 /* ───────────────────────── THEMES — three dark palettes ──────────────────── */
 const ACCENTS = { gold:"#C9A84C", goldB:"#e0c068", sage:"#7d9a6a", sageB:"#a3c089",
@@ -74,6 +74,70 @@ const CLASS_UNLOCK_LEVEL = 10;
 
 /* The Act I chapter whose completion satisfies the "Act I complete" gate. */
 const ACT1_FINAL_CHAPTER = 7; // "Making Contact" / final Act I chapter
+const ACT2_FINAL_CHAPTER = 12; // "Forging the Way" / final Act II chapter
+const FORGE_CHAPTER = 12;      // chapter whose activation ignites the Forge
+
+/* ── Moon — synodic approximation, accurate to within hours for decades.
+   No API: known new moon epoch (2000-01-06 18:14 UTC) + mean synodic month. */
+const SYNODIC_DAYS = 29.530588853;
+const NEW_MOON_EPOCH = Date.UTC(2000,0,6,18,14,0);
+const moonAgeDays = (d=new Date()) => {
+  const days = (d.getTime()-NEW_MOON_EPOCH)/86400000;
+  return ((days % SYNODIC_DAYS)+SYNODIC_DAYS)%SYNODIC_DAYS;
+};
+const moonPhaseFrac = (d=new Date()) => moonAgeDays(d)/SYNODIC_DAYS; // 0 new → 0.5 full → 1 new
+const nextNewMoon = (d=new Date()) => new Date(d.getTime() + (SYNODIC_DAYS-moonAgeDays(d))*86400000);
+const moonPhaseName = (d=new Date()) => {
+  const f=moonPhaseFrac(d);
+  if(f<0.03||f>0.97) return "New Moon";
+  if(f<0.22) return "Waxing Crescent";
+  if(f<0.28) return "First Quarter";
+  if(f<0.47) return "Waxing Gibbous";
+  if(f<0.53) return "Full Moon";
+  if(f<0.72) return "Waning Gibbous";
+  if(f<0.78) return "Last Quarter";
+  return "Waning Crescent";
+};
+
+/* ── The Way — the player-authored practice document, forged in Act II ch.12.
+   Commitments render as recurring quests in the Forge; strikes are one-day
+   quests that expire silently at midnight (no missed state exists anywhere). */
+const freshWay = () => ({
+  forged:false,
+  partsDone:[],            // ["calling","cultivation","rhythm","horizon"]
+  calling:{ thread:"", ache:"", day:"", sentence:"" },
+  qualities:[],            // [{word, stat}] — stat nullable ("" = unmapped)
+  commitments:[],          // [{id,name,address,cadence:"daily"|"weekly",perWeek,identityLine}]
+  tendingDay:null,         // 0(Sun)–6(Sat)
+  cycleStart:null,         // ISO — set at sealing
+  completions:[],          // [{cid, date:"YYYY-MM-DD"}]
+  strikes:[],              // [{id,name,date:"YYYY-MM-DD",done}]
+  gates:{},                // {boardDone,qualitySessionDone} — honor-marked between-fires practices
+  renewals:[],
+});
+const migrateWay = (w) => {
+  if(!w || typeof w!=="object") return freshWay();
+  const f=freshWay();
+  return { ...f, ...w,
+    calling:{...f.calling, ...(w.calling||{})},
+    qualities:Array.isArray(w.qualities)?w.qualities:[],
+    commitments:Array.isArray(w.commitments)?w.commitments:[],
+    completions:Array.isArray(w.completions)?w.completions:[],
+    strikes:Array.isArray(w.strikes)?w.strikes:[],
+    partsDone:Array.isArray(w.partsDone)?w.partsDone:[],
+    gates:w.gates&&typeof w.gates==="object"?w.gates:{},
+    renewals:Array.isArray(w.renewals)?w.renewals:[],
+  };
+};
+const localDateStr = (d=new Date()) => {
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), da=String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${da}`;
+};
+/* Monday-anchored key for the current week — weekly commitments reset on it. */
+const weekKey = (d=new Date()) => {
+  const t=new Date(d); const day=(t.getDay()+6)%7; t.setDate(t.getDate()-day);
+  return localDateStr(t);
+};
 const CHANT_UNLOCK_CHAPTER = 5; // unlocks after "The Living World"
 
 /* Chant — a universal voice modifier, foundational, not class-gated.
@@ -998,11 +1062,6 @@ function RidgelineScene({ h=190 }){
       <path d="M0,128 L70,96 L140,120 L210,82 L290,116 L360,90 L400,112 L400,190 L0,190 Z" fill="#2c3826" opacity="0.6"/>
       <path d="M0,150 L60,128 L130,148 L200,120 L270,150 L340,128 L400,150 L400,190 L0,190 Z" fill="#1f2a1c" opacity="0.85"/>
       <path d="M0,190 L120,150 L200,138 L280,152 L400,190 Z" fill="#121b10"/>
-      <g transform="translate(200,128)">
-        <ellipse cx="0" cy="14" rx="10" ry="2.5" fill="#0b110a" opacity="0.5"/>
-        <circle cx="0" cy="-9" r="2.6" fill="#0b110a"/>
-        <path d="M0,-7 C-3,-3 -3,4 -2.4,11 L2.4,11 C3,4 3,-3 0,-7 Z" fill="#0b110a"/>
-      </g>
     </svg>
   );
 }
@@ -1055,6 +1114,20 @@ function Emblem({ size=92 }){
         <circle cx="46" cy="52" r="2" fill="#0b110a"/>
         <path d="M46,54 C44,57 44,62 45,66 L47,66 C48,62 48,57 46,54Z" fill="#0b110a"/>
       </g>
+    </svg>
+  );
+}
+
+/* Anvil — the Forge's mark. Organic line-icon; optional ember spark above. */
+function AnvilIcon({ size=16, color=C.muted, spark=false, sw=1.3 }){
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{display:"block"}}>
+      {/* horn + face */}
+      <path d="M3.5 8.5 C3.5 8.5 5 7.5 8 7.5 L20.5 7.5 C20.5 9.5 18.5 11.5 15.5 11.5 L14 11.5 L14 14 L16.5 16.5 L7.5 16.5 L10 14 L10 11.5 L8 11.5 C5.5 11.5 3.5 10.5 3.5 8.5 Z"
+        stroke={color} strokeWidth={sw} strokeLinejoin="round"/>
+      {/* base */}
+      <path d="M6.5 19.5 L17.5 19.5" stroke={color} strokeWidth={sw} strokeLinecap="round"/>
+      {spark && <circle cx="17" cy="4" r="1.3" fill={color}/>}
     </svg>
   );
 }
@@ -1216,7 +1289,7 @@ function spiralPath(turns, Rout, Rin){
   }
   return d;
 }
-function SpiralCircle({ t, running }){
+function SpiralCircle({ t, running, tappable=false, onTap=()=>{} }){
   const cycle  = Math.floor(t/600);
   const cycleT = t%600;
   const turns  = cycleT/60;
@@ -1248,7 +1321,7 @@ function SpiralCircle({ t, running }){
   },[glowO]);
 
   return (
-    <div style={{position:"relative",width:182,height:182,display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div onClick={tappable?onTap:undefined} style={{position:"relative",width:182,height:182,display:"flex",alignItems:"center",justifyContent:"center",cursor:tappable?"pointer":"default"}}>
       <svg width="182" height="182" viewBox="0 0 182 182" style={{position:"absolute",overflow:"visible"}}>
         <defs>
           <radialGradient id="warmGlow" cx="50%" cy="50%" r="50%">
@@ -1307,7 +1380,7 @@ function Chips({ opts, sel, onSel }){
 
 function Overlay({ title, onBack, right, devBadge, children }){
   return (
-    <div style={{position:"absolute",top:0,left:0,width:"100%",height:"calc(100% - 50px)",background:`linear-gradient(${C.bg},${C.bg2})`,zIndex:200,display:"flex",flexDirection:"column"}}>
+    <div style={{position:"absolute",top:0,left:0,width:"100%",height:"calc(100% - 50px)",background:`linear-gradient(${C.bg},${C.bg2})`,zIndex:255,display:"flex",flexDirection:"column"}}>
       <div style={{position:"relative",padding:"16px 20px",borderBottom:`0.5px solid ${C.bord}`,display:"flex",alignItems:"center",gap:"12px",flexShrink:0}}>
         <button onClick={onBack} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:"20px",padding:0}}>←</button>
         <span style={{...dsp("11px",C.cream,400,"0.16em"),flex:1}}>{title.toUpperCase()}</span>
@@ -1364,10 +1437,20 @@ function playGong(ctx){
   }catch(e){}
 }
 
-function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting", reflectUnlocked=false, unlockedPracticeTypes=[], unlocks={modifiers:true,pause:true,pin:true,practiceType:true,activities:true,centers:true}, guideCues=null, activeClassId=null }){
+function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting", reflectUnlocked=false, unlockedPracticeTypes=[], unlocks={modifiers:true,pause:true,pin:true,practiceType:true,activities:true,centers:true}, guideCues=null, activeClassId=null, timerVisibility="reveal" }){
   const [phase,setPhase]       = useState("active");
   const [running,setRunning]   = useState(startImmediately);
   const [t,setT]               = useState(0);
+  const [revealed,setRevealed] = useState(false);           // tap-to-reveal: briefly shown, then fades
+  const revealTimerRef = useRef(null);
+  useEffect(()=>()=>clearTimeout(revealTimerRef.current),[]);
+  const revealTimer = () => {
+    if(timerVisibility!=="reveal") return;
+    setRevealed(true);
+    clearTimeout(revealTimerRef.current);
+    revealTimerRef.current = setTimeout(()=>setRevealed(false), 3200);
+  };
+  const showNumeral = timerVisibility==="visible" || (timerVisibility==="reveal" && revealed);
   /* Wall-clock anchoring: tRef.current is the true elapsed seconds at the start
      of the current "running" segment; runStartRef is when that segment began
      (Date.now()). Using real timestamps — not accumulated tick counts — means
@@ -1504,7 +1587,14 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
     if(elapsed>=alarmSecs){ setAlarmFired(true); setRunning(false); playGong(audioCtxRef.current); }
   },[elapsed]);
 
-  const finish = () => { setRunning(false); if(elapsed<10){ onClose(); return; } if(skipReview) onDone({quickAnchor:true,elapsed}); else setPhase("review"); };
+  const finish = () => {
+    /* The save/review screen always shows, regardless of duration — a
+       session under 10s is real and saves like any other, it simply won't
+       read as having "established the anchor" if that's still pending
+       (see the review screen below). No forced minimum, no blocked exit. */
+    setRunning(false);
+    if(skipReview) onDone({quickAnchor:true,elapsed}); else setPhase("review");
+  };
   const ret = () => {
     const loggedCounts = {};
     activeActivities.forEach(act=>{
@@ -1546,7 +1636,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
             </div>
           )}
           <div style={{display:"flex",justifyContent:"center",padding:"10px 0 2px"}}>
-            <SpiralCircle t={t} running={running}/>
+            <SpiralCircle t={t} running={running} tappable={timerVisibility==="reveal"} onTap={revealTimer}/>
           </div>
 
           {/* Guided arrival cues — first-session guide text replaces the normal cues */}
@@ -1574,12 +1664,12 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
 
           {unlocks.pause && (
           <div style={{textAlign:"center"}}>
-            {/* Timer row: elapsed + alarm bell — time gets a fixed-width box so the
-                alarm icon never shifts as the digits change width */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",alignItems:"center",gap:"14px"}}>
-              <div/>
-              <div style={{...dsp("15px",W(running?0.3:0.22),400,"0.08em"),minWidth:"86px",textAlign:"center",fontVariantNumeric:"tabular-nums"}}>{sec(elapsed)}</div>
-              <button onClick={()=>{ setAlarmOpen(v=>!v); unlockAudio(audioCtxRef); }} title="Set alarm" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",background:"none",border:"none",cursor:"pointer",padding:"4px",opacity:alarmOpen?1:0.7,justifySelf:"start"}}>
+            {/* Alarm bell — always visible regardless of timer-visibility
+                setting; a self-set alarm is a real question being answered,
+                not idle clock-watching. Dimmed slightly since it now stands
+                alone rather than sharing a row. */}
+            <div style={{display:"flex",justifyContent:"center",marginBottom:"10px"}}>
+              <button onClick={()=>{ setAlarmOpen(v=>!v); unlockAudio(audioCtxRef); }} title="Set alarm" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",background:"none",border:"none",cursor:"pointer",padding:"4px",opacity:alarmOpen?0.7:0.49}}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                   <path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 002 2z" fill={alarmFired?C.gold:alarmSecs?C.sageB:C.muted}/>
                   <path d="M18 16v-5a6 6 0 00-5-5.91V4a1 1 0 00-2 0v1.09A6 6 0 006 11v5l-2 2v1h16v-1l-2-2z" fill={alarmFired?C.gold:alarmSecs?C.sageB:C.muted} opacity={alarmFired?"1":"0.85"}/>
@@ -1588,6 +1678,13 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 {alarmSecs&&!alarmFired&&<span style={{...body("8px",C.sageB),lineHeight:1}}>{sec(alarmSecs)}</span>}
                 {alarmFired&&<span style={{...body("8px",C.gold),lineHeight:1}}>✓</span>}
               </button>
+            </div>
+            {/* Elapsed numeral — now sits under the bell. Ambient time is
+                always felt in the spiral's own glow and turning line; the
+                exact number only surfaces per the chosen visibility mode. */}
+            <div style={{...dsp("15px",C.cream,400,"0.08em"),minHeight:"20px",
+              fontVariantNumeric:"tabular-nums",opacity:showNumeral?0.5:0,transition:"opacity 0.45s ease"}}>
+              {sec(elapsed)}
             </div>
 
             {/* Alarm fired banner */}
@@ -1636,11 +1733,6 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 </div>
               </div>
             )}
-
-            {/* Start/Pause */}
-            <div style={{display:"flex",justifyContent:"center",marginTop:"14px"}}>
-              <button onClick={()=>{setRunning(r=>!r); unlockAudio(audioCtxRef);}} style={{padding:"9px 24px",background:"rgba(163,192,137,0.08)",border:"none",borderRadius:"3px",cursor:"pointer",...dsp("11px",C.sageB,400,"0.2em")}}>{running?"PAUSE":(elapsed>0?"RESUME":"START")}</button>
-            </div>
           </div>
           )}
 
@@ -1798,6 +1890,14 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
             }).filter(Boolean)}
           </div>
 
+          {xp<=0 && (
+            <div style={{textAlign:"left",background:"rgba(255,255,255,0.03)",border:`0.5px solid ${C.bord}`,borderRadius:"6px",padding:"11px 14px",marginBottom:"22px",opacity:0.7}}>
+              <div style={{...body("13px",C.cream),fontStyle:"italic",lineHeight:"1.65"}}>
+                This practice was too brief to establish the anchor.<br/>Spend a little longer before ending the session.
+              </div>
+            </div>
+          )}
+
           {/* What this session counted toward — moved here from the active
               screen, since this is the moment for reading information, not
               mid-practice. Cumulative activities show lifetime count + this
@@ -1846,8 +1946,8 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 const on=awarenessLanding.includes(k);
                 return (
                   <button key={k} onClick={()=>setAwarenessLanding(p=>p.includes(k)?p.filter(x=>x!==k):[...p,k])}
-                    style={{flex:1,padding:"7px 2px",borderRadius:"5px",border:`0.5px solid ${on?sc:C.bord}`,background:on?sc+"22":"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",transition:"all .15s"}}>
-                    <span style={{fontSize:"8px",fontFamily:"Cinzel,serif",letterSpacing:"0.04em",color:on?sc:C.dim}}>{label.toUpperCase()}</span>
+                    style={{flex:1,padding:"7px 2px",borderRadius:"5px",border:`0.5px solid ${on?sc:C.muted}`,background:on?sc+"22":"rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",transition:"all .15s"}}>
+                    <span style={{fontSize:"8px",fontFamily:"Cinzel,serif",letterSpacing:"0.04em",color:on?sc:C.cream}}>{label.toUpperCase()}</span>
                   </button>
                 );
               })}
@@ -1864,8 +1964,8 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 const on=awarenessLanding.includes(k);
                 return (
                   <button key={k} onClick={()=>setAwarenessLanding(p=>p.includes(k)?p.filter(x=>x!==k):[...p,k])}
-                    style={{flex:1,padding:"7px 2px",borderRadius:"5px",border:`0.5px solid ${on?sc:C.bord}`,background:on?sc+"22":"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",transition:"all .15s"}}>
-                    <span style={{fontSize:"8px",fontFamily:"Cinzel,serif",letterSpacing:"0.04em",color:on?sc:C.dim}}>{label.toUpperCase()}</span>
+                    style={{flex:1,padding:"7px 2px",borderRadius:"5px",border:`0.5px solid ${on?sc:C.muted}`,background:on?sc+"22":"rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",transition:"all .15s"}}>
+                    <span style={{fontSize:"8px",fontFamily:"Cinzel,serif",letterSpacing:"0.04em",color:on?sc:C.cream}}>{label.toUpperCase()}</span>
                   </button>
                 );
               })}
@@ -1881,7 +1981,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
           </div>
           )}
 
-          {unlocks.pin && (<>
+          {unlocks.pin && elapsed>=10 && (<>
           <button
             onClick={()=>setPinSession(p=>!p)}
             style={{width:"100%",display:"flex",alignItems:"center",gap:"12px",padding:"11px 14px",background:pinSession?"rgba(163,192,137,0.08)":"transparent",border:`0.5px solid ${pinSession?C.sageB:C.bord}`,borderRadius:"6px",cursor:"pointer",marginBottom:pinSession?"10px":"0",transition:"all .2s",textAlign:"left"}}
@@ -1913,7 +2013,10 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
           </>)}
         </div>
 
-        {/* SAVE — same position as anchor/ascend button */}
+        {/* SAVE — only appears once the session is long enough to actually
+            save something real. Under 10s, RESUME/DISCARD below are the
+            only options — no dead end, just no premature save. */}
+        {elapsed>=10 && (
         <button onClick={ret} style={{position:"absolute",bottom:"-7px",left:"50%",transform:"translateX(-50%)",zIndex:10,border:"none",background:"none",cursor:"pointer",padding:0,filter:`drop-shadow(0 0 14px rgba(201,168,76,0.5))`}}>
           <svg width="82" height="103" viewBox="0 0 70 88" style={{display:"block"}}>
             <circle cx="35" cy="30" r="28" fill={C.surf}/>
@@ -1921,9 +2024,10 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
             <text x="35" y="34" textAnchor="middle" fontSize="12" fill={C.gold} fontFamily="Cinzel,serif" letterSpacing="1">SAVE</text>
           </svg>
         </button>
+        )}
 
         {/* RESUME — back to active; DISCARD — close without saving */}
-        <button onClick={()=>setPhase("active")} style={{position:"absolute",bottom:"12px",left:"12%",transform:"translateX(-50%)",zIndex:10,background:"none",border:"none",cursor:"pointer",padding:"4px 6px",...dsp("8px",C.muted,400,"0.14em")}}>RESUME</button>
+        <button onClick={()=>{setPhase("active");setRunning(true);}} style={{position:"absolute",bottom:"12px",left:"12%",transform:"translateX(-50%)",zIndex:10,background:"none",border:"none",cursor:"pointer",padding:"4px 6px",...dsp("8px",C.muted,400,"0.14em")}}>RESUME</button>
         <button onClick={onClose} style={{position:"absolute",bottom:"12px",right:"12%",transform:"translateX(50%)",zIndex:10,background:"none",border:"none",cursor:"pointer",padding:"4px 6px",...dsp("8px",C.muted,400,"0.14em")}}>DISCARD</button>
 
       </>}
@@ -2329,7 +2433,13 @@ const ACT1_CHAPTERS=[
 // Chapter 1's in-quest reading, below — nothing here is duplicated there.
 const ONBOARDING_SCENE=[
   {label:"the invitation",body:[
-    "It's time to reclaim your power...",
+    "Welcome to Ascend.",
+    "Every civilization is shaped by the people who create it.",
+    "The world grows more whole as its people grow more present, more capable, more connected to one another.",
+    "Ascend is a cultivation game designed to help you develop those capacities — through real-world practice, meaningful quests, and community.",
+    "This is not about escaping life.",
+    "It is about learning to participate in it more fully.",
+    "It's time to reclaim your power.",
   ]},
 ];
 const DRIFT_SCENES=[
@@ -2519,6 +2629,206 @@ const THREE_FIRES_SCENES=[
 ];
 
 
+/* ═══════════════ ACT II — THE AUTHORING ═══════════════ */
+
+const SCRIPT_SCENES=[
+  {label:"i · the second current",body:[
+    "In the first Act you learned to see a current — the one that carries attention out of the body, into the head, into the machines. You learned to feel it pulling, and you learned the way back.",
+    "But attention was never the only thing drifting.",
+    "Look at a single ordinary day of your life. The hour you wake. The route you take. The work you do and the way you speak of it. What you eat, what you watch, what you believe is possible for someone like you.",
+    "How much of it did you choose? And how much of it was simply — there. Already written. Waiting for you to perform it.",
+  ]},
+  {label:"ii · the writers",body:[
+    "Every life runs on a script. Most of it was written by others.",
+    "Some of it by people who loved you — family patterns, handed down like heirlooms, some treasure and some weight. Some by the age you were born into — its schools, its markets, its clocks. And some, more recently, by systems that study you: feeds that learned what holds your eyes, and quietly took over the pen.",
+    "There is no villain here. Scripts are how humans pass on a world. Most of the people who wrote yours were performing scripts of their own, written by hands they never saw.",
+    "The script is not evil. It is only unexamined.",
+  ]},
+  {label:"iii · the reader",body:[
+    "Here is what the first Act was secretly for.",
+    "A person carried by the current cannot see the current. A person inside a script cannot read it — the lines feel like life itself, like the only way things could be.",
+    "But you have practiced stepping back. You have sat and watched a thought arrive, perform itself, and pass — without becoming it. That skill has a second use.",
+    "The same presence that can watch a thought can watch a pattern. The reflex reach for the phone. The automatic yes. The old sentence about yourself, spoken again in your mother's cadence. Watched closely enough, each one reveals itself as what it is: a line, being read.",
+    "You are learning the rarest form of literacy. Not reading words — reading the script you live in.",
+  ]},
+  {label:"iv · the opening",body:[
+    "And here the ground shifts. Because anything that was written can be rewritten.",
+    "Not all at once. Not by burning the script — much of it holds real wisdom, and a life needs its inherited lines the way a house needs its beams. The work is quieter than rebellion. It is authorship: keeping what is true, releasing what was never yours, and writing — slowly, deliberately — the lines that are.",
+    "Most people never learn the difference between living a life and performing one. Not because they are weak, but because no one ever told them there was a pen.",
+    "There is a pen.",
+  ]},
+  {label:"v · the hand",body:[
+    "This Act is about what happens when the pen changes hands.",
+    "In the chapters ahead you will look at the world and find it unfinished. You will take up the strings you are made of and learn to tune them. You will stand before the many doors of the path and choose your own. And at the end of it, in a place that has been waiting for you since you arrived, you will write something no one else can write.",
+    "For now, only this: begin to read.",
+    "And before this chapter closes, one act of courage — write the story down. The one that is running now, in its own plain words. You cannot rewrite a page you have never looked at.",
+    "You are not the script. You are the one who can see it — and everyone who has ever rewritten a life started exactly there.",
+  ]},
+];
+const HEAVEN_EARTH_SCENES=[
+  {label:"i · the oldest gesture",body:[
+    "Long before there were scriptures, there was a gesture. A human being, standing on the earth, looking up.",
+    "Wherever humans looked up, this happened. When words ran out, they pointed — up, toward the vast, the luminous, the unnameable. And down, toward the ground that held them, the dark that grew things, the body and its blood. Heaven and earth. The above and the below.",
+    "They disagreed about almost everything else. Names, laws, rituals, gods. But the gesture was the same on every continent. As if all of them were describing the same architecture from different windows.",
+  ]},
+  {label:"ii · the bridge",body:[
+    "And in that architecture, the human being was never placed in heaven, and never buried in the earth.",
+    "The human was placed between.",
+    "You have already felt this — not as an idea, as a structure. In standing practice: crown rising, weight dropping, the body becoming a bridge between earth and sky. That was not poetry. That is what you are. A vertical being, feet in the soil, head in the open, something moving through the middle.",
+    "Most people live as a closed bridge. The traffic stopped long ago; above and below lost touch. Not through any fault — only through forgetting. A bridge that no one crosses slowly forgets it is a bridge.",
+  ]},
+  {label:"iii · heaven on earth",body:[
+    "Now the phrase can be said properly.",
+    "Heaven on earth is not a place. It is not a future the world arrives at once the last problem is solved. It is a state — the moment above and below meet in a body present enough to carry both. Harmony, realized. Not somewhere. In someone.",
+    "And you have touched it. Somewhere in your life there is a moment — perhaps a minute, perhaps less — when everything was exactly in place and nothing was missing. A morning, a shoreline, a room, a face. You did not manufacture that moment. Something opened, and the two currents met, and you were the meeting.",
+    "That was not an accident. That was contact. The state is not foreign to you. It is the thing you were built for, visited too rarely, remembered like a country you cannot quite place on a map.",
+  ]},
+  {label:"iv · the radiance",body:[
+    "Here is what changes everything about the so-called state of the world.",
+    "A world is made of the states of its people. Not only its systems and its laws — those are downstream. A fearful people builds fearful systems. A scattered people builds a scattered age. You saw this in the first Act: the outer world reflects the inner one.",
+    "But the reflection runs both ways. A person in harmony harmonizes a room. A room, a household. A household, a street. Presence radiates the way warmth does — without argument, without persuasion, changing the temperature of everything near it.",
+    "No one tunes a whole orchestra at once. It happens one instrument at a time. And every instrument that comes into tune makes it easier for the next to find the note.",
+  ]},
+  {label:"v · the conducting",body:[
+    "So the dream of a more beautiful world does not begin with a plan. It begins with a state — practiced, returned to, carried into rooms.",
+    "This is not a retreat into the self. It is the opposite. Every session, every return, every minute of presence is already participation — the bridge opening, the current crossing, heaven arriving in the only place it has ever arrived: a human being, here, now.",
+    "Before this chapter closes, go and find the moment. The one where nothing was missing. Write it down while it is still warm from remembering. You will need it later — it is made of the same material as everything you are going to build.",
+    "You are the bridge. Heaven on earth is not somewhere you go. It is something you conduct — and you have already carried it once.",
+  ]},
+];
+const INSTRUMENT_SCENES=[
+  {label:"i · the strings",body:[
+    "You do not end at your skin.",
+    "Pull on any life and you will find it strung — lines of relation running outward in every direction, taut or slack, sounding or silent. To the people you are made of. To the place that holds you. To money, to time, to your own body. To the mystery you may or may not have a name for.",
+    "You are not a self that happens to have relationships. You are, in large part, made of them. Cut every string and see what remains — not a purer you. Almost no you at all.",
+    "This chapter is about the instrument you already are.",
+  ]},
+  {label:"ii · the near strings",body:[
+    "The first ring is the nearest: the handful of people whose lives are woven into yours. Family, chosen or given. The friend who knows the unedited version. The ones you love, the ones you carry, the ones you cannot seem to put down.",
+    "Each of these is a string with a real tone. Some sound clear — every contact leaves you more alive. Some have gone sour, and you flinch when life plucks them. Some have gone slack from years of silence, so quiet you forgot they were strung at all.",
+    "None of this is a verdict. A sour string is not a bad string. It is a pitch — information, waiting for a tuner.",
+  ]},
+  {label:"iii · the great strings",body:[
+    "The second ring is stranger, and almost no one examines it.",
+    "You are in relationship with money — listen to what happens in your body when it is mentioned. With time, which you fight or flee or race. With your own body, spoken to daily in a tone you would never use on a friend. With technology. With the government and its weather. With nature. With death, whose string everyone carries and few ever touch. And with the mystery — God, the sacred, the above — whatever your word is, or your silence.",
+    "These strings are enormous, and mostly invisible, and they sound through everything. A sour string to money can flatten every note near it. A slack string to the mystery leaves a life quietly missing its lowest tone.",
+    "You are not asked to fix them. You are asked, first, only to hear them honestly.",
+  ]},
+  {label:"iv · tuning",body:[
+    "Here is what the ear is for.",
+    "A string is tuned by attention — feeling its pitch precisely, then adjusting, small turn by small turn. Relationships tune the same way, and the movements have old names.",
+    "Acceptance loosens what is over-wound — the string held so tight against what-is that it can only screech. Forgiveness releases the sour note — not excusing what happened, only refusing to keep sounding it. Gratitude brightens what is true and good and already there, the tone that was never taken.",
+    "Not every string can be tuned to sweetness. Some can only be loosened. A few are best left to rest. Even that is tuning — done deliberately, by the one holding the instrument, rather than by drift.",
+    "Some make this work their entire path. That door has a name here, and it belongs to the Healer.",
+    "But understand the shape of the work: no one tunes a whole instrument in a week. The strings you are made of will be tuned across a lifetime — turned, and turned again, as the weather changes them. What begins now is not a task with an end. It is the practice of a player who has finally picked up the instrument.",
+  ]},
+  {label:"v · the player",body:[
+    "There is a reason this chapter comes now.",
+    "You have written the script and seen whose hand wrote it. You have found the bridge and remembered the state. But no one conducts alone. The harmony you touched is not a private glow — it is relational, or it is not much at all. A person in tune with nothing may be calm. They are not yet music.",
+    "So before this chapter closes: string the instrument. Name what you are made of, honestly, in both directions — what feeds you and what drains you. Then begin the tuning. As many strings as you are willing to touch — one turned with full attention is worth more than six turned in a hurry, but no string is off limits, and the willing hand should not be held back. Feel them in the body. Write what you find. Where the string is a person, let the tuning reach them — a voice, a presence, not a text.",
+    "You are an instrument, and the tuning was never anyone else's job. That is not a burden. It is the return of the one power no script can hold: your own hand on the pegs.",
+  ]},
+];
+const DOORS_SCENES=[
+  {label:"i · the long experiment",body:[
+    "For at least ten thousand years, human beings have been doing what you are doing now.",
+    "Sitting in stillness until the sediment settled. Standing between earth and sky. Walking with attention gathered. Fasting, chanting, praying, serving. Dancing until the self loosened. Working the land, working the breath, working the heart.",
+    "On every continent, in every age, some portion of humanity turned inward and began to cultivate. They left maps — thousands of them. Different languages, different symbols, different names for the summit.",
+    "You have inherited all of it. The whole long experiment. Most people never learn this. They think the path has one gate, guarded by whoever they happened to meet first.",
+  ]},
+  {label:"ii · the doors",body:[
+    "The maps disagree on much. But walk through enough of them and a pattern appears: the doors are many, and they are not the same door.",
+    "There is the door of the body — movement, breath, posture, the animal made conscious. The door of the mind — inquiry, study, the blade of a question. The door of the heart — devotion, love, the gates of grief and gratitude. The door of the hands — craft, work, service, the world improved as prayer. The door of the wild — mountains, rivers, the oldest teacher. The door of stillness. The door of sound. The door of the ordinary, hidden in dishes and doorways.",
+    "No door is higher. This must be said plainly, because nearly every tradition claimed its own door was the summit's only gate. They were wrong in the same way — each mistaking their window for the sky.",
+  ]},
+  {label:"iii · this map",body:[
+    "Now something must be said about the map in your hands.",
+    "Everything you have met here — the forms, the fires, the paths and their names — is one map among thousands. Drawn with care, drawn from the long experiment, but drawn so that you would have somewhere to start. Not so that you would have somewhere to stop.",
+    "A map that claims to be the territory becomes a cage. A teacher who cannot be outgrown was never a teacher. So hear it from the map itself: this scaffolding was built to be climbed, and then, one day, climbed past. What is being cultivated is not loyalty to a system. It is you.",
+    "Keep what works. Question all of it. The path is verified in one place only — your own direct experience. Nothing here asks to be believed. It asks to be tested.",
+  ]},
+  {label:"iv · many doors, one truth",body:[
+    "How, then, does anyone choose among a thousand doors?",
+    "Not by ranking them. By listening. Somewhere in that list a door pulled at you — a slight lean of the attention, quiet as a preference. That pull is data. It is how a path announces it is yours right now.",
+    "And here is the thing every mapmaker eventually discovers, walking far enough down their own road: the doors lead to the same room. Different language, different posture, different hour of arrival — but the same stillness on the other side. Many doors. One truth, wearing a thousand coats.",
+  ]},
+  {label:"v · your map, your door",body:[
+    "So the choosing is smaller than it looks. Not which truth — there is only one. Only which door.",
+    "Before this chapter closes: look back at the ground you've covered. Not the whole thousand-year map — yours. The one drawn in your own footprints, from the first current to this page. And look forward to the one door that keeps pulling, quieter than the rest, patient as a held breath.",
+    "The path is real, and it is yours to choose. No one can walk it for you — and from this point on, no one here will choose it for you either. That is not abandonment. That is the difference between a map and a cage.",
+  ]},
+];
+const FORGE_CH_SCENES=[
+  {label:"i · the fire is lit",body:[
+    "There is a place that has been waiting for you since you arrived. Grey, cold, unlit — perhaps you noticed it, sitting at the edge of the path, and wondered.",
+    "It is a forge. And a forge does nothing until two things are present: fire, and something worth shaping.",
+    "You have gathered both without knowing it. The script, written down in your own hand. The moment when nothing was missing. The strings you are made of, and their honest pitch. The map you have walked, and the door that keeps pulling. All of it — every reflection, every session, every return — has been fuel, carried here one armload at a time.",
+    "Tonight the fire is lit. What burns first is the question underneath every other question: what are you actually here for?",
+  ]},
+  {label:"ii · the buried thing",body:[
+    "Callings are not invented. They are excavated.",
+    "Yours has been in you longer than your plans, longer than your job, longer than most of your opinions about yourself. It was visible once — in what you did for hours as a child without being asked, in what you kept returning to wearing different costumes across the years. Then the script arrived, with its sensible lines, and the calling learned to live quietly underneath them.",
+    "But buried is not gone. It has been pulling the whole time — a slight lean in the attention, a door among the thousand. And it speaks a second language too, stranger than desire: it speaks through the ache. What breaks your heart in this world is not random. You do not grieve what you were not built to tend.",
+    "The forge does not ask you to make something up. It asks you to listen down.",
+    "The anvil waits. Go to the Forge, and begin.",
+  ]},
+];
+
+/* ── Forge flow — parts, movements, scene copy ── */
+const FORGE_PARTS=[
+  { id:"calling", n:"I", title:"The Calling", sub:"Listening down",
+    scenes:[
+      "Callings are not invented. They are excavated. Yours has been in you longer than your plans — visible once in what you did for hours unasked, still pulling through what aches and what draws. The forge does not ask you to make something up. It asks you to listen down.",
+    ],
+    movements:[
+      { id:"thread", label:"The Thread", surfaces:"a2_doors",
+        prompt:"Before the world told you what to want — what did you love? What did you do for hours, unasked? What have you kept returning to, in different costumes, your whole life?",
+        hint:"It rarely looks like a job title. It usually looks like a verb — making, tending, exploring, understanding, gathering people." },
+      { id:"ache", label:"The Ache", surfaces:"a2_strings",
+        prompt:"What in this world do you almost have to look away from? What loss or waste or suffering aches in you the way other people's causes don't?",
+        hint:"The ache is a compass. You do not grieve what you were not built to tend." },
+      { id:"day", label:"The Day", surfaces:"a2_contact",
+        prompt:"It is some years from now, and the thread and the ache are being answered. Walk through one ordinary day of that life — waking to sleep. Where do you wake? Who is near? What does the work of your hands look like? What do you no longer do?",
+        hint:"You once described a moment when nothing was missing. Build the day that moment lives in." },
+      { id:"sentence", label:"The Naming", surfaces:null,
+        prompt:"In your own words, one sentence: what is the dream? What are you here to build, tend, heal, or make?",
+        hint:"Half-heard is allowed. A calling half-heard is still a heading — you will return to this sentence at every renewal, and it will grow truer as you do." },
+    ],
+    gate:{ key:"boardDone", label:"Build the dream where your hands can reach it",
+      desc:"Images, words, objects. A board, a wall, a shelf. Cut, print, gather, arrange. Put it where morning will find it. The phone cannot hold this one — it must live in your room, in the world, at hand-height." },
+  },
+  { id:"cultivation", n:"II", title:"The Cultivation", sub:"The metal",
+    scenes:[
+      "A fire alone forges nothing. There must be metal. Here is the law every calling eventually teaches: you cannot give what you have not grown. The dream you named asks something of you — specific qualities, without which it stays a picture on a wall. This is why cultivation comes before plans. Plans are made of circumstances, and circumstances shift. Qualities are made of practice, and practice is yours.",
+      "Do not reach for the app's words here. Reach for yours. What do you want to grow? It may be a capacity you have trained — presence, strength, clarity, will. It may be something no stat has ever measured — gratitude, peace, joy, patience, courage, softness. All of it is metal. All of it can be worked. Some qualities live somewhere in the body — a place you can rest attention and feel them stir. Some refuse an address entirely, and that is no failure. Joy does not need coordinates to be practiced.",
+    ],
+    gate:{ key:"qualitySessionDone", label:"One session with a chosen quality as its companion",
+      desc:"Not thinking about it — sitting inside it, letting it set the tone of the breath. If it has a place in the body, rest there. If it doesn't, let the whole body be its address." },
+  },
+  { id:"rhythm", n:"III", title:"The Rhythm", sub:"Devotion with a schedule",
+    scenes:[
+      "Now the strikes. And first, a correction the age badly needs. Discipline has been slandered — spoken of as punishment, the whip, the war against the self. That discipline breaks; it always breaks, because no one can occupy their own life as an enemy force forever. There is an older meaning. Discipline as devotion with a schedule. The monastery bell, the farmer's dawn, the musician's scales — not violence against the self, but loyalty to what one loves, kept in time. A rhythm is simply love, made repeatable.",
+      "Here the forge asks for restraint, and means it. Start smaller than feels right. The grandest practice abandoned in three weeks forges nothing; the smallest practice kept becomes a life. One breath taken on purpose every morning outweighs an hour promised and skipped. You can grow it at the next renewal — the forge will still be here. What cannot be recovered so easily is the trust you break with yourself by over-promising. And bind each practice to the day itself. Not \"more often\" — that is fog. After the coffee. Before the phone. When the door closes behind you. A practice with an address gets visited. A practice without one gets remembered fondly.",
+    ],
+    gate:{ key:"strikeOnce", label:"Strike once",
+      desc:"One commitment, done — tonight or tomorrow — before the final part opens. The blade is real now. It should feel the hammer at least once before it is named." },
+  },
+  { id:"horizon", n:"IV", title:"The Horizon", sub:"The moon",
+    scenes:[
+      "Go outside tonight, if the sky allows, and find the moon. It is the oldest clock, and the honest one. It does not accumulate. It does not count streaks. It waxes, fullens, wanes, goes dark — and begins again, unashamed of the dark it passed through. Every tradition that tied its practice to the moon learned the same thing: nothing living holds one shape forever.",
+      "Neither will your Way. It is forged tonight to be reforged — each new moon, back at this fire: what held, what slipped, what the sentence wants to become. The dark of the moon is not failure. It is the part of the rhythm where the next shape is chosen.",
+    ],
+    gate:null,
+  },
+];
+
+const ACT2_CLOSE_LINES=[
+  "You arrived at this Act carrying a life shaped by drift and written by others.",
+  "You read the script. You found the bridge and remembered the state it opens. You strung the instrument and put your own hand on the pegs. You stood before the thousand doors and heard which ones were yours.",
+  "And tonight you leave holding a Way written in your own hand — and a forge that will be lit every morning you choose to return to it.",
+  "The fire is yours now.",
+];
+
 const CONTEMPLATIONS=[
   "The map is useful. The terrain is real.",
   "Clarity is not achievement. It is uncovering.",
@@ -2574,6 +2884,11 @@ const CHAPTER_MOODS = {
   5: { bg1:"#081208", bg2:"#0b1e0c", accent:"#98c870", wisp:"rgba(120,200,80,0.09)"  }, // living world — vivid green
   6: { bg1:"#0e0e04", bg2:"#181804", accent:"#c8b840", wisp:"rgba(200,180,50,0.07)" },  // growing — gold
   7: { bg1:"#120808", bg2:"#200a04", accent:"#c86030", wisp:"rgba(200,90,40,0.08)"  },  // three fires — ember
+  8: { bg1:"#0c0a10", bg2:"#141020", accent:"#9a8fc0", wisp:"rgba(140,125,190,0.07)" }, // the script — faded ink violet
+  9: { bg1:"#081018", bg2:"#0c1a28", accent:"#8fb8d8", wisp:"rgba(140,185,220,0.08)" }, // heaven & earth — sky over ground
+  10:{ bg1:"#100c08", bg2:"#1c1408", accent:"#c89860", wisp:"rgba(200,150,90,0.07)"  }, // instrument — warm wood
+  11:{ bg1:"#0c0812", bg2:"#160c22", accent:"#a878c8", wisp:"rgba(160,110,200,0.07)" }, // thousand doors — violet
+  12:{ bg1:"#0e0c0a", bg2:"#1a1210", accent:"#d8783c", wisp:"rgba(216,120,60,0.09)"  }, // the forge — iron & ember
 };
 const DEFAULT_MOOD = { bg1:"#0d1410", bg2:"#0d1410", accent:"#7aa060", wisp:"rgba(90,150,80,0.07)" };
 
@@ -2623,6 +2938,54 @@ const CHAPTER_REQUIREMENTS = {
           const hasLand=(s,ids)=>{ const l=Array.isArray(s.awarenessLanding)?s.awarenessLanding:(s.awarenessLanding?[s.awarenessLanding]:[]); return ids.some(id=>l.includes(id)); };
           return [["root","belly","solar_plexus"],["chest"],["head","top"]].every(ids=>ss.some(s=>hasLand(s,ids)&&(s.elapsed||0)>=600));
         } } },
+
+  /* ── Act II — reflection-based chapters. `reflections` render as journal
+     sub-quests on the quest screen; each completes when an entry with that
+     refId exists. `invitations` are displayed practices, honor-system,
+     never gating (the Act I DRIFT_PRACTICES spirit). ── */
+  8: { needsRead:true,
+      reflections:[
+        { refId:"a2_story", label:"Write the story you are living",
+          prompt:"Tell the story of your life as it runs right now — present tense, an ordinary week, told plainly. Not the story you tell at dinner. The one that actually plays. As short or as long as it wants to be. \"I wake at… I spend my days… I tell myself that…\"" },
+        { refId:"a2_readback", label:"Read it back",
+          prompt:"Read what you wrote as if a stranger handed it to you. How much of this story did its main character choose? Notice — without fixing anything — how it feels to read it." },
+      ],
+      invitations:[
+        { t:"Catch it live", d:"Notice one scripted moment as it happens — the reflex reach, the default route, the automatic yes. Don't fight it. Just see it." },
+        { t:"Anchor before the pen", d:"One session, any form. Reading requires a reader who is home." },
+      ] },
+  9: { needsRead:true,
+      reflections:[
+        { refId:"a2_contact", label:"The remembered contact",
+          prompt:"Describe a moment when everything was exactly in place and nothing was missing. Where were you? What was present? Stay in it as long as it lets you." },
+      ],
+      practice:{ desc:"One standing session — attention on the vertical line, crown to sky, weight to earth, you as what joins them.",
+        check: ss => ss.some(s=>s.typeId==="standing"&&(s.elapsed||0)>=180) },
+      invitations:[
+        { t:"Find the evidence", d:"Find one place near you where someone made the world slightly more beautiful on purpose — a garden, a bench, a painted wall. Stand in it for one minute." },
+      ] },
+  10:{ needsRead:true,
+      reflections:[
+        { refId:"a2_strings", label:"String the instrument",
+          prompt:"Name the strings you are made of. The near ring — the handful of people. Then choose the great strings that pull at you — money, time, your body, technology, nature, death, the mystery. Beside each, the honest tone: clear, sour, or slack. No verdicts. Just pitch." },
+        { refId:"a2_tuning", label:"Begin the tuning",
+          prompt:"Work as many strings as you're willing this week. Feel each in the body, adjust by small turns, write what you find. If the string is a person: voice or presence, not a text. The whole instrument is a life's work — this week is only your hands learning the pegs." },
+      ],
+      invitations:[
+        { t:"Feel one string", d:"One session, any form, holding a single chosen string. Where does it live in the body? What is its actual pitch, beneath what you say about it?" },
+      ] },
+  11:{ needsRead:true,
+      reflections:[
+        { refId:"a2_doors", label:"What is your Path",
+          prompt:"Describe your map — the path you've walked so far, in your own words, from the first current to this page. Then name your door: which practice, which form, keeps pulling at you right now?" },
+      ],
+      invitations:[
+        { t:"The unfamiliar form", d:"One session in the form you've used least — not because it is better, but because you have not yet heard what it has to say." },
+        { t:"Anchor at a door", d:"One session held at whichever door pulled you. Let the door itself be the session's companion." },
+      ] },
+  12:{ needsRead:true, forgeGate:true,
+      practice:{ desc:"Complete the four fires at the Forge — the Calling, the Cultivation, the Rhythm, the Horizon.",
+        check: (ss,lr,pins,stats,jEnt,way) => !!(way&&way.forged) } },
 };
 
 const LIBRARY_ENTRIES = [
@@ -2914,10 +3277,16 @@ const CHAPTER_META = [
   {n:3, title:"The First Ground",          sub:"A place in the world",               act:"ACT I"},
   {n:4, title:"Foundations of Mastery",    sub:"The hidden foundations",              act:"ACT I"},
   {n:5, title:"The Living World",          sub:"The oldest teacher",                 act:"ACT I"},
-  {n:6, title:"Cultivating the Capacities",sub:"The invisible harvest",              act:"ACT II"},
-  {n:7, title:"The Three Fires",           sub:"Centers of being",                   act:"ACT II"},
+  {n:6, title:"Cultivating the Capacities",sub:"The invisible harvest",              act:"ACT I"},
+  {n:7, title:"The Three Fires",           sub:"Centers of being",                   act:"ACT I"},
+  {n:8, title:"The Script",                sub:"A life written elsewhere",           act:"ACT II"},
+  {n:9, title:"Heaven and Earth",          sub:"The bridge between",                 act:"ACT II"},
+  {n:10,title:"The Instrument",            sub:"Tuning the strings",                 act:"ACT II"},
+  {n:11,title:"Many Doors to One Truth",   sub:"Ten thousand years of practice",     act:"ACT II"},
+  {n:12,title:"Forging the Way",           sub:"The pen changes hands",              act:"ACT II"},
 ];
-const CHAPTER_SCENES = { 1:DRIFT_SCENES, 2:DOORWAY_SCENES, 3:PLACED_SCENES, 4:MASTERY_SCENES, 5:LIVING_WORLD_SCENES, 6:GROWING_SCENES, 7:THREE_FIRES_SCENES };
+const CHAPTER_SCENES = { 1:DRIFT_SCENES, 2:DOORWAY_SCENES, 3:PLACED_SCENES, 4:MASTERY_SCENES, 5:LIVING_WORLD_SCENES, 6:GROWING_SCENES, 7:THREE_FIRES_SCENES,
+  8:SCRIPT_SCENES, 9:HEAVEN_EARTH_SCENES, 10:INSTRUMENT_SCENES, 11:DOORS_SCENES, 12:FORGE_CH_SCENES };
 const CHAPTER_QUESTS = {
   1: { label:"The Current",          desc:"Recognize the current that carries us — and the turning that calls us back." },
   2: { label:"Who are you, really?", desc:"Anchor once. Enter the house of your soul." },
@@ -2926,6 +3295,11 @@ const CHAPTER_QUESTS = {
   5: { label:"Enter the world",      desc:"Take your practice outside. Complete one walking session in the living world." },
   6: { label:"Build the vessel",     desc:"Bring every capacity to 30 XP. Practice across all forms." },
   7: { label:"Tend the fires",       desc:"Read each Center. Complete a 10-minute session in each — awareness landing on that center." },
+  8: { label:"Write the story you are living", desc:"Read the script of your days — then write it down, and read it back as a stranger would." },
+  9: { label:"The remembered contact", desc:"Find the moment when nothing was missing. Write it down while it is still warm. Then stand between earth and sky." },
+  10:{ label:"String the instrument", desc:"Name what you are made of — near strings and great strings, their honest pitch. Then begin the tuning." },
+  11:{ label:"What is your Path",           desc:"Describe the map you've walked and the door that keeps pulling — both are the path speaking." },
+  12:{ label:"Forge the Way",        desc:"Four fires: the Calling, the Cultivation, the Rhythm, the Horizon. Leave holding a Way written in your own hand." },
 };
 
 /* ════════════════════════ CLASS SYSTEM — UI ════════════════════════════════ */
@@ -3017,7 +3391,7 @@ function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onRet
    pattern as the first-session guide text: one line fades in, holds, fades
    for the next. Names only the paths actually reachable at this point
    (Mystic stays hidden until Healer + Sage both reach Mastery 1). */
-function ActCompleteScreen({ onContinue }){
+function ActCompleteScreen({ onContinue, act=1 }){
   const [t,setT]=useState(0);
   useEffect(()=>{
     const start=Date.now();
@@ -3029,7 +3403,14 @@ function ActCompleteScreen({ onContinue }){
      straight to the next. fadeOut is 1s; each cue's "visible" window ends
      1s before its nominal boundary so the fade-out completes inside a
      silent gap, not overlapping the next line's fade-in. */
-  const CUES=[
+  const CUES= act===2 ? [
+    {s:0,    fadeOutAt:null, e:3,    text:null},
+    {s:3,    fadeOutAt:6.5,  e:7.5,  text:"Act II Complete"},
+    {s:7.5,  fadeOutAt:null, e:8.5,  text:null},
+    {s:8.5,  fadeOutAt:13.5, e:14.5, text:"You arrived carrying a life written by others. You leave holding a Way written in your own hand."},
+    {s:14.5, fadeOutAt:null, e:15.5, text:null},
+    {s:15.5, fadeOutAt:null, e:null, text:"The fire is yours now."},
+  ] : [
     {s:0,    fadeOutAt:null, e:3,    text:null},                                            // ~3s black, silence
     {s:3,    fadeOutAt:6.5,  e:7.5,  text:"Act I Complete"},
     {s:7.5,  fadeOutAt:null, e:8.5,  text:null},                                             // ~1s black between lines
@@ -3138,7 +3519,8 @@ function questProgressLine(q, activities, jEnt=[]){
     if(u.singleSession) return `${u.name}: one sitting of ${u.target}${u.unit?" "+u.unit:""}`;
     const act = activities.find(a=>a.name===u.name);
     const count = act?.count||0;
-    return `${u.name}: ${count}/${u.target}${u.unit?" "+u.unit:""}`;
+    const countDisp = u.unit==="minutes" ? count.toFixed(1) : count.toFixed(0);
+    return `${u.name}: ${countDisp}/${u.target}${u.unit?" "+u.unit:""}`;
   });
   const tendLines = tendUnlocks.map(u=>{
     const total = jEnt.filter(e=>e.tag==="tend" && e.tendKind===u.tendKind).reduce((s,e)=>s+(e.tendMinutes||0),0);
@@ -3317,11 +3699,12 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
               );
             }
             const count=act?.count||0;
+            const countDisp = u.unit==="minutes" ? count.toFixed(1) : count.toFixed(0);
             const pct=Math.min(100,Math.round(count/u.target*100));
             return (
               <div key={u.name} style={{marginBottom:"10px"}}>
                 <div style={{display:"flex",justifyContent:"space-between",...body("12px",C.muted),marginBottom:"4px"}}>
-                  <span>{u.name}</span><span>{count}/{u.target} {u.unit||""}</span>
+                  <span>{u.name}</span><span>{countDisp}/{u.target} {u.unit||""}</span>
                 </div>
                 <div style={{height:"4px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}>
                   <div style={{height:"100%",width:`${pct}%`,background:accent,transition:"width .3s"}}/>
@@ -3419,11 +3802,492 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
 }
 
 
+/* ═══════════════ THE FORGE — the player-authored questline ═══════════════
+   Pre-seal: ForgeFlow — the four fires of "Forging the Way" (Act II ch.12).
+   Post-seal: ForgeSection — the daily place: moon arc, the Way, today's fire.
+   Anti-addiction commitments carved in: no streaks anywhere, no missed state,
+   strikes expire silently at midnight, the fire reflects TODAY only.        */
+
+const FORGE_ACCENT = "#d8783c", FORGE_ACCENT_B = "#e8945c";
+const WEEKDAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+/* Moon arc — phase along a horizontal arc; renewal (new moon) marked ahead. */
+function MoonArc({ way }){
+  const now = new Date();
+  const frac = moonPhaseFrac(now);                       // 0 new → 0.5 full → 1 new
+  const renewal = nextNewMoon(now);
+  const daysToRenewal = Math.max(0, Math.ceil((renewal.getTime()-now.getTime())/86400000));
+  const W=330, H=74, cx=W/2, cy=H+18, r=96;
+  const arcPt = f => { const a=Math.PI*(1-f); return [cx+r*Math.cos(a), cy-r*Math.sin(a)]; };
+  const [px,py]=arcPt(frac);
+  const illum = 0.5-0.5*Math.cos(frac*2*Math.PI);        // 0 dark → 1 full
+  return (
+    <div style={{padding:"14px 0 4px",display:"flex",flexDirection:"column",alignItems:"center"}}>
+      <svg width={W} height={H+8} viewBox={`0 0 ${W} ${H+8}`} style={{display:"block"}}>
+        <path d={`M ${arcPt(0)[0]} ${arcPt(0)[1]} A ${r} ${r} 0 0 1 ${arcPt(1)[0]} ${arcPt(1)[1]}`}
+          fill="none" stroke={C.bord} strokeWidth="1"/>
+        {/* new-moon endpoints */}
+        {[0,1].map(f=>{ const [x,y]=arcPt(f); return <circle key={f} cx={x} cy={y} r="2.4" fill="none" stroke={C.dim} strokeWidth="1"/>; })}
+        {/* full-moon apex */}
+        {(()=>{ const [x,y]=arcPt(0.5); return <circle cx={x} cy={y} r="2.4" fill={C.dim}/>; })()}
+        {/* the moon, where it is tonight */}
+        <circle cx={px} cy={py} r="7" fill={`rgba(226,229,238,${0.15+illum*0.75})`} stroke={C.cream} strokeWidth="0.8"/>
+      </svg>
+      <div style={{...dsp("9px",C.muted,400,"0.2em"),marginTop:"2px"}}>{moonPhaseName(now).toUpperCase()}</div>
+      <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"2px"}}>
+        {daysToRenewal===0 ? "The new moon is here — renewal at the Forge" : `Renewal in ${daysToRenewal} day${daysToRenewal===1?"":"s"}`}
+        {way?.tendingDay!=null && ` · tending ${WEEKDAYS[way.tendingDay]}s`}
+      </div>
+    </div>
+  );
+}
+
+/* One movement screen of Part I — surfaced prior entry + the question. */
+function ForgeMovement({ mv, value, surfacedEntry, onChange }){
+  return (
+    <div>
+      <div style={{...dsp("10px",FORGE_ACCENT,400,"0.22em"),marginBottom:"10px"}}>{mv.label.toUpperCase()}</div>
+      {surfacedEntry && (
+        <div style={{background:"rgba(255,255,255,0.03)",border:`0.5px solid ${C.bord}`,borderLeft:`2px solid ${FORGE_ACCENT}66`,borderRadius:"6px",padding:"10px 12px",marginBottom:"12px"}}>
+          <div style={{...dsp("8px",C.muted,400,"0.18em"),marginBottom:"5px"}}>YOU WROTE, EARLIER ON THE PATH</div>
+          <div style={{...body("12px",C.muted),fontStyle:"italic",lineHeight:"1.7",maxHeight:"110px",overflowY:"auto",whiteSpace:"pre-wrap"}}>{surfacedEntry}</div>
+        </div>
+      )}
+      <div style={{...body("14px",C.cream),fontStyle:"italic",lineHeight:"1.8",marginBottom:"6px"}}>{mv.prompt}</div>
+      <div style={{...body("11px",C.dim),fontStyle:"italic",lineHeight:"1.6",marginBottom:"12px"}}>{mv.hint}</div>
+      <textarea value={value} onChange={e=>onChange(e.target.value)} rows={mv.id==="sentence"?3:7}
+        placeholder={mv.id==="sentence"?"One sentence. Revisable at every renewal.":"Take your time. The fire is patient."}
+        style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("15px"),padding:"12px",resize:"none",boxSizing:"border-box",outline:"none",lineHeight:"1.7",caretColor:FORGE_ACCENT_B}}/>
+    </div>
+  );
+}
+
+/* The pre-seal flow: four fires, gated in sequence. */
+function ForgeFlow({ way, onWayChange, jEnt, onOpenAnchor, onSeal }){
+  const [inPart,setInPart]   = useState(null);  // part id currently open, or null (landing)
+  const [step,setStep]       = useState(0);     // scene/movement index within the part
+  const [draft,setDraft]     = useState({});    // local edits before part-save
+  const [sealing,setSealing] = useState(false);
+  const [nudge,setNudge]     = useState("");    // gentle inline validation message (Rhythm step)
+
+  const done = id => way.partsDone.includes(id);
+  const gateMet = (part) => {
+    if(!part.gate) return true;
+    if(part.gate.key==="strikeOnce") return (way.completions||[]).length>0;
+    return !!way.gates[part.gate.key];
+  };
+  /* A part is enterable when all prior parts are done AND gated. */
+  const partState = (idx) => {
+    const p=FORGE_PARTS[idx];
+    if(done(p.id)) return "done";
+    const priorOk = FORGE_PARTS.slice(0,idx).every(pp=>done(pp.id)&&gateMet(pp));
+    return priorOk ? "active" : "locked";
+  };
+  const entryFor = refId => refId ? (jEnt.find(e=>e.tag==="reflection"&&e.refId===refId)?.text||null) : null;
+  const openPart = (p) => {
+    setInPart(p.id); setStep(0); setNudge("");
+    if(p.id==="calling") setDraft({...way.calling});
+    if(p.id==="cultivation") setDraft({qualities:[...(way.qualities.length?way.qualities:[{word:"",stat:""}])]});
+    if(p.id==="rhythm") setDraft({commitments:[...(way.commitments.length?way.commitments:[{id:`c_${Date.now()}`,name:"",address:"",cadence:"daily",perWeek:3,identityLine:""}])], tendingDay: way.tendingDay??0});
+  };
+  const savePart = (id, patch) => {
+    onWayChange(w=>({ ...w, ...patch, partsDone: w.partsDone.includes(id)?w.partsDone:[...w.partsDone,id] }));
+    setInPart(null); setStep(0);
+  };
+
+  /* ── inside a part ── */
+  if(inPart){
+    const part = FORGE_PARTS.find(p=>p.id===inPart);
+    const scenes = part.scenes||[];
+    const back = ()=>{ if(step>0) setStep(s=>s-1); else { setInPart(null); setStep(0);} };
+
+    /* Sealing — the Way whole, the old story surfaced, the seal. */
+    if(inPart==="horizon" && step>=scenes.length){
+      const story = entryFor("a2_story");
+      return (
+        <div style={{padding:"4px 20px 30px"}}>
+          <div style={{...dsp("10px",FORGE_ACCENT,400,"0.22em"),margin:"10px 0 14px"}}>THE SEALING</div>
+          <div style={{background:C.surf,border:`0.5px solid ${FORGE_ACCENT}55`,borderRadius:"8px",padding:"16px",marginBottom:"14px"}}>
+            <div style={{...dsp("9px",C.gold,400,"0.2em"),marginBottom:"8px"}}>THE WAY</div>
+            <div style={{...body("15px",C.cream),fontStyle:"italic",lineHeight:"1.8",marginBottom:"12px"}}>"{way.calling.sentence||"…"}"</div>
+            {way.qualities.filter(q=>q.word).length>0 && (
+              <div style={{marginBottom:"12px"}}>
+                <div style={{...dsp("8px",C.muted,400,"0.18em"),marginBottom:"5px"}}>CULTIVATING</div>
+                <div style={{...body("13px",C.cream)}}>{way.qualities.filter(q=>q.word).map(q=>q.word).join(" · ")}</div>
+              </div>
+            )}
+            <div style={{...dsp("8px",C.muted,400,"0.18em"),marginBottom:"6px"}}>THE RHYTHM</div>
+            {way.commitments.map(cm=>(
+              <div key={cm.id} style={{marginBottom:"8px"}}>
+                <div style={{...body("13px",C.cream),fontStyle:"italic"}}>{cm.identityLine||cm.name}</div>
+                <div style={{...body("10px",C.dim)}}>{cm.name} · {cm.address} · {cm.cadence==="daily"?"daily":`${cm.perWeek}× a week`}</div>
+              </div>
+            ))}
+            {way.tendingDay!=null && <div style={{...body("11px",C.muted),fontStyle:"italic",marginTop:"8px"}}>Tending: {WEEKDAYS[way.tendingDay]} evenings · Renewal: each new moon</div>}
+          </div>
+          {story && (
+            <div style={{marginBottom:"16px"}}>
+              <div style={{...body("13px",C.cream),fontStyle:"italic",lineHeight:"1.8",marginBottom:"10px"}}>One more thing, before it is sealed. Read this.</div>
+              <div style={{background:"rgba(255,255,255,0.03)",border:`0.5px solid ${C.bord}`,borderRadius:"6px",padding:"12px",marginBottom:"10px"}}>
+                <div style={{...dsp("8px",C.muted,400,"0.18em"),marginBottom:"5px"}}>THE STORY YOU WERE LIVING · WRITTEN AT THE START OF THIS ACT</div>
+                <div style={{...body("12px",C.muted),fontStyle:"italic",lineHeight:"1.7",maxHeight:"140px",overflowY:"auto",whiteSpace:"pre-wrap"}}>{story}</div>
+              </div>
+              <div style={{...body("13px",C.cream),fontStyle:"italic",lineHeight:"1.8"}}>You do not have to rewrite the old one tonight. Only notice: the pen has already changed hands.</div>
+            </div>
+          )}
+          <button onClick={()=>{ if(!sealing){ setSealing(true); onSeal(); } }}
+            style={{width:"100%",padding:"14px",background:"linear-gradient(rgba(216,120,60,0.20),rgba(216,120,60,0.07))",border:`0.5px solid ${FORGE_ACCENT}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",FORGE_ACCENT_B,400,"0.2em")}}>
+            SEAL THE WAY
+          </button>
+          <button onClick={back} style={{width:"100%",marginTop:"8px",padding:"10px",background:"none",border:"none",cursor:"pointer",...body("11px",C.dim)}}>← back</button>
+        </div>
+      );
+    }
+
+    /* Scene pages first, then the part's working screens. */
+    if(step < scenes.length){
+      return (
+        <div style={{padding:"4px 20px 30px"}}>
+          <div style={{...dsp("10px",FORGE_ACCENT,400,"0.22em"),margin:"10px 0 16px"}}>{`FIRE ${part.n} · ${part.title.toUpperCase()}`}</div>
+          <p style={{...body("15px",C.cream),lineHeight:"1.95",fontStyle:"italic",animation:"fadeRise 0.7s ease both"}}>{scenes[step]}</p>
+          <button onClick={()=>setStep(s=>s+1)} style={{width:"100%",marginTop:"20px",padding:"12px",background:C.surf,border:`0.5px solid ${C.bord}`,cursor:"pointer",borderRadius:"6px",...dsp("10px",C.cream,400,"0.16em")}}>CONTINUE</button>
+          <button onClick={back} style={{width:"100%",marginTop:"6px",padding:"8px",background:"none",border:"none",cursor:"pointer",...body("11px",C.dim)}}>← back</button>
+        </div>
+      );
+    }
+
+    /* Part I — the four movements, one per screen. */
+    if(inPart==="calling"){
+      const mi = step - scenes.length;
+      const mv = part.movements[mi];
+      const val = draft[mv.id]||"";
+      const last = mi===part.movements.length-1;
+      return (
+        <div style={{padding:"4px 20px 30px"}}>
+          <ForgeMovement mv={mv} value={val} surfacedEntry={entryFor(mv.surfaces)} onChange={v=>setDraft(d=>({...d,[mv.id]:v}))}/>
+          <button disabled={!val.trim()} onClick={()=>{ if(last){ savePart("calling",{calling:{...way.calling,...draft,[mv.id]:val}}); } else setStep(s=>s+1); }}
+            style={{width:"100%",marginTop:"14px",padding:"12px",background:val.trim()?"rgba(216,120,60,0.10)":C.surf,border:`0.5px solid ${val.trim()?FORGE_ACCENT:C.bord}`,cursor:val.trim()?"pointer":"default",borderRadius:"6px",...dsp("10px",val.trim()?FORGE_ACCENT_B:C.dim,400,"0.16em"),opacity:val.trim()?1:0.6}}>
+            {last?"NAME IT — AND CARRY IT TO THE FIRE":"CONTINUE"}
+          </button>
+          <button onClick={back} style={{width:"100%",marginTop:"6px",padding:"8px",background:"none",border:"none",cursor:"pointer",...body("11px",C.dim)}}>← back</button>
+        </div>
+      );
+    }
+
+    /* Part II — qualities, the player's words; body-mapping optional. */
+    if(inPart==="cultivation"){
+      const qs = draft.qualities||[];
+      const setQ=(i,patch)=>setDraft(d=>({...d,qualities:d.qualities.map((q,qi)=>qi===i?{...q,...patch}:q)}));
+      const valid = qs.some(q=>q.word.trim());
+      return (
+        <div style={{padding:"4px 20px 30px"}}>
+          <div style={{...dsp("10px",FORGE_ACCENT,400,"0.22em"),marginBottom:"10px"}}>WHAT DO YOU WANT TO CULTIVATE?</div>
+          <div style={{...body("11px",C.dim),fontStyle:"italic",lineHeight:"1.6",marginBottom:"14px"}}>Your words — presence, gratitude, peace, joy, clarity, courage, softness, strength… A place in the body is optional. Joy does not need coordinates to be practiced.</div>
+          {qs.map((q,i)=>(
+            <div key={i} style={{display:"flex",gap:"8px",marginBottom:"8px",alignItems:"center"}}>
+              <input value={q.word} onChange={e=>setQ(i,{word:e.target.value})} placeholder="a quality, in your word"
+                style={{flex:1,background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("14px"),padding:"10px 12px",outline:"none",boxSizing:"border-box"}}/>
+              <select value={q.stat||""} onChange={e=>setQ(i,{stat:e.target.value})}
+                style={{background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:q.stat?C.cream:C.dim,...body("12px"),padding:"10px 6px",outline:"none"}}>
+                <option value="">unmapped</option>
+                <option value="vit">Vitality</option><option value="str">Root</option><option value="wil">Will</option>
+                <option value="hrt">Heart</option><option value="voi">Voice</option><option value="wis">Clarity</option><option value="ali">Alignment</option>
+              </select>
+              {qs.length>1&&<button onClick={()=>setDraft(d=>({...d,qualities:d.qualities.filter((_,qi)=>qi!==i)}))} style={{background:"none",border:"none",color:C.dim,cursor:"pointer",fontSize:"15px",padding:"0 2px"}}>×</button>}
+            </div>
+          ))}
+          <button onClick={()=>setDraft(d=>({...d,qualities:[...d.qualities,{word:"",stat:""}]}))} style={{background:"none",border:`0.5px dashed ${C.bord}`,borderRadius:"6px",width:"100%",padding:"8px",cursor:"pointer",...body("12px",C.muted),marginBottom:"14px"}}>+ another quality</button>
+          <button disabled={!valid} onClick={()=>savePart("cultivation",{qualities:qs.filter(q=>q.word.trim()).map(q=>({word:q.word.trim(),stat:q.stat||""}))})}
+            style={{width:"100%",padding:"12px",background:valid?"rgba(216,120,60,0.10)":C.surf,border:`0.5px solid ${valid?FORGE_ACCENT:C.bord}`,cursor:valid?"pointer":"default",borderRadius:"6px",...dsp("10px",valid?FORGE_ACCENT_B:C.dim,400,"0.16em"),opacity:valid?1:0.6}}>
+            THE METAL IS CHOSEN
+          </button>
+          <button onClick={back} style={{width:"100%",marginTop:"6px",padding:"8px",background:"none",border:"none",cursor:"pointer",...body("11px",C.dim)}}>← back</button>
+        </div>
+      );
+    }
+
+    /* Part III — the commitments. Tiny minimums, addresses, identity lines. */
+    if(inPart==="rhythm"){
+      const cms = draft.commitments||[];
+      const setC=(i,patch)=>setDraft(d=>({...d,commitments:d.commitments.map((c2,ci)=>ci===i?{...c2,...patch}:c2)}));
+      /* A commitment is "real" if EITHER the practice name or the identity
+         line is filled — the two are often written in either order, and the
+         identity line ("I am someone who...") is usually the one that pulls
+         people first. Neither field should be able to silently gate the other. */
+      const hasContent = c2 => (c2.name||"").trim() || (c2.identityLine||"").trim();
+      const valid = cms.some(hasContent);
+      /* Derive a plain practice name from the identity line when name is
+         left blank, so no one loses a commitment over which box they wrote in first. */
+      const deriveName = c2 => {
+        if((c2.name||"").trim()) return c2.name.trim();
+        const m=(c2.identityLine||"").match(/i am someone who (.+?)[.\s]*$/i);
+        return (m ? m[1] : c2.identityLine||"").trim() || "a practice";
+      };
+      const attemptSave = () => {
+        if(!valid){ setNudge("Name the practice, or finish the sentence \"I am someone who…\" — either is enough."); return; }
+        savePart("rhythm",{ commitments:cms.filter(hasContent).map(c2=>({...c2,name:deriveName(c2)})), tendingDay:draft.tendingDay??0 });
+      };
+      return (
+        <div style={{padding:"4px 20px 30px"}}>
+          <div style={{...dsp("10px",FORGE_ACCENT,400,"0.22em"),marginBottom:"10px"}}>COMPOSE THE RHYTHM</div>
+          <div style={{...body("11px",C.dim),fontStyle:"italic",lineHeight:"1.6",marginBottom:"14px"}}>Start smaller than feels right — you can grow it at the next renewal. Give each practice an address in the day. Then say who it makes you.</div>
+          {cms.map((c2,i)=>(
+            <div key={c2.id} style={{background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"8px",padding:"12px",marginBottom:"10px"}}>
+              <input value={c2.name} onChange={e=>setC(i,{name:e.target.value})} placeholder="the practice — small and true (e.g. one anchored breath)"
+                style={{width:"100%",background:"transparent",border:"none",borderBottom:`0.5px solid ${C.bord}`,color:C.txt,...body("14px"),padding:"6px 2px",outline:"none",boxSizing:"border-box",marginBottom:"8px"}}/>
+              <input value={c2.address} onChange={e=>setC(i,{address:e.target.value})} placeholder="its address — when & where (after coffee, before the phone…)"
+                style={{width:"100%",background:"transparent",border:"none",borderBottom:`0.5px solid ${C.bord}`,color:C.txt,...body("13px"),padding:"6px 2px",outline:"none",boxSizing:"border-box",marginBottom:"8px"}}/>
+              <input value={c2.identityLine} onChange={e=>setC(i,{identityLine:e.target.value})} placeholder={`"I am someone who…"`}
+                style={{width:"100%",background:"transparent",border:"none",borderBottom:`0.5px solid ${C.bord}`,color:C.cream,...body("13px"),fontStyle:"italic",padding:"6px 2px",outline:"none",boxSizing:"border-box",marginBottom:"10px"}}/>
+              <div style={{display:"flex",gap:"8px",alignItems:"center"}}>
+                <select value={c2.cadence} onChange={e=>setC(i,{cadence:e.target.value})}
+                  style={{background:C.bg2,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.cream,...body("12px"),padding:"7px 6px",outline:"none"}}>
+                  <option value="daily">every day</option>
+                  <option value="weekly">a few times a week</option>
+                </select>
+                {c2.cadence==="weekly"&&(
+                  <select value={c2.perWeek} onChange={e=>setC(i,{perWeek:parseInt(e.target.value)})}
+                    style={{background:C.bg2,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.cream,...body("12px"),padding:"7px 6px",outline:"none"}}>
+                    {[1,2,3,4,5,6].map(n=><option key={n} value={n}>{n}×</option>)}
+                  </select>
+                )}
+                {cms.length>1&&<button onClick={()=>setDraft(d=>({...d,commitments:d.commitments.filter((_,ci)=>ci!==i)}))} style={{marginLeft:"auto",background:"none",border:"none",color:C.dim,cursor:"pointer",fontSize:"15px"}}>×</button>}
+              </div>
+            </div>
+          ))}
+          <button onClick={()=>setDraft(d=>({...d,commitments:[...d.commitments,{id:`c_${Date.now()}`,name:"",address:"",cadence:"daily",perWeek:3,identityLine:""}]}))}
+            style={{background:"none",border:`0.5px dashed ${C.bord}`,borderRadius:"6px",width:"100%",padding:"8px",cursor:"pointer",...body("12px",C.muted),marginBottom:"14px"}}>+ another commitment</button>
+          <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"16px"}}>
+            <span style={{...body("12px",C.muted)}}>Tending evening:</span>
+            <select value={draft.tendingDay??0} onChange={e=>setDraft(d=>({...d,tendingDay:parseInt(e.target.value)}))}
+              style={{background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.cream,...body("12px"),padding:"7px 6px",outline:"none"}}>
+              {WEEKDAYS.map((w,i)=><option key={w} value={i}>{w}</option>)}
+            </select>
+          </div>
+          {nudge && (
+            <div style={{...body("12px",FORGE_ACCENT_B),fontStyle:"italic",lineHeight:"1.6",marginBottom:"10px",padding:"8px 10px",background:"rgba(216,120,60,0.06)",border:`0.5px solid ${FORGE_ACCENT}55`,borderRadius:"6px"}}>{nudge}</div>
+          )}
+          <button onClick={attemptSave}
+            style={{width:"100%",padding:"12px",background:valid?"rgba(216,120,60,0.10)":C.surf,border:`0.5px solid ${valid?FORGE_ACCENT:C.bord}`,cursor:"pointer",borderRadius:"6px",...dsp("10px",valid?FORGE_ACCENT_B:C.muted,400,"0.16em")}}>
+            THE RHYTHM IS SET
+          </button>
+          <button onClick={back} style={{width:"100%",marginTop:"6px",padding:"8px",background:"none",border:"none",cursor:"pointer",...body("11px",C.dim)}}>← back</button>
+        </div>
+      );
+    }
+    return null;
+  }
+
+  /* ── landing: the four fires ── */
+  const todayCms = way.commitments||[];
+  const todayStr = localDateStr();
+  const struck = cid => (way.completions||[]).some(cp=>cp.cid===cid&&cp.date===todayStr);
+  const rhythmDone = done("rhythm");
+  return (
+    <div style={{padding:"4px 20px 30px"}}>
+      <div style={{...body("14px",C.muted),lineHeight:"1.7",fontStyle:"italic",margin:"6px 0 18px"}}>
+        Four fires. Heat, strike, rest, return — nothing is forged in one sitting.
+      </div>
+      {FORGE_PARTS.map((p,idx)=>{
+        const st = partState(idx);
+        const g = p.gate; const gMet = gateMet(p);
+        return (
+          <div key={p.id} style={{marginBottom:"10px"}}>
+            <button onClick={()=>{ if(st==="active") openPart(p); }}
+              style={{width:"100%",textAlign:"left",background:st==="done"?"rgba(216,120,60,0.05)":st==="active"?C.surf:"transparent",
+                border:`0.5px solid ${st==="done"?`${FORGE_ACCENT}66`:st==="active"?FORGE_ACCENT:C.bord}`,borderRadius:"8px",padding:"12px 14px",
+                cursor:st==="active"?"pointer":"default",opacity:st==="locked"?0.4:1}}>
+              <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+                <span style={{...dsp("11px",st==="done"?FORGE_ACCENT:st==="active"?FORGE_ACCENT_B:C.dim,400,"0.1em")}}>{p.n}</span>
+                <div style={{flex:1}}>
+                  <div style={{...dsp("12px",st==="locked"?C.muted:C.cream,400,"0.1em")}}>{p.title}</div>
+                  <div style={{...body("11px",C.muted),fontStyle:"italic"}}>{p.sub}</div>
+                </div>
+                {st==="done"&&<span style={{color:FORGE_ACCENT,fontSize:"12px"}}>✓</span>}
+                {st==="active"&&<span style={{...body("11px",FORGE_ACCENT_B)}}>Enter the fire →</span>}
+              </div>
+            </button>
+            {/* between-fires practice — appears once the part is done, gates the next.
+                Glows while pending so completing a part never *looks* like a
+                dead end — the one remaining step stays impossible to miss. */}
+            {st==="done" && g && (
+              <div style={{margin:"6px 0 0 18px",padding:"10px 12px",background:gMet?"rgba(255,255,255,0.02)":"rgba(216,120,60,0.05)",border:`0.5px solid ${gMet?`${C.sageB}55`:`${FORGE_ACCENT}77`}`,borderRadius:"6px",animation:gMet?"none":"questGlow 2.6s ease-in-out infinite"}}>
+                <div style={{...dsp("9px",gMet?C.sageB:FORGE_ACCENT_B,400,"0.14em"),marginBottom:"4px"}}>{gMet?"✓ BETWEEN THE FIRES · ":"ONE STEP BEFORE THE NEXT FIRE · "}{g.label.toUpperCase()}</div>
+                <div style={{...body("11px",C.muted),fontStyle:"italic",lineHeight:"1.6",marginBottom:gMet?0:"8px"}}>{g.desc}</div>
+                {!gMet && g.key!=="strikeOnce" && (
+                  <div style={{display:"flex",gap:"8px"}}>
+                    {g.key==="qualitySessionDone" && <button onClick={()=>onOpenAnchor("sitting")} style={{background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"4px",padding:"5px 10px",cursor:"pointer",...body("11px",C.muted)}}>Open Anchor</button>}
+                    <button onClick={()=>onWayChange(w=>({...w,gates:{...w.gates,[g.key]:true}}))} style={{background:"rgba(163,192,137,0.08)",border:`0.5px solid ${C.sageB}`,borderRadius:"4px",padding:"5px 10px",cursor:"pointer",...body("11px",C.sageB)}}>Mark it done</button>
+                  </div>
+                )}
+                {!gMet && g.key==="strikeOnce" && (
+                  <div>
+                    {todayCms.map(cm=>(
+                      <button key={cm.id} onClick={()=>onWayChange(w=>({...w,completions:[...(w.completions||[]),{cid:cm.id,date:todayStr}]}))}
+                        disabled={struck(cm.id)}
+                        style={{display:"block",width:"100%",textAlign:"left",background:struck(cm.id)?"rgba(216,120,60,0.08)":"transparent",border:`0.5px solid ${struck(cm.id)?FORGE_ACCENT:C.bord}`,borderRadius:"4px",padding:"7px 10px",marginBottom:"5px",cursor:struck(cm.id)?"default":"pointer",...body("12px",struck(cm.id)?FORGE_ACCENT_B:C.cream)}}>
+                        {struck(cm.id)?"✓ ":"⚒ "}{cm.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {rhythmDone && !done("horizon") && gateMet(FORGE_PARTS[2]) && (
+        <div style={{...body("11px",C.dim),fontStyle:"italic",textAlign:"center",marginTop:"6px"}}>The final fire is open. The moon is waiting.</div>
+      )}
+    </div>
+  );
+}
+
+/* The post-seal living section: moon arc · the Way · today's fire · strikes. */
+function ForgeSection({ way, onWayChange, onAwardWayXP }){
+  const [wayOpen,setWayOpen]   = useState(false);
+  const [newStrike,setNewStrike]= useState("");
+  const [adding,setAdding]     = useState(false);
+  const todayStr = localDateStr();
+  const wkKey = weekKey();
+  const now = new Date();
+  const isTendingDay = way.tendingDay!=null && now.getDay()===way.tendingDay;
+  const completions = way.completions||[];
+  const struckToday = cid => completions.some(cp=>cp.cid===cid&&cp.date===todayStr);
+  const weekCount = cid => completions.filter(cp=>cp.cid===cid && weekKey(new Date(cp.date+"T12:00"))===wkKey).length;
+  const cycleReturns = completions.filter(cp=>way.cycleStart && cp.date>=way.cycleStart.slice(0,10)).length;
+  /* strikes: today's only — yesterday's incomplete ones simply do not render */
+  const strikes = (way.strikes||[]).filter(s=>s.date===todayStr);
+  const renewalDue = way.cycleStart && now.getTime() >= nextNewMoon(new Date(way.cycleStart)).getTime();
+
+  const completeCommitment = (cm) => {
+    if(struckToday(cm.id)) return;
+    onWayChange(w=>({...w,completions:[...(w.completions||[]),{cid:cm.id,date:todayStr}]}));
+    const q = (way.qualities||[]).find(x=>x.stat); // route to first mapped quality's stat as a gentle default
+    onAwardWayXP(q?.stat||null);
+  };
+  const addStrike = () => {
+    const name=newStrike.trim(); if(!name) return;
+    onWayChange(w=>({...w,strikes:[...(w.strikes||[]),{id:`s_${Date.now()}`,name,date:todayStr,done:false}]}));
+    setNewStrike(""); setAdding(false);
+  };
+
+  const dueToday = (way.commitments||[]).filter(cm=> cm.cadence==="daily" || weekCount(cm.id)<(cm.perWeek||1) || struckToday(cm.id));
+  const allDone = dueToday.length>0 && dueToday.every(cm=>struckToday(cm.id)) && strikes.every(s=>s.done);
+  const anyDone = dueToday.some(cm=>struckToday(cm.id)) || strikes.some(s=>s.done);
+
+  return (
+    <div style={{padding:"0 20px 30px"}}>
+      <MoonArc way={way}/>
+
+      {renewalDue && (
+        <div style={{background:"rgba(216,120,60,0.06)",border:`0.5px solid ${FORGE_ACCENT}66`,borderRadius:"8px",padding:"12px 14px",marginBottom:"14px"}}>
+          <div style={{...dsp("10px",FORGE_ACCENT_B,400,"0.16em"),marginBottom:"4px"}}>THE NEW MOON HAS COME</div>
+          <div style={{...body("12px",C.muted),fontStyle:"italic",lineHeight:"1.6",marginBottom:"10px"}}>A cycle closes. You returned {cycleReturns} time{cycleReturns===1?"":"s"} — that is a fact, not a grade. The fuller renewal ritual is still being built at this forge; for now, carry the Way into the next moon.</div>
+          <button onClick={()=>onWayChange(w=>({...w,renewals:[...(w.renewals||[]),{date:todayStr,returns:cycleReturns}],cycleStart:new Date().toISOString()}))}
+            style={{background:"rgba(216,120,60,0.10)",border:`0.5px solid ${FORGE_ACCENT}`,borderRadius:"6px",padding:"8px 14px",cursor:"pointer",...dsp("9px",FORGE_ACCENT_B,400,"0.16em")}}>BEGIN THE NEXT CYCLE</button>
+        </div>
+      )}
+
+      {/* ── The Way — the most honored, least interactive object here ── */}
+      <button onClick={()=>setWayOpen(o=>!o)} style={{width:"100%",textAlign:"left",background:"rgba(255,255,255,0.02)",border:`0.5px solid ${C.goldDim||C.bord}`,borderRadius:"8px",padding:"14px 16px",cursor:"pointer",marginBottom:"14px"}}>
+        <div style={{...dsp("9px",C.gold,400,"0.22em"),marginBottom:"8px"}}>THE WAY</div>
+        <div style={{...body("14px",C.cream),fontStyle:"italic",lineHeight:"1.8"}}>"{way.calling.sentence}"</div>
+        {(way.commitments||[]).filter(cm=>cm.identityLine).map(cm=>(
+          <div key={cm.id} style={{...body("12px",C.muted),fontStyle:"italic",lineHeight:"1.7",marginTop:"5px"}}>{cm.identityLine}</div>
+        ))}
+        {wayOpen && (
+          <div style={{marginTop:"12px",paddingTop:"12px",borderTop:`0.5px solid ${C.bord}`}}>
+            {[["THE THREAD",way.calling.thread],["THE ACHE",way.calling.ache],["THE DAY",way.calling.day]].map(([l,t])=>t?(
+              <div key={l} style={{marginBottom:"10px"}}>
+                <div style={{...dsp("8px",C.muted,400,"0.18em"),marginBottom:"3px"}}>{l}</div>
+                <div style={{...body("12px",C.muted),fontStyle:"italic",lineHeight:"1.7",whiteSpace:"pre-wrap"}}>{t}</div>
+              </div>
+            ):null)}
+            {(way.qualities||[]).length>0 && (
+              <div style={{marginBottom:"6px"}}>
+                <div style={{...dsp("8px",C.muted,400,"0.18em"),marginBottom:"3px"}}>CULTIVATING</div>
+                <div style={{...body("12px",C.cream)}}>{way.qualities.map(q=>q.word).join(" · ")}</div>
+              </div>
+            )}
+            {(way.renewals||[]).length>0 && <div style={{...body("10px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{way.renewals.length} renewal{way.renewals.length===1?"":"s"} at this forge</div>}
+          </div>
+        )}
+        <div style={{...body("10px",C.dim),marginTop:"8px"}}>{wayOpen?"close":"open the document"} ▾</div>
+      </button>
+
+      {/* ── Today's fire ── */}
+      <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"10px"}}>
+        <span style={{...dsp("10px",C.cream,400,"0.2em")}}>TODAY'S FIRE</span>
+        {/* the hearth — reflects TODAY only; resets at dawn; remembers nothing */}
+        <div style={{width:"10px",height:"10px",borderRadius:"50%",flexShrink:0,
+          background:allDone?FORGE_ACCENT_B:anyDone?FORGE_ACCENT:"transparent",
+          border:`1px solid ${anyDone?FORGE_ACCENT:C.dim}`,
+          boxShadow:anyDone?`0 0 ${allDone?12:7}px ${FORGE_ACCENT}${allDone?"aa":"66"}`:"none",
+          animation:anyDone?"fireBreathe 4s ease-in-out infinite":"none"}}/>
+        {isTendingDay && <span style={{...body("10px",C.sageB),fontStyle:"italic",marginLeft:"auto"}}>tending evening — five kind minutes</span>}
+      </div>
+
+      {dueToday.map(cm=>{
+        const done = struckToday(cm.id);
+        return (
+          <button key={cm.id} onClick={()=>completeCommitment(cm)}
+            style={{width:"100%",textAlign:"left",background:done?"rgba(216,120,60,0.06)":C.surf,border:`0.5px solid ${done?`${FORGE_ACCENT}88`:C.bord}`,borderRadius:"8px",padding:"11px 14px",marginBottom:"7px",cursor:done?"default":"pointer"}}>
+            <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+              <span style={{color:done?FORGE_ACCENT_B:C.dim,fontSize:"13px",flexShrink:0}}>{done?"✓":"⚒"}</span>
+              <div style={{flex:1}}>
+                <div style={{...body("13px",done?FORGE_ACCENT_B:C.cream)}}>{cm.name}</div>
+                <div style={{...body("10px",C.dim),fontStyle:"italic"}}>{cm.address}{cm.cadence==="weekly"?` · ${weekCount(cm.id)}/${cm.perWeek} this week`:""}</div>
+              </div>
+            </div>
+          </button>
+        );
+      })}
+
+      {/* strikes — today's hammer work, gone by nightfall either way */}
+      {strikes.map(s=>(
+        <button key={s.id} onClick={()=>onWayChange(w=>({...w,strikes:w.strikes.map(x=>x.id===s.id?{...x,done:!x.done}:x)}))}
+          style={{width:"100%",textAlign:"left",background:"transparent",border:`0.5px solid ${s.done?`${FORGE_ACCENT}66`:C.bord}`,borderRadius:"6px",padding:"8px 14px",marginBottom:"6px",cursor:"pointer",opacity:s.done?0.75:1}}>
+          <span style={{...body("12px",s.done?FORGE_ACCENT_B:C.muted)}}>{s.done?"✓ ":""}{s.name}</span>
+        </button>
+      ))}
+      {adding ? (
+        <div style={{display:"flex",gap:"8px",marginTop:"4px"}}>
+          <input autoFocus value={newStrike} onChange={e=>setNewStrike(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addStrike();}}
+            placeholder="today's strike — anything at all"
+            style={{flex:1,background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("13px"),padding:"9px 12px",outline:"none",boxSizing:"border-box"}}/>
+          <button onClick={addStrike} style={{background:"rgba(216,120,60,0.10)",border:`0.5px solid ${FORGE_ACCENT}`,borderRadius:"6px",padding:"0 14px",cursor:"pointer",...body("12px",FORGE_ACCENT_B)}}>add</button>
+        </div>
+      ) : (
+        <button onClick={()=>setAdding(true)} style={{width:"100%",background:"none",border:`0.5px dashed ${C.bord}`,borderRadius:"6px",padding:"8px",cursor:"pointer",...body("12px",C.dim),marginTop:"2px"}}>+ strike</button>
+      )}
+      <div style={{...body("10px",C.dim),fontStyle:"italic",textAlign:"center",marginTop:"12px",lineHeight:"1.6"}}>
+        Strikes cool at midnight and leave no ash. The fire remembers only today.
+      </div>
+    </div>
+  );
+}
+
+/* Wrapper — cold forge / flow / living section. */
+function ForgeQuestline({ way, onWayChange, jEnt, forgeOpen, onOpenAnchor, onSeal, onAwardWayXP }){
+  if(!way || !forgeOpen){
+    return (
+      <div style={{padding:"30px 20px",display:"flex",flexDirection:"column",alignItems:"center",gap:"14px"}}>
+        <AnvilIcon size={40} color={C.dim}/>
+        <div style={{...body("12px",C.dim),fontStyle:"italic"}}>The fire is not yet lit.</div>
+      </div>
+    );
+  }
+  if(!way.forged) return <ForgeFlow way={way} onWayChange={onWayChange} jEnt={jEnt} onOpenAnchor={onOpenAnchor} onSeal={onSeal}/>;
+  return <ForgeSection way={way} onWayChange={onWayChange} onAwardWayXP={onAwardWayXP}/>;
+}
+
 function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}, hasAnchored, sessions=[], chaptersRead=[], onMarkRead, libReadAt={}, pins=[], chStats={}, onOpenAnchor=()=>{}, onGoToLib=()=>{},
   classGateOpen=false, classState=null, onChooseClass=()=>{}, trialComplete=()=>false, onOpenClassQuest=()=>{}, devMode=false, onDevSkipTrial=()=>{},
-  questCollapsed=false, setQuestCollapsed=()=>{}, classCollapsed=false, setClassCollapsed=()=>{},
+  actCollapsed={}, setActCollapsed=()=>{}, classCollapsed=false, setClassCollapsed=()=>{},
   chantGateOpen=false, chantUnlocked=false, setOpenChantQuest=()=>{}, activities=[], jEnt=[], onAcknowledgeTrial=()=>{},
-  showActComplete=false, setShowActComplete=()=>{} }){
+  showActComplete=false, setShowActComplete=()=>{},
+  way=null, onWayChange=()=>{}, onOpenReflection=()=>{}, onAwardWayXP=()=>{} }){
   const [view,setView]               = useState("overview");
   const [questLine,setQuestLine]     = useState("main"); // "main" | "chant" | "path"
   const [autoSurfaced,setAutoSurfaced] = useState({}); // {chant:true, path:true} once auto-shown
@@ -3432,7 +4296,14 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   const lpFiredRef = useRef(false);
   const [readingN,setReadingN]       = useState(null);
 
-  /* Auto-surface a newly-available questline in the switcher (once each). */
+  const [emberPulse,setEmberPulse] = useState(0); // veiled-anvil tap feedback
+
+  /* Auto-surface a newly-available questline in the switcher (once each).
+     The Forge is deliberately NOT included here — it should only ever be
+     reached by the explicit "complete the four fires" tap on Chapter 12's
+     quest screen, never forced open automatically just because Chapter 11
+     completed. The anvil pill still ignites visually on its own; it just
+     no longer yanks the player's view over to it. */
   useEffect(()=>{
     const pNew = classGateOpen && (!classState || !classState.activeClass);
     const cNew = chantGateOpen && !chantUnlocked;
@@ -3478,17 +4349,23 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   };
 
   const readDone  = n => chaptersRead.includes(n) || completedChapters.includes(n);
+  const reflDone  = (refId) => jEnt.some(e=>e.tag==="reflection" && e.refId===refId);
+  const reflsDone = n => {
+    const req = CHAPTER_REQUIREMENTS[n];
+    if(!req || !req.reflections) return true;
+    return req.reflections.every(r=>reflDone(r.refId));
+  };
   const pracDone  = n => {
     const req = CHAPTER_REQUIREMENTS[n];
     if(!req || req.autoComplete) return true;
     if(!req.practice) return true;
     if(req.libRequired && !req.libRequired.every(id=>libReadAt[id]!==undefined)) return false;
-    return req.practice.check(sessions, libReadAt, pins, chStats);
+    return req.practice.check(sessions, libReadAt, pins, chStats, jEnt, way);
   };
   const questComplete = n => {
     const req = CHAPTER_REQUIREMENTS[n];
     if(!req || req.autoComplete) return true;
-    return readDone(n) && pracDone(n);
+    return readDone(n) && pracDone(n) && reflsDone(n);
   };
 
   const fadeGo = fn => { setFade(false); setTimeout(()=>{ fn(); setFade(true); }, 600); };
@@ -3498,7 +4375,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
      all hooks above (React's rules require that) but before any of the
      normal view branching below. */
   if(showActComplete){
-    return <ActCompleteScreen onContinue={()=>{ setShowActComplete(false); setView("overview"); }}/>;
+    return <ActCompleteScreen act={showActComplete===2?2:1} onContinue={()=>{ setShowActComplete(false); setView("overview"); }}/>;
   }
 
   const openChapter = n => {
@@ -3550,16 +4427,6 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
             borderRadius:"50%",background:mood.wisp,filter:"blur(5px)",
             animation:`wispDrift ${w.d}s linear ${w.del}s infinite`,pointerEvents:"none",zIndex:0}}/>
         ))}
-        {/* Background spiral mark */}
-        <svg width="220" height="220" viewBox="-110 -110 220 220"
-          style={{position:"absolute",top:"38%",left:"50%",transform:"translate(-50%,-50%)",
-            opacity:0.035,animation:"slowSpin 60s linear infinite",pointerEvents:"none",zIndex:0}}>
-          {[0.25,0.45,0.65,0.85,1.0].map((r,i)=>(
-            <circle key={i} cx="0" cy="0" r={r*100} fill="none" stroke={mood.accent} strokeWidth="0.8"/>
-          ))}
-          <line x1="0" y1="-108" x2="0" y2="108" stroke={mood.accent} strokeWidth="0.8"/>
-          <line x1="-108" y1="0" x2="108" y2="0" stroke={mood.accent} strokeWidth="0.8"/>
-        </svg>
 
         {/* Header */}
         <div style={{position:"relative",zIndex:2,padding:"14px 20px 8px",display:"flex",alignItems:"center",gap:"12px"}}>
@@ -3670,6 +4537,38 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                         </button>
                       );
                     })}
+                    {/* ── Act II guided reflections — journal entries with a refId.
+                        Sequential: each unlocks when the previous is written. ── */}
+                    {(req.reflections||[]).map((r,ri)=>{
+                      const done = reflDone(r.refId);
+                      const prevDone = ri===0 || reflDone(req.reflections[ri-1].refId);
+                      const active = rDone && prevDone && !done;
+                      return (
+                        <button key={r.refId} onClick={()=>{if(active)onOpenReflection({prompt:r.prompt, refId:r.refId, label:r.label});}}
+                          style={{display:"flex",alignItems:"flex-start",gap:"12px",opacity:(rDone&&prevDone)||done?1:0.4,background:"none",border:"none",cursor:active?"pointer":"default",textAlign:"left",padding:0,width:"100%"}}>
+                          <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:done?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${done?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                            {done?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<span style={{color:C.dim,fontSize:"11px"}}>✎</span>}
+                          </div>
+                          <div style={{flex:1}}>
+                            <div style={{...body("13px",done?C.cream:C.muted)}}>{r.label}</div>
+                            {active&&<div style={{...body("10px",C.dim),fontStyle:"italic"}}>Tap to write in Journal →</div>}
+                          </div>
+                        </button>
+                      );
+                    })}
+                    {/* ── Ch.12 — the Forge gate: the chapter completes at the anvil ── */}
+                    {req.forgeGate && (
+                      <button onClick={()=>{if(rDone){setQuestLine("forge");setView("overview");}}}
+                        style={{display:"flex",alignItems:"center",gap:"12px",opacity:rDone?1:0.4,background:"none",border:"none",cursor:rDone?"pointer":"default",textAlign:"left",padding:0,width:"100%"}}>
+                        <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:pDone?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${pDone?"#d8783c":C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                          {pDone?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<AnvilIcon size={13} color={rDone?"#d8783c":C.dim}/>}
+                        </div>
+                        <div style={{flex:1}}>
+                          <div style={{...body("13px",pDone?C.cream:C.muted)}}>{req.practice?.desc}</div>
+                          {!pDone&&rDone&&<div style={{...body("10px","#d8783c"),fontStyle:"italic"}}>Go to the Forge →</div>}
+                        </div>
+                      </button>
+                    )}
                     {req.practice?.subChecks ? (
                       req.practice.subChecks.map(sc=>{
                         const hasLand=(s,ids)=>{ const l=Array.isArray(s.awarenessLanding)?s.awarenessLanding:(s.awarenessLanding?[s.awarenessLanding]:[]); return ids.some(id=>l.includes(id)); };
@@ -3704,8 +4603,8 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                           </button>
                         );
                       })
-                    ) : req.practice ? (
-                    <button onClick={()=>{if(rDone)onOpenAnchor("sitting");}} style={{display:"flex",alignItems:"center",gap:"12px",opacity:rDone?1:0.4,background:"none",border:"none",cursor:rDone?"pointer":"default",textAlign:"left",padding:0}}>
+                    ) : (req.practice && !req.forgeGate) ? (
+                    <button onClick={()=>{if(rDone)onOpenAnchor(readingN===9?"standing":"sitting");}} style={{display:"flex",alignItems:"center",gap:"12px",opacity:rDone?1:0.4,background:"none",border:"none",cursor:rDone?"pointer":"default",textAlign:"left",padding:0}}>
                       <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:pDone?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${pDone?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
                         {pDone?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<PresenceMark size={12} color={C.dim} sw={1}/>}
                       </div>
@@ -3719,10 +4618,23 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                 );
               })()}
 
+              {/* ── Invitations — honor-system practices, never gating ── */}
+              {(CHAPTER_REQUIREMENTS[readingN]?.invitations||[]).length>0 && (
+                <div style={{marginBottom:"20px"}}>
+                  <div style={{...dsp("9px",C.muted,400,"0.2em"),marginBottom:"8px"}}>INVITATIONS</div>
+                  {(CHAPTER_REQUIREMENTS[readingN]?.invitations||[]).map((iv,i)=>(
+                    <div key={i} style={{padding:"9px 12px",background:"rgba(255,255,255,0.02)",border:`0.5px solid ${C.bord}`,borderRadius:"6px",marginBottom:"6px"}}>
+                      <div style={{...dsp("10px",C.cream,400,"0.08em"),marginBottom:"3px"}}>{iv.t}</div>
+                      <div style={{...body("11px",C.muted),fontStyle:"italic",lineHeight:"1.6"}}>{iv.d}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {isAlreadyComplete ? (
                 <button onClick={()=>setView("overview")} style={{width:"100%",padding:"13px",background:"transparent",border:`0.5px solid ${C.bord}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.muted,400,"0.18em")}}>BACK TO QUEST MAP</button>
               ) : qDone ? (
-                <button onClick={()=>{ onCompleteChapter(readingN); if(readingN===ACT1_FINAL_CHAPTER) setShowActComplete(true); else setView("overview"); }} style={{width:"100%",padding:"13px",background:"linear-gradient(rgba(201,168,76,0.18),rgba(201,168,76,0.07))",border:`0.5px solid ${C.gold}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.goldB,400,"0.18em")}}>
+                <button onClick={()=>{ onCompleteChapter(readingN); if(readingN===ACT1_FINAL_CHAPTER) setShowActComplete(1); else if(readingN===ACT2_FINAL_CHAPTER) setShowActComplete(2); else setView("overview"); }} style={{width:"100%",padding:"13px",background:"linear-gradient(rgba(201,168,76,0.18),rgba(201,168,76,0.07))",border:`0.5px solid ${C.gold}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.goldB,400,"0.18em")}}>
                   COMPLETE CHAPTER {readingN} ↑
                 </button>
               ) : (
@@ -3734,7 +4646,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
 
         {/* Pinned bottom bar — only in narrative mode */}
         {!onQuestScreen && (
-          <div style={{position:"relative",zIndex:2,padding:"12px 26px 28px",background:`linear-gradient(transparent,${mood.bg1}ee 30%)`,flexShrink:0}}>
+          <div style={{position:"relative",zIndex:2,padding:"12px 26px 40px",background:`linear-gradient(transparent,${mood.bg1}ee 30%)`,flexShrink:0}}>
             <div style={{display:"flex",gap:"6px",justifyContent:"center",marginBottom:"14px"}}>
               {scenes.flatMap((sc,si)=>
                 Array.from({length:Math.ceil((sc.body?.length||1)/(sc.perPage||2))},(_,pi)=>{
@@ -3761,6 +4673,9 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   const pathActive = classState && classState.activeClass && trialComplete(classState.activeClass);
   const pathNew = classGateOpen && (!classState || !classState.activeClass); // gate open, not yet chosen
   const chantNew = chantGateOpen && !chantUnlocked;
+  /* Forge — veiled (grey anvil, no label) until ch.12 goes active; ignites then. */
+  const forgeOpen = devMode || getState(FORGE_CHAPTER)!=="locked";
+  const forgeNew  = forgeOpen && way && !way.forged;
   const switcherItems = [
     { id:"main", label:"Main Story", show:true,
       state: "active" },
@@ -3768,14 +4683,18 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
       state: chantNew ? "new" : "" },
     { id:"path", label: pathActive ? (CLASS_BY_ID[classState.activeClass]?.name||"Path") : "Choose Your Path",
       show: classGateOpen, state: pathNew ? "new" : (pathActive ? "" : "") },
+    { id:"forge", icon:true, show:true, veiled:!forgeOpen,
+      state: forgeNew ? "new" : "" },
   ].filter(x=>x.show);
 
   const heroTitle = questLine==="chant" ? "Voice"
     : questLine==="path" ? (pathActive ? (CLASS_BY_ID[classState.activeClass]?.name+" Path") : "Choose Your Path")
+    : questLine==="forge" ? "The Forge"
     : "Main Quest";
   const heroSub = questLine==="chant" ? "The oldest practice"
     : questLine==="path" ? (pathActive ? CLASS_BY_ID[classState.activeClass]?.verb : "Your direction of cultivation")
-    : `Act I · Chapter ${activeN}`;
+    : questLine==="forge" ? (way?.forged ? "Your Way, in your hand" : "Where character is shaped")
+    : `${activeMeta?.act==="ACT II"?"Act II":"Act I"} · Chapter ${activeN}`;
 
   return (
     <div>
@@ -3796,7 +4715,27 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
         <div style={{display:"flex",gap:"8px",padding:"14px 20px 4px",flexWrap:"wrap"}}>
           {switcherItems.map(it=>{
             const sel=questLine===it.id;
-            const accent = it.id==="path"&&pathActive ? (CLASS_BY_ID[classState.activeClass]?.accent||C.sageB) : C.sageB;
+            const accent = it.id==="path"&&pathActive ? (CLASS_BY_ID[classState.activeClass]?.accent||C.sageB)
+              : it.id==="forge" ? "#d8783c" : C.sageB;
+            /* Forge pill — icon-only. Veiled: dim grey anvil; tap = a single
+               ember pulse, no navigation, no words. Lit: warm, selectable. */
+            if(it.icon){
+              return (
+                <button key={it.id}
+                  onClick={()=>{ if(it.veiled){ setEmberPulse(p=>p+1); } else { setQuestLine(it.id); } }}
+                  style={{position:"relative",padding:"7px 11px",borderRadius:"7px",cursor:"pointer",marginLeft:"auto",
+                    background:sel?"rgba(216,120,60,0.10)":C.surf,
+                    border:`0.5px solid ${sel?accent:C.bord}`,display:"flex",alignItems:"center"}}>
+                  <span key={it.veiled?emberPulse:"lit"} style={it.veiled&&emberPulse?{animation:"emberPulse 0.9s ease"}:undefined}>
+                    <AnvilIcon size={15} color={it.veiled?C.dim:(sel?"#e8945c":accent)} spark={!it.veiled}/>
+                  </span>
+                  {it.state==="new" && !it.veiled && (
+                    <span style={{position:"absolute",top:"-6px",right:"-6px",background:"#d8783c",color:C.bg,
+                      fontSize:"7px",fontFamily:"Cinzel,serif",letterSpacing:"0.1em",padding:"2px 5px",borderRadius:"8px"}}>NEW</span>
+                  )}
+                </button>
+              );
+            }
             return (
               <button key={it.id} onClick={()=>setQuestLine(it.id)}
                 style={{position:"relative",padding:"7px 14px",borderRadius:"7px",cursor:"pointer",
@@ -3818,11 +4757,32 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
         {questLine==="main" && <>
         <div style={{...body("14px",C.muted),lineHeight:"1.6",marginBottom:"20px",fontStyle:"italic"}}>The personal climb — from seeing the situation clearly to no longer walking it alone.</div>
 
-        <button onClick={()=>setQuestCollapsed(v=>!v)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",cursor:"pointer",padding:"0 0 10px"}}>
-          <span style={{...dsp("11px",C.gold,400,"0.16em")}}>CHAPTERS</span>
-          <span style={{...body("13px",C.muted),transform:questCollapsed?"rotate(-90deg)":"none",transition:"transform .2s"}}>▾</span>
-        </button>
-        {!questCollapsed && CHAPTER_META.map((c,i)=>{
+        {(()=>{
+          /* One collapsible header per Act, not one flat toggle for everything.
+             Default (no manual override yet): an act auto-collapses once it's
+             fully complete AND isn't the act the player is currently in — so
+             starting Act II quietly folds up a finished Act I on its own,
+             without ever fighting a choice the player made themselves. */
+          const actNames = [...new Set(CHAPTER_META.map(c=>c.act))];
+          const actTitles = { "ACT I":"ACT I · THE DRIFT", "ACT II":"ACT II · THE AUTHORING" };
+          const isActCollapsed = (actName) => {
+            if(actCollapsed[actName]!==undefined) return actCollapsed[actName];
+            const chNums = CHAPTER_META.filter(c=>c.act===actName).map(c=>c.n);
+            const actDone = chNums.every(n=>completedChapters.includes(n));
+            const activeAct = CHAPTER_META.find(c=>c.n===activeN)?.act;
+            return actDone && actName!==activeAct;
+          };
+          return actNames.map(actName=>{
+            const chaptersInAct = CHAPTER_META.filter(c=>c.act===actName && (devMode || getState(c.n)!=="locked"));
+            if(chaptersInAct.length===0) return null; // nothing unlocked in this act yet — don't even show its header
+            const collapsed = isActCollapsed(actName);
+            return (
+              <div key={actName} style={{marginBottom:"6px"}}>
+                <button onClick={()=>setActCollapsed(prev=>({...prev,[actName]:!collapsed}))} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",cursor:"pointer",padding:"10px 0 10px"}}>
+                  <span style={{...dsp("11px",C.gold,400,"0.16em")}}>{actTitles[actName]||actName}</span>
+                  <span style={{...body("13px",C.muted),transform:collapsed?"rotate(-90deg)":"none",transition:"transform .2s"}}>▾</span>
+                </button>
+                {!collapsed && chaptersInAct.map((c,ci)=>{
           const st=getState(c.n);
           const complete=st==="complete";
           const active=st==="active";
@@ -3839,7 +4799,8 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
           const devToggleComplete = () => {
             const wasComplete = completedChapters.includes(c.n);
             onToggleChapter(c.n);
-            if(c.n===ACT1_FINAL_CHAPTER && !wasComplete) setShowActComplete(true);
+            if(c.n===ACT1_FINAL_CHAPTER && !wasComplete) setShowActComplete(1);
+            if(c.n===ACT2_FINAL_CHAPTER && !wasComplete) setShowActComplete(2);
           };
           const onPressStart = () => {
             if(!devMode) return;
@@ -3853,25 +4814,27 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
           };
 
           return (
-            <div key={c.n} style={{display:"flex",gap:"12px"}}>
+            <React.Fragment key={c.n}>
+            <div style={{display:"flex",gap:"12px"}}>
               <div style={{display:"flex",flexDirection:"column",alignItems:"center",paddingTop:"14px"}}>
                 {/* node */}
                 <div style={{width:"12px",height:"12px",borderRadius:"50%",flexShrink:0,
                   background:complete?C.gold:active?"transparent":"transparent",
                   border:`1.5px solid ${complete?C.gold:active?C.sageB:C.dim}`,
-                  boxShadow:active?`0 0 8px rgba(163,192,137,0.4)`:"none",
+                  boxShadow:active?`0 0 14px rgba(163,192,137,0.7)`:"none",
+                  animation:active?"emberPulse 2.6s ease-in-out infinite":"none",
                   display:"flex",alignItems:"center",justifyContent:"center",
                 }}>
                   {complete&&<div style={{width:"5px",height:"5px",borderRadius:"50%",background:C.goldB}}/>}
                 </div>
-                {i<CHAPTER_META.length-1&&<div style={{width:"1px",flex:1,minHeight:"22px",background:complete?`rgba(201,168,76,0.3)`:C.bord,marginTop:"4px"}}/>}
+                {ci<chaptersInAct.length-1&&<div style={{width:"1px",flex:1,minHeight:"22px",background:complete?`rgba(201,168,76,0.3)`:C.bord,marginTop:"4px"}}/>}
               </div>
 
               <div
                 onClick={()=>{ if(active||complete) openChapter(c.n); }}
                 onMouseDown={devMode?onPressStart:undefined} onMouseUp={devMode?onPressEnd:undefined} onMouseLeave={devMode?()=>clearTimeout(lpTimerRef.current):undefined}
                 onTouchStart={devMode?onPressStart:undefined} onTouchEnd={devMode?onPressEnd:undefined}
-                style={{flex:1,background:complete?"rgba(201,168,76,0.04)":active?C.surf:"transparent",border:`0.5px solid ${complete?C.goldDim:active?C.sageB:devMode?"rgba(180,100,100,0.4)":C.bord}`,borderRadius:"6px",padding:"11px 14px",cursor:(active||complete||devMode)?"pointer":"default",opacity:active||complete?1:devMode?0.7:0.4,marginBottom:"8px",transition:"all .2s"}}
+                style={{flex:1,background:complete?"rgba(201,168,76,0.04)":active?C.surf:"transparent",border:`${active?1.5:0.5}px solid ${complete?C.goldDim:active?C.sageB:devMode?"rgba(180,100,100,0.4)":C.bord}`,borderRadius:"6px",padding:"11px 14px",cursor:(active||complete||devMode)?"pointer":"default",opacity:active||complete?1:devMode?0.7:0.4,marginBottom:"8px",transition:"all .2s",animation:active?"questGlow 2.6s ease-in-out infinite":"none"}}
               >
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                   <div style={{flex:1}}>
@@ -3900,8 +4863,13 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                 </div>
               </div>
             </div>
+            </React.Fragment>
           );
         })}
+              </div>
+            );
+          });
+        })()}
         </>}
 
         {/* ── VOICE (Chant) — its own questline view ── */}
@@ -3955,6 +4923,17 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
               </>
             )}
           </div>
+        )}
+
+        {/* ── The Forge — the player-authored questline ── */}
+        {questLine==="forge" && (
+          <ForgeQuestline way={way} onWayChange={onWayChange} jEnt={jEnt} forgeOpen={forgeOpen}
+            onOpenAnchor={onOpenAnchor} onAwardWayXP={onAwardWayXP}
+            onSeal={()=>{
+              onWayChange(w=>({...w,forged:true,cycleStart:new Date().toISOString()}));
+              if(!completedChapters.includes(FORGE_CHAPTER)) onCompleteChapter(FORGE_CHAPTER);
+              setShowActComplete(2);
+            }}/>
         )}
       </div>
     </div>
@@ -4029,8 +5008,21 @@ function usePanZoom(initialZoom, minZoom=0.3, maxZoom=12, controlled=null){
         setPan(p=>({x:p.x+dx,y:p.y+dy}));
         lastTouch={x:e.touches[0].clientX,y:e.touches[0].clientY};
       } else if(e.touches.length===2&&lastPinch!==null){
-        const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-        setZoom(z=>Math.max(minZoom,Math.min(maxZoom,z*(d/lastPinch))));
+        const t0=e.touches[0], t1=e.touches[1];
+        const d=Math.hypot(t0.clientX-t1.clientX,t0.clientY-t1.clientY);
+        const rawRatio=d/lastPinch;
+        /* Same fix as the local map: anchor zoom on the pinch midpoint,
+           not the fixed container center, by compensating pan. */
+        const rect=el.getBoundingClientRect();
+        const midX=(t0.clientX+t1.clientX)/2 - rect.left;
+        const midY=(t0.clientY+t1.clientY)/2 - rect.top;
+        const offX=midX - rect.width/2, offY=midY - rect.height/2;
+        setZoom(z=>{
+          const newZ=Math.max(minZoom,Math.min(maxZoom,z*rawRatio));
+          const applied=newZ/z;
+          setPan(p=>({ x: offX*(1-applied) + applied*p.x, y: offY*(1-applied) + applied*p.y }));
+          return newZ;
+        });
         lastPinch=d;
       }
     };
@@ -4203,11 +5195,22 @@ function WorldView({ clusters, userPos, onSelectCluster, onReturnToLocal, onClos
   );
 }
 
-function MapTab({ pins, revealZones=[] }){
+function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{} }){
   const [hoveredPin,setHoveredPin]=useState(null);
   const [locating,setLocating]=useState(false);
   const [locatePulse,setLocatePulse]=useState(false);
-  const [userPos,setUserPos]=useState(null);
+  const [userPos,setUserPos]=useState(()=>{
+    /* Prefer a real, previously-confirmed location — persisted across
+       sessions, so the map opens where you actually last confirmed you
+       were, not recomputed from pin data on every single load. Only if
+       that's never happened (a real fix has never been obtained) do we
+       fall back to the last anchored pin as a reasonable starting guess. */
+    if(savedPos) return savedPos;
+    const withCoords = pins.filter(p=>p.lat!=null&&p.lng!=null);
+    if(withCoords.length===0) return null;
+    const mostRecent = withCoords[withCoords.length-1];
+    return {lat:mostRecent.lat, lng:mostRecent.lng};
+  });
   const [zoom,setZoom]=useState(1);
   const [pan,setPan]=useState({x:0,y:0});
   const [mode,setMode]=useState("local"); // "local" | "world"
@@ -4215,6 +5218,7 @@ function MapTab({ pins, revealZones=[] }){
   const [worldZoom,setWorldZoom]=useState(1);
   const [worldPan,setWorldPan]=useState({x:0,y:0});
   const containerRef=useRef(null);
+  const panZoomCleanupRef=useRef(null); // holds the teardown fn for whichever DOM node is currently bound
 
   const geoPins = pins.filter(p=>p.lat!=null&&p.lng!=null);
   const mapW=350, mapH=530;
@@ -4293,7 +5297,7 @@ function MapTab({ pins, revealZones=[] }){
     if(!navigator.geolocation){setLocatePulse(true);setTimeout(()=>setLocatePulse(false),1200);return;}
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
-      pos=>{setUserPos({lat:pos.coords.latitude,lng:pos.coords.longitude});setLocating(false);setLocatePulse(true);setTimeout(()=>setLocatePulse(false),1400);},
+      pos=>{const p={lat:pos.coords.latitude,lng:pos.coords.longitude};setUserPos(p);onLocationConfirmed(p);setLocating(false);setLocatePulse(true);setTimeout(()=>setLocatePulse(false),1400);},
       ()=>{setLocating(false);setLocatePulse(true);setTimeout(()=>setLocatePulse(false),1200);},
       {enableHighAccuracy:true,timeout:8000}
     );
@@ -4301,9 +5305,19 @@ function MapTab({ pins, revealZones=[] }){
 
   const resetView=()=>{ setZoom(1); setPan({x:0,y:0}); };
 
-  // Attach zoom/pan gesture handlers via DOM (needed for passive:false on touchmove/wheel)
-  useEffect(()=>{
-    const el=containerRef.current; if(!el) return;
+  /* Callback ref, not useRef+useEffect([]) — MapTab itself never unmounts
+     when toggling to World mode (only its returned JSX subtree does, via
+     the early `if(mode==="world") return` below), so a one-time effect
+     would bind listeners to the local map's DOM node once and never again.
+     Switch to World and back, and React hands the local map a brand-new
+     DOM node — a plain useEffect([]) misses that entirely, leaving the
+     listeners orphaned on the old, detached node and the visible map with
+     none at all. A callback ref fires on every node swap, so gestures
+     always attach to whatever's actually on screen. */
+  const setContainerEl = useCallback((el) => {
+    if(panZoomCleanupRef.current){ panZoomCleanupRef.current(); panZoomCleanupRef.current=null; }
+    containerRef.current = el;
+    if(!el) return;
     let lastTouch=null, lastPinch=null, isDrag=false, lastMouse=null;
 
     const onTouchStart=e=>{
@@ -4317,8 +5331,23 @@ function MapTab({ pins, revealZones=[] }){
         setPan(p=>({x:p.x+dx,y:p.y+dy}));
         lastTouch={x:e.touches[0].clientX,y:e.touches[0].clientY};
       } else if(e.touches.length===2&&lastPinch!==null){
-        const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-        setZoom(z=>Math.max(0.3,Math.min(10,z*(d/lastPinch))));
+        const t0=e.touches[0], t1=e.touches[1];
+        const d=Math.hypot(t0.clientX-t1.clientX,t0.clientY-t1.clientY);
+        const rawRatio=d/lastPinch;
+        /* Anchor the zoom on the pinch midpoint, not the container's fixed
+           center. transformOrigin stays at 50%/50%, so we compensate by
+           shifting pan: the content point under the fingers should stay
+           under the fingers as zoom changes, not drift toward center. */
+        const rect=el.getBoundingClientRect();
+        const midX=(t0.clientX+t1.clientX)/2 - rect.left;
+        const midY=(t0.clientY+t1.clientY)/2 - rect.top;
+        const offX=midX - rect.width/2, offY=midY - rect.height/2;
+        setZoom(z=>{
+          const newZ=Math.max(0.3,Math.min(10,z*rawRatio));
+          const applied=newZ/z; // the ratio actually used, after clamping
+          setPan(p=>({ x: offX*(1-applied) + applied*p.x, y: offY*(1-applied) + applied*p.y }));
+          return newZ;
+        });
         lastPinch=d;
       }
     };
@@ -4334,7 +5363,7 @@ function MapTab({ pins, revealZones=[] }){
     el.addEventListener('mousemove',onMouseMove);
     el.addEventListener('mouseup',onMouseUp);
     el.addEventListener('mouseleave',onMouseUp);
-    return ()=>{
+    panZoomCleanupRef.current = () => {
       el.removeEventListener('touchstart',onTouchStart);
       el.removeEventListener('touchmove',onTouchMove);
       el.removeEventListener('wheel',onWheel);
@@ -4343,7 +5372,7 @@ function MapTab({ pins, revealZones=[] }){
       el.removeEventListener('mouseup',onMouseUp);
       el.removeEventListener('mouseleave',onMouseUp);
     };
-  },[]);
+  }, []); // setPan/setZoom are stable useState setters; every handler uses functional updates, so no stale-closure risk
 
   /* World mode takes over the whole tab — distinct from local pan/zoom/reveal
      rendering entirely, since it's showing fundamentally different content
@@ -4367,7 +5396,7 @@ function MapTab({ pins, revealZones=[] }){
 
   return (
     <div style={{position:"relative",height:"100%"}}>
-      <div ref={containerRef} style={{background:`linear-gradient(160deg,${C.bg2},${C.surf2} 60%,${C.bg2})`,height:`${mapH}px`,position:"relative",overflow:"hidden",cursor:"grab",touchAction:"none"}}>
+      <div ref={setContainerEl} style={{background:`linear-gradient(160deg,${C.bg2},${C.surf2} 60%,${C.bg2})`,height:`${mapH}px`,position:"relative",overflow:"hidden",cursor:"grab",touchAction:"none"}}>
         {/* Pannable / zoomable canvas */}
         <div style={{position:"absolute",inset:0,transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`,transformOrigin:"50% 50%"}}>
           {/* Revealed geography — water & forest, only within anchored reveal zones */}
@@ -4727,16 +5756,19 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
   );
 }
 
-function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, tendUnlocked=false, inquireUnlocked=false, releaseUnlocked=false }){
+function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, pendingReflection=null, tendUnlocked=false, inquireUnlocked=false, releaseUnlocked=false }){
   const [mood,setMood]=useState(null),[bdy,setBdy]=useState(null),[entry,setEntry]=useState(""),[saved,setSaved]=useState(false);
-  /* mode: "normal" | "inquire" | "tend". Release (Forgiveness/Gratitude) is an
-     optional tag within normal Entry, not its own mode. */
-  const [mode,setMode]=useState(pendingInquiry?"inquire":"normal");
+  /* mode: "normal" | "inquire" | "tend" | "reflect". Release (Forgiveness/Gratitude)
+     is an optional tag within normal Entry, not its own mode. "reflect" is a
+     guided reflection — an Act quest step: the chapter asks, you answer once.
+     (Distinct from Inquire, which is the Sage's returnable living practice.) */
+  const [mode,setMode]=useState(pendingReflection?"reflect":pendingInquiry?"inquire":"normal");
   const [question,setQuestion]=useState(pendingInquiry||"");
   const [tendKind,setTendKind]=useState(null); // "Deep Listening" | "Service"
   const [tendMins,setTendMins]=useState("");
   const [releaseKind,setReleaseKind]=useState(null); // null | "Forgiveness" | "Gratitude"
   useEffect(()=>{ if(pendingInquiry){ setMode("inquire"); setQuestion(pendingInquiry); } },[pendingInquiry]);
+  useEffect(()=>{ if(pendingReflection){ setMode("reflect"); } },[pendingReflection]);
 
   const canSave = entry.trim() && (mode!=="inquire" || question.trim());
   const save=()=>{
@@ -4744,6 +5776,7 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, ten
     const date=new Date().toISOString().slice(0,10);
     const e={text:entry.trim(),mood,body:bdy,date};
     if(mode==="inquire"){ e.tag="inquire"; e.question=question.trim(); }
+    else if(mode==="reflect" && pendingReflection){ e.tag="reflection"; e.refId=pendingReflection.refId; e.prompt=pendingReflection.prompt; }
     else if(mode==="tend"){ e.tag="tend"; e.tendKind=tendKind||"Deep Listening"; const m=parseFloat(tendMins); if(!isNaN(m)&&m>0) e.tendMinutes=m; }
     else if(mode==="normal" && releaseKind){ e.tag="release"; e.releaseKind=releaseKind; }
     onSave(e);
@@ -4756,8 +5789,14 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, ten
   if(tendUnlocked) modeTabs.push(["tend","Restore"]);
 
   return (
-    <Overlay title="Journal" onBack={onBack}>
-      {modeTabs.length>1 && (
+    <Overlay title={mode==="reflect"?"Reflection":"Journal"} onBack={onBack}>
+      {mode==="reflect" && pendingReflection && (
+        <div style={{background:"rgba(255,255,255,0.03)",border:`0.5px solid ${C.bord}`,borderLeft:`2px solid ${C.gold}66`,borderRadius:"6px",padding:"12px 14px",marginBottom:"16px"}}>
+          <div style={{...dsp("8px",C.gold,400,"0.2em"),marginBottom:"6px"}}>{(pendingReflection.label||"GUIDED REFLECTION").toUpperCase()}</div>
+          <div style={{...body("13px",C.cream),fontStyle:"italic",lineHeight:"1.75"}}>{pendingReflection.prompt}</div>
+        </div>
+      )}
+      {mode!=="reflect" && modeTabs.length>1 && (
         <div style={{display:"flex",background:C.surf,borderRadius:"6px",border:`0.5px solid ${C.bord}`,marginBottom:"16px",overflow:"hidden"}}>
           {modeTabs.map(([id,l])=>(
             <button key={id} onClick={()=>setMode(id)} style={{flex:1,padding:"9px",border:"none",cursor:"pointer",background:mode===id?"rgba(163,192,137,0.1)":"transparent",borderBottom:mode===id?`1.5px solid ${C.sageB}`:"1.5px solid transparent",...dsp("9px",mode===id?C.sageB:C.muted,400,"0.12em")}}>{l.toUpperCase()}</button>
@@ -4796,7 +5835,7 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, ten
       </>}
 
       <SL title={mode==="inquire"?"Sit with it. Then answer.":mode==="tend"?"Reflect":releaseKind==="Gratitude"?"What's still good?":releaseKind==="Forgiveness"?"What are you setting down?":"Entry"}/>
-      <textarea value={entry} onChange={e=>{setEntry(e.target.value);setSaved(false);onEntryChange&&onEntryChange(e.target.value);}} placeholder={mode==="inquire"?"Let the question work on you before you work on it…":mode==="tend"?"What happened? What did you notice?":releaseKind==="Gratitude"?"What's still true, still good, never taken?":releaseKind==="Forgiveness"?"Name it. You don't have to excuse it, just set it down.":"What do you notice right now?"} rows={7} style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("15px"),padding:"12px",resize:"none",boxSizing:"border-box",outline:"none",lineHeight:"1.7",caretColor:C.sageB}}/>
+      <textarea value={entry} onChange={e=>{setEntry(e.target.value);setSaved(false);onEntryChange&&onEntryChange(e.target.value);}} placeholder={mode==="inquire"?"Let the question work on you before you work on it…":mode==="reflect"?"Begin wherever it starts.":mode==="tend"?"What happened? What did you notice?":releaseKind==="Gratitude"?"What's still true, still good, never taken?":releaseKind==="Forgiveness"?"Name it. You don't have to excuse it, just set it down.":"What do you notice right now?"} rows={7} style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("15px"),padding:"12px",resize:"none",boxSizing:"border-box",outline:"none",lineHeight:"1.7",caretColor:C.sageB}}/>
       <button onClick={save} style={{marginTop:"10px",padding:"10px 20px",background:canSave&&!saved?"rgba(163,192,137,0.12)":"transparent",border:`0.5px solid ${canSave&&!saved?C.sageB:C.bord}`,color:canSave&&!saved?C.sageB:C.muted,...dsp("9px",undefined,400,"0.14em"),cursor:"pointer",borderRadius:"6px"}}>{saved?"✓ SAVED":"SAVE ENTRY"}</button>
     </Overlay>
   );
@@ -4804,6 +5843,7 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, ten
 
 function LogsScreen({ onBack, sessions, jEntries }){
   const [tab,setTab]=useState("timeline"),[exp,setExp]=useState(null);
+  const [range,setRange]=useState("week"); // "week" | "month" | "3months" — charts tab only
   const TC={"Sit":C.gold,"Stand":C.sage,"Walk":C.slate,"Move":"#b06a52","Train":"#9b8550","Create":"#6b9e8e","Serve":"#b8834a","Anchor":"rgba(163,192,137,0.55)"};
   const todayISO=new Date().toISOString().slice(0,10);
   const formatDate=d=>{
@@ -4877,7 +5917,9 @@ function LogsScreen({ onBack, sessions, jEntries }){
                             <div style={{display:"flex",gap:"5px",marginBottom:"6px"}}>
                               {e.mood&&<span style={{fontSize:"10px",color:C.gold,border:`0.5px solid ${C.goldDim}`,padding:"1px 7px",borderRadius:"10px"}}>{e.mood}</span>}
                               {e.body&&<span style={{fontSize:"10px",color:C.muted,border:`0.5px solid ${C.bord}`,padding:"1px 7px",borderRadius:"10px"}}>{e.body}</span>}
+                              {e.tag==="reflection"&&<span style={{fontSize:"10px",color:C.gold,border:`0.5px solid ${C.goldDim}`,padding:"1px 7px",borderRadius:"10px"}}>Reflection</span>}
                             </div>
+                            {(e.question||e.prompt)&&<div style={{...body("11px",C.muted),fontStyle:"italic",lineHeight:"1.5",marginBottom:"5px"}}>{e.question||e.prompt}</div>}
                             <div style={{...body("13px",C.txt),lineHeight:"1.65",fontStyle:"italic"}}>"{e.text}"</div>
                           </div>
                         ))}
@@ -4891,23 +5933,52 @@ function LogsScreen({ onBack, sessions, jEntries }){
       {tab==="charts" && (()=>{
         const TC={"Sit":C.gold,"Stand":C.sage,"Walk":C.slate,"Move":"#b06a52","Train":"#9b8550","Create":"#6b9e8e","Serve":"#b8834a"};
         const todayISO=new Date().toISOString().slice(0,10);
-        const order=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));return d.toISOString().slice(0,10);});
+        const RANGE_DAYS={week:7,month:30,"3months":90};
+        const daysBack=RANGE_DAYS[range];
+        const order=Array.from({length:daysBack},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(daysBack-1-i));return d.toISOString().slice(0,10);});
         // Build per-day, per-type minutes
         const dayData={};
         order.forEach(d=>{ dayData[d]={}; });
         sessions.filter(s=>s.type!=="Anchor").forEach(s=>{
           const d=s.date==="Today"?todayISO:(s.date||todayISO);
-          if(!dayData[d]) dayData[d]={};
+          if(!dayData[d]) return; // outside the selected range — not counted in this chart
           dayData[d][s.type]=(dayData[d][s.type]||0)+s.duration;
         });
-        const activeDays=order.filter(d=>Object.keys(dayData[d]||{}).length>0);
-        const maxMins=Math.max(30,...activeDays.map(d=>Object.values(dayData[d]||{}).reduce((a,v)=>a+v,0)));
-        const chartH=120, chartW=290, barW=Math.min(32, (chartW-20)/Math.max(activeDays.length,1)-8);
-        const barX=(i)=> 10 + i*(barW+8) + (chartW - activeDays.length*(barW+8))/2;
+        /* Every calendar day in range gets its own bar, empty or not — the
+           axis represents the actual range you asked for, not just the
+           days that happened to have data. Only the LABEL density thins out
+           for longer ranges (a label under all 90 daily bars would just be
+           unreadable clutter); the bars themselves are always one-per-day. */
+        const labelEvery = range==="week" ? 1 : range==="month" ? 5 : 15;
+        const activeDays = order.map((d,i)=>{
+          const showLabel = i%labelEvery===0 || d===todayISO;
+          let label = "";
+          if(showLabel){
+            if(range==="week") label = d===todayISO?"Today":d.slice(8);
+            else label = new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
+          }
+          return { key:d, label, data: dayData[d]||{} };
+        });
+        const maxMins=Math.max(30,...activeDays.map(b=>Object.values(b.data||{}).reduce((a,v)=>a+v,0)));
+        const chartH=120, chartW=290;
+        const perSlot=(chartW-20)/Math.max(activeDays.length,1);
+        const barW=Math.max(1, Math.min(32, perSlot*0.72));
+        const barX=(i)=> 10 + i*perSlot + (perSlot-barW)/2;
         // Legend: unique types present
         const typesUsed=[...new Set(sessions.filter(s=>s.type!=="Anchor").map(s=>s.type))];
         return (
           <div>
+            <div style={{display:"flex",gap:"6px",marginBottom:"14px"}}>
+              {[["week","Week"],["month","Month"],["3months","3 Months"]].map(([id,label])=>(
+                <button key={id} onClick={()=>setRange(id)}
+                  style={{flex:1,padding:"7px 6px",borderRadius:"6px",cursor:"pointer",textAlign:"center",
+                    background:range===id?"rgba(163,192,137,0.12)":"transparent",
+                    border:`0.5px solid ${range===id?C.sageB:C.bord}`,
+                    ...body("11px",range===id?C.sageB:C.muted)}}>
+                  {label}
+                </button>
+              ))}
+            </div>
             <SL title="Time anchored · by day"/>
             <div style={{background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"10px",padding:"16px 12px 10px",marginBottom:"16px"}}>
               {activeDays.length===0
@@ -4921,19 +5992,19 @@ function LogsScreen({ onBack, sessions, jEntries }){
                       <text key={i} x="6" y={chartH*(1-r)+3} textAnchor="end" fontSize="7" fill={C.dim} fontFamily="Cinzel,serif">{Math.round(maxMins*r)}</text>
                     ))}
                     {/* bars */}
-                    {activeDays.map((date,i)=>{
-                      const data=dayData[date]||{};
+                    {activeDays.map((bucket,i)=>{
+                      const data=bucket.data||{};
                       const types=Object.entries(data);
                       let yOff=0;
                       return (
-                        <g key={date}>
+                        <g key={bucket.key}>
                           {types.map(([type,mins])=>{
                             const h=(mins/maxMins)*chartH;
                             const y=chartH-yOff-h;
                             yOff+=h;
                             return <rect key={type} x={barX(i)} y={y} width={barW} height={h} fill={TC[type]||C.muted} rx="2" opacity="0.85"/>;
                           })}
-                          <text x={barX(i)+barW/2} y={chartH+14} textAnchor="middle" fontSize="7.5" fill={C.muted} fontFamily="Cinzel,serif">{date===todayISO?"Today":date.slice(8)}</text>
+                          <text x={barX(i)+barW/2} y={chartH+14} textAnchor="middle" fontSize="7.5" fill={C.muted} fontFamily="Cinzel,serif">{bucket.label}</text>
                         </g>
                       );
                     })}
@@ -4972,12 +6043,14 @@ function Toggle({ on, onToggle }){
   );
 }
 
-function SettingsScreen({ onBack, name, setName, anchorImmediate, setAnchorImmediate, theme, setTheme,
+function SettingsScreen({ onBack, name, setName, theme, setTheme,
+  timerVisibility, setTimerVisibility,
     devMode, enableDevMode, disableDevMode, exportData, applyImport, resetData,
-    fontScale, setFontScale, guidedSession, setGuidedSession,
-    cloudUser, cloudSyncing, cloudMsg, onSaveCloud, onLoadCloud, onSignOut, onVerified,
+    fontScale, setFontScale,
+    cloudUser, cloudSyncing, cloudMsg, onSaveCloud, onLoadCloud, onDeleteCloud, onSignOut, onVerified,
     autoCloudSync, setAutoCloudSync }){
   const [resetConfirm,setResetConfirm]=useState(false);
+  const [deleteCloudConfirm,setDeleteCloudConfirm]=useState(false);
   const [importDone,setImportDone]=useState(false);
   const [cloudEmail,setCloudEmail]=useState("");
   const [cloudCode,setCloudCode]=useState("");
@@ -5028,18 +6101,20 @@ function SettingsScreen({ onBack, name, setName, anchorImmediate, setAnchorImmed
       <button onClick={devMode?disableDevMode:enableDevMode} style={{position:"absolute",top:"6px",left:"50%",transform:"translateX(-50%)",zIndex:5,background:"none",border:"none",cursor:"pointer",padding:"2px 5px",fontSize:"8px",fontFamily:"monospace",letterSpacing:"0.12em",color:devMode?"rgba(180,100,100,0.85)":"rgba(150,150,150,0.3)",lineHeight:1}}>DEV</button>
     }>
       <SL title="Preferences"/>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:`0.5px solid ${C.bord}`}}>
-        <div style={{flex:1,paddingRight:"12px"}}>
-          <div style={{...body("14px",C.cream)}}>Guided arrival cues</div>
-          <div style={{...body("11px",C.dim),fontStyle:"italic"}}>Gentle prompts at the start of each session</div>
+      <div style={{padding:"12px 0",borderBottom:`0.5px solid ${C.bord}`}}>
+        <div style={{...body("14px",C.cream),marginBottom:"2px"}}>Display Anchor Time</div>
+        <div style={{...body("11px",C.dim),fontStyle:"italic",marginBottom:"10px"}}>How much you see while the session is running</div>
+        <div style={{display:"flex",gap:"6px"}}>
+          {[["reveal","Tap to Reveal"],["hidden","Hidden"],["visible","Visible"]].map(([id,label])=>(
+            <button key={id} onClick={()=>setTimerVisibility(id)}
+              style={{flex:1,padding:"8px 6px",borderRadius:"6px",cursor:"pointer",textAlign:"center",
+                background:timerVisibility===id?"rgba(163,192,137,0.12)":"transparent",
+                border:`0.5px solid ${timerVisibility===id?C.sageB:C.bord}`,
+                ...body("11px",timerVisibility===id?C.sageB:C.muted)}}>
+              {label}
+            </button>
+          ))}
         </div>
-        <Toggle on={guidedSession} onToggle={()=>setGuidedSession(v=>!v)}/>
-      </div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:`0.5px solid ${C.bord}`}}>
-        <div style={{flex:1,paddingRight:"12px"}}>
-          <div style={{...body("14px",C.cream)}}>Anchor starts timer immediately</div>
-        </div>
-        <Toggle on={anchorImmediate} onToggle={()=>setAnchorImmediate(v=>!v)}/>
       </div>
 
       <div style={{padding:"16px 0 4px"}}>
@@ -5102,6 +6177,20 @@ function SettingsScreen({ onBack, name, setName, anchorImmediate, setAnchorImmed
                 </button>
               </div>
               <button onClick={onSignOut} style={{width:"100%",padding:"7px",background:"transparent",border:"none",cursor:"pointer",...body("10px",C.dim),fontStyle:"italic"}}>Sign out</button>
+
+              {/* Delete cloud save — only removes the remote copy; this
+                  device's own local save is untouched either way. */}
+              {!deleteCloudConfirm
+                ? <button onClick={()=>setDeleteCloudConfirm(true)} style={{width:"100%",padding:"7px",marginTop:"6px",background:"transparent",border:"none",cursor:"pointer",...body("10px","rgba(180,100,100,0.7)"),fontStyle:"italic"}}>Delete cloud save</button>
+                : <div style={{border:`0.5px solid rgba(180,60,60,0.4)`,borderRadius:"6px",padding:"12px",background:"rgba(180,60,60,0.06)",marginTop:"8px"}}>
+                    <div style={{...body("12px","rgba(220,140,140,0.9)"),marginBottom:"10px"}}>Delete the cloud copy of your save? Your device keeps its own data — this only removes what's stored remotely.</div>
+                    <div style={{display:"flex",gap:"8px"}}>
+                      <button onClick={()=>{onDeleteCloud();setDeleteCloudConfirm(false);}} disabled={cloudSyncing} style={{flex:1,padding:"8px",background:"rgba(180,60,60,0.15)",border:`0.5px solid rgba(180,60,60,0.5)`,borderRadius:"4px",cursor:"pointer",...dsp("9px","rgba(220,120,120,0.9)",400,"0.12em")}}>
+                        {cloudSyncing?"…":"CONFIRM DELETE"}
+                      </button>
+                      <button onClick={()=>setDeleteCloudConfirm(false)} style={{flex:1,padding:"8px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.muted,400,"0.12em")}}>CANCEL</button>
+                    </div>
+                  </div>}
             </div>
           ) : (
             <div style={{marginBottom:"16px"}}>
@@ -5294,6 +6383,17 @@ async function sbLoadData(token,userId){
   }catch{return null;}
 }
 
+async function sbDeleteData(token,userId){
+  if(!SB_URL||!SB_KEY||!token) return false;
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/user_data?user_id=eq.${userId}`,{
+      method:"DELETE",
+      headers:{"Authorization":`Bearer ${token}`,"apikey":SB_KEY}
+    });
+    return r.ok;
+  }catch{return false;}
+}
+
 /* Guarded cloud save: peeks at what's already in the cloud before overwriting
    it. Refuses to push if the cloud's total XP is HIGHER than the local save's
    — this is what stops an empty/wiped/lower-progress local state (a fresh
@@ -5365,9 +6465,11 @@ export default function AscendApp(){
   const [libCollapsed,setLibCollapsed]=useState(P.libCollapsed ?? {});
   const [completedChapters,setCompletedChapters]=useState(P.completedChapters ?? []);
   const [classState,setClassState]=useState(()=>migrateClassState(P.classState ?? freshClassState()));
+  const [way,setWay]=useState(()=>migrateWay(P.way));           // The Way — forged in Act II
+  const [pendingReflection,setPendingReflection]=useState(null); // guided reflection routed to Journal
   const [chantUnlocked,setChantUnlocked]=useState(P.chantUnlocked ?? false);
   const [openChantQuest,setOpenChantQuest]=useState(false);
-  const [questCollapsed,setQuestCollapsed]=useState(P.questCollapsed ?? false);
+  const [actCollapsed,setActCollapsed]=useState(P.actCollapsed ?? {});
   const [classCollapsed,setClassCollapsed]=useState(P.classCollapsed ?? false);
   /* Which class quest is open in the reader, if any: {classId, questId} */
   const [openClassQuest,setOpenClassQuest]=useState(null);
@@ -5392,10 +6494,21 @@ export default function AscendApp(){
   const [devMode,setDevMode]=useState(false);
   const [theme,setTheme]=useState(P.theme ?? "navy");
   const [fontScale,setFontScale]=useState(P.fontScale ?? 1.0);
-  const [guidedSession,setGuidedSession]=useState(P.guidedSession ?? true);
+  const [guidedSession,setGuidedSession]=useState(()=>{
+    /* One-time migration, computed once at load — not a recurring check.
+       Guided cues are intro-quest scaffolding; if this save already had
+       Chapter 2 done when it was written (e.g. an older save from before
+       this rule existed), correct it right here, once, at hydration.
+       The forward-looking half of this — turning cues off the moment
+       Chapter 2 is actually completed during a live session — lives at
+       the completion event itself (onCompleteChapter below), not here. */
+    if((P.completedChapters??[]).includes(2)) return false;
+    return P.guidedSession ?? true;
+  });
+  const [timerVisibility,setTimerVisibility]=useState(P.timerVisibility ?? "reveal"); // "visible" | "hidden" | "reveal"
+  const [lastKnownPos,setLastKnownPos]=useState(P.lastKnownPos ?? null); // real GPS fix, persisted — survives reload, so the map opens where you actually are, not recomputed from pin data each time
   const [autoCloudSync,setAutoCloudSync]=useState(P.autoCloudSync ?? true);
   const [splashImgLoaded,setSplashImgLoaded]=useState(false);
-  const [anchorImmediate,setAnchorImmediate]=useState(true);
   applyTheme(theme);
   // Fade out the HTML loading splash when React mounts
   useEffect(()=>{
@@ -5474,7 +6587,7 @@ export default function AscendApp(){
     setCh({name:"Dev",totalXP:0,title:"Seeker",stats:{vit:0,str:0,wil:0,hrt:0,voi:0,wis:0,ali:0}});
     setSessions([]); setJEnt([]); setPins([]); setRevealZones([]); setZonesMigrated(true); setActivities([]); setChaptersRead([]); setLibReadAt({});
     setTypes(TYPES); setLibrary(Object.fromEntries(TYPES.map(t=>[t.id,[]])));
-    setCompletedChapters([]); setHasAnchored(false); setClassState(freshClassState()); setChantUnlocked(false);
+    setCompletedChapters([]); setHasAnchored(false); setClassState(freshClassState()); setChantUnlocked(false); setWay(freshWay());
     setOnboarding("brand"); setScr(null); setAnch(false);
   };
   const disableDevMode = () => {
@@ -5512,6 +6625,17 @@ export default function AscendApp(){
     if(!data){ showCloudMsg("err","No cloud data found"); return; }
     applyImport(data);
     showCloudMsg("ok","Restored from cloud ✓");
+  };
+
+  const handleDeleteCloud = async () => {
+    if(!cloudUser||!cloudToken) return;
+    setCloudSyncing(true);
+    const ok = await sbDeleteData(cloudToken, cloudUser.id);
+    setCloudSyncing(false);
+    /* Deleting the cloud copy only removes what's stored remotely — it
+       never touches the device's own local save, so nothing on this
+       device is lost by doing this. */
+    showCloudMsg(ok?"ok":"err", ok?"Cloud save deleted":"Delete failed — try again");
   };
 
   const handleVerified = (token, user) => {
@@ -5579,6 +6703,7 @@ export default function AscendApp(){
       if(data.libCollapsed) setLibCollapsed(data.libCollapsed);
       if(data.activities) setActivities(migrateActivityMetadata(data.activities));
       if(data.classState) setClassState(migrateClassState(data.classState));
+      if(data.way) setWay(migrateWay(data.way));
       if(data.chantUnlocked!==undefined) setChantUnlocked(data.chantUnlocked);
       if(data.chaptersRead) setChaptersRead(data.chaptersRead);
       if(data.libReadAt) setLibReadAt(data.libReadAt);
@@ -5598,7 +6723,7 @@ export default function AscendApp(){
     setCh({name:"",totalXP:0,title:"Seeker",stats:{vit:0,str:0,wil:0,hrt:0,voi:0,wis:0,ali:0}});
     setSessions([]); setJEnt([]); setPins([]); setRevealZones([]); setZonesMigrated(true);
     setTypes(TYPES); setLibrary(Object.fromEntries(TYPES.map(t=>[t.id,[]])));
-    setCompletedChapters([]); setHasAnchored(false); setClassState(freshClassState()); setChantUnlocked(false);
+    setCompletedChapters([]); setHasAnchored(false); setClassState(freshClassState()); setChantUnlocked(false); setWay(freshWay());
     setTheme("forest"); applyTheme("forest");
     setOnboarding("brand"); setTab("quest"); setScr(null); setAnch(false);
   };
@@ -5611,7 +6736,7 @@ export default function AscendApp(){
      sees the latest without re-binding listeners. */
   const blob = {
     v:1, tab, fontScale, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, revealZones, zonesMigrated, libCollapsed,
-    completedChapters, hasAnchored, theme, guidedSession, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, autoCloudSync, onboardingDone: onboarding==="done",
+    completedChapters, hasAnchored, theme, guidedSession, timerVisibility, lastKnownPos, anchInitType, classState, chantUnlocked, way, actCollapsed, classCollapsed, autoCloudSync, onboardingDone: onboarding==="done",
   };
   const blobRef = useRef(blob);
   blobRef.current = blob;
@@ -5622,7 +6747,7 @@ export default function AscendApp(){
     const json = JSON.stringify(blobRef.current);
     const t = setTimeout(()=>writeStorage(json), 250);
     return ()=>clearTimeout(t);
-  },[hydrated, devMode, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, autoCloudSync, revealZones, zonesMigrated, libCollapsed]);
+  },[hydrated, devMode, tab, fontScale, guidedSession, timerVisibility, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, way, actCollapsed, classCollapsed, autoCloudSync, revealZones, zonesMigrated, libCollapsed, lastKnownPos]);
 
   /* ── FLUSH: write immediately when the page is hidden or unloaded ── */
   useEffect(()=>{
@@ -5658,7 +6783,7 @@ export default function AscendApp(){
       }catch(e){ /* silent — local save already protects the data either way */ }
     }, 8000);
     return ()=>clearTimeout(cloudSyncTimerRef.current);
-  },[devMode, hydrated, cloudUser, cloudToken, tab, fontScale, guidedSession, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, questCollapsed, classCollapsed, autoCloudSync, revealZones, zonesMigrated, libCollapsed]);
+  },[devMode, hydrated, cloudUser, cloudToken, tab, fontScale, guidedSession, timerVisibility, activities, chaptersRead, libReadAt, ch, sessions, jEnt, pins, types, library, completedChapters, hasAnchored, theme, onboarding, anchInitType, classState, chantUnlocked, actCollapsed, classCollapsed, autoCloudSync, revealZones, zonesMigrated, libCollapsed, lastKnownPos]);
 
   useEffect(()=>{
     if(!cloudUser || !cloudToken) return;
@@ -5705,6 +6830,8 @@ export default function AscendApp(){
         if(P2.theme){ setTheme(P2.theme); applyTheme(P2.theme); }
         if(P2.fontScale) setFontScale(P2.fontScale);
         if(P2.guidedSession!==undefined) setGuidedSession(P2.guidedSession);
+        if(P2.timerVisibility) setTimerVisibility(P2.timerVisibility);
+        if(P2.lastKnownPos) setLastKnownPos(P2.lastKnownPos);
         if(P2.anchInitType) setAnchInitType(P2.anchInitType);
         if(P2.tab) setTab(P2.tab);
         if(P2.types) setTypes(P2.types);
@@ -5906,6 +7033,20 @@ export default function AscendApp(){
     return {...p,stats:st,totalXP:(p.totalXP??0)+3};
   });
 
+  /* ── The Way — helpers ──
+     updateWay: functional updater passed down to the Forge.
+     awardWayXP: small flat grant per commitment completion — enough to
+     register in the game layer, small enough that sessions stay the real
+     engine (nobody should be able to grind dailies for levels).
+     openReflection: routes an Act guided reflection into the Journal. */
+  const updateWay = (fn) => setWay(w=>migrateWay(typeof fn==="function"?fn(w):fn));
+  const awardWayXP = (stat) => setCh(p=>{
+    const st={...p.stats};
+    if(stat && st[stat]!==undefined) st[stat]=(st[stat]||0)+2;
+    return {...p,stats:st,totalXP:(p.totalXP??0)+5};
+  });
+  const openReflection = (r) => { setPendingReflection(r); setScr("journal"); };
+
   /* Inquire entries route the flat journal bonus to Sage mastery (no duration
      concept for Inquire — it's a question sat with, not a timed practice).
      Tend entries earn duration-based XP from the minutes the player logged,
@@ -5978,8 +7119,10 @@ export default function AscendApp(){
   const handleDone=({type,typeId,duration,elapsed:elapsedSecs,weightedElapsed,activeActivities=[],tags,reflection,pinSession,pinTag,quickAnchor,awarenessLanding,loggedCounts={}})=>{
     const wasFirstSession = !hasAnchored;
     const isA=quickAnchor||!type;
-    /* sessions < 10 s are discarded silently */
-    if(!isA && (elapsedSecs??0) < 10){ setAnch(false); return; }
+    /* Every session saves and shows its review screen, regardless of
+       duration — a sub-10s attempt is real and gets logged (at 0 XP, per
+       the formula below). It just won't establish the anchor on its own;
+       see setHasAnchored below and the review screen's own message. */
     if(!isA && typeId) setAnchInitType(typeId); // remember last used type
     /* XP is based on multiplier-weighted seconds (Run 2x, Horse Stance 3x, etc.,
        time-segmented) when available, falling back to raw elapsed for quick
@@ -5996,7 +7139,7 @@ export default function AscendApp(){
     const sg = applyAwarenessSiphon(sgRaw, lands);
     const s={type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),activities:activeActivities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg,awarenessLanding:lands,loggedCounts:loggedCounts||{}};
     setSessions(p=>[s,...p]);
-    setHasAnchored(true);
+    if(isA || (elapsedSecs??0) >= 10) setHasAnchored(true);
 
     /* Accumulate any logged reps/minutes onto each activity's running count,
        and auto-complete the owning quest once every target is met. This runs
@@ -6232,6 +7375,7 @@ export default function AscendApp(){
               types={types} library={library} setLibrary={setLibrary}
               addType={addType} startImmediately={true}
               skipReview={false}
+              timerVisibility="hidden"
               unlocks={{modifiers:false,pause:false,pin:false,practiceType:false,activities:false,centers:false}}
               guideCues={[
                 {s:0,  e:5,  text:"Sit comfortably."},
@@ -6318,7 +7462,7 @@ export default function AscendApp(){
                   )}
                 </div>
                 <button onClick={advanceOb1} style={{width:"100%",padding:"13px",background:"rgba(201,168,76,0.12)",border:"0.5px solid rgba(201,168,76,0.45)",cursor:"pointer",borderRadius:"6px",...dsp("11px","rgba(201,168,76,0.9)",400,"0.18em")}}>
-                  {(ob1Scene===ONBOARDING_SCENE.length-1 && ob1ParaPage>=Math.ceil(scene.body.length/2)-1)?"TAKE YOUR FIRST STEPS →":"CONTINUE →"}
+                  {(ob1Scene===ONBOARDING_SCENE.length-1 && ob1ParaPage>=Math.ceil(scene.body.length/2)-1)?"BEGIN →":"CONTINUE →"}
                 </button>
               </div>
             )}
@@ -6361,6 +7505,9 @@ export default function AscendApp(){
         input, textarea, select { touch-action: auto; }
         @keyframes fadeRise { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
         @keyframes fadeOut { from { opacity:1; } to { opacity:0; } }
+        @keyframes emberPulse { 0%{opacity:0.35;} 40%{opacity:1;} 100%{opacity:0.35;} }
+        @keyframes fireBreathe { 0%,100%{opacity:0.55; transform:scale(1);} 50%{opacity:0.9; transform:scale(1.06);} }
+        @keyframes questGlow { 0%,100%{box-shadow:0 0 10px rgba(163,192,137,0.25);} 50%{box-shadow:0 0 22px rgba(163,192,137,0.55);} }
       `}</style>
       <div style={phoneStyle}>
         {/* floating DEV indicator */}
@@ -6387,9 +7534,9 @@ export default function AscendApp(){
         {/* content — all tabs stay mounted so internal state (quest screen, library entry) persists */}
         <div style={{flex:1,overflowY:"auto",paddingBottom:"118px"}}>
           <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities}/></div>
-          <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>setCompletedChapters(p=>p.includes(n)?p:[...p,n])} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
-            classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} questCollapsed={questCollapsed} setQuestCollapsed={setQuestCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete}/></div>
-          <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones}/></div>
+          <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
+            classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}/></div>
+          <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones} savedPos={lastKnownPos} onLocationConfirmed={setLastKnownPos}/></div>
           <div style={{display:tab==="library"?"block":"none"}}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)} collapsed={libCollapsed} setCollapsed={setLibCollapsed} classState={classState} chantUnlocked={chantUnlocked}/></div>
         </div>
 
@@ -6426,7 +7573,7 @@ export default function AscendApp(){
             </button>
           </>
         )}
-        <nav style={{position:"absolute",bottom:0,left:0,width:"100%",height:"calc(64px + env(safe-area-inset-bottom))",boxSizing:"border-box",background:C.surf,borderTop:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 0 calc(2px + env(safe-area-inset-bottom))",zIndex:showActComplete?0:260,opacity:showActComplete?0:1,transition:"opacity .8s ease",pointerEvents:showActComplete?"none":"auto"}}>
+        <nav style={{position:"absolute",bottom:0,left:0,width:"100%",height:"64px",boxSizing:"border-box",background:C.surf,borderTop:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 0 2px",zIndex:showActComplete?0:260,opacity:showActComplete?0:1,transition:"opacity .8s ease",pointerEvents:showActComplete?"none":"auto"}}>
           <div style={{display:"flex",flex:1,justifyContent:"space-around",alignItems:"center"}}>
             {NAV.slice(0,2).map(({id,l})=>(
               <button key={id} onClick={()=>navigateTo(()=>{setTab(id);setAnch(false);if(id==="character")setCapacities(false);})} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",padding:"2px 12px",border:"none",background:"none",cursor:"pointer",flexShrink:0}}>
@@ -6469,7 +7616,7 @@ export default function AscendApp(){
             </div>
           </div>
         )}
-        {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");setPendingInquiry(null);}} onSave={e=>{const updated=[e,...jEnt];setJEnt(updated);awardJournalXP();awardEntryMasteryXP(e);if(e.tag==="inquire"&&e.question)recordInquiry(e.question);if(e.tag==="tend")checkTendQuestCompletion(updated);if(e.tag==="release")checkJournalEntryQuestCompletion(updated);setScr(null);setJournalDraft("");setPendingInquiry(null);}} onEntryChange={setJournalDraft} pendingInquiry={pendingInquiry} tendUnlocked={questActiveOrDone("healer","h_listen",classState?.questProgress||{},trialComplete)} releaseUnlocked={questActiveOrDone("healer","h_forgive",classState?.questProgress||{},trialComplete)} inquireUnlocked={!!(classState?.activeClass==="sage")}/>}
+        {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");setPendingInquiry(null);setPendingReflection(null);}} onSave={e=>{const updated=[e,...jEnt];setJEnt(updated);awardJournalXP();awardEntryMasteryXP(e);if(e.tag==="inquire"&&e.question)recordInquiry(e.question);if(e.tag==="tend")checkTendQuestCompletion(updated);if(e.tag==="release")checkJournalEntryQuestCompletion(updated);setScr(null);setJournalDraft("");setPendingInquiry(null);setPendingReflection(null);}} onEntryChange={setJournalDraft} pendingInquiry={pendingInquiry} pendingReflection={pendingReflection} tendUnlocked={questActiveOrDone("healer","h_listen",classState?.questProgress||{},trialComplete)} releaseUnlocked={questActiveOrDone("healer","h_forgive",classState?.questProgress||{},trialComplete)} inquireUnlocked={!!(classState?.activeClass==="sage")}/>}
         {openChantQuest && (
           <Overlay title={CHANT_QUEST.title} onBack={()=>setOpenChantQuest(false)}>
             <div style={{...dsp("9px",C.sageB,400,"0.16em"),marginBottom:"14px"}}>FOUNDATION · VOICE</div>
@@ -6531,8 +7678,8 @@ export default function AscendApp(){
           onOpenLib={(id)=>{setOpenClassQuest(null);setTab("library");setLibOpenId(id);}}
           onOpenInquire={(question)=>{setPendingInquiry(question);setOpenClassQuest(null);setScr("journal");}}/>}
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
-        {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} anchorImmediate={anchorImmediate} setAnchorImmediate={setAnchorImmediate} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} guidedSession={guidedSession} setGuidedSession={setGuidedSession} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onSignOut={handleSignOut} onVerified={handleVerified} autoCloudSync={autoCloudSync} setAutoCloudSync={setAutoCloudSync}/>}
-        {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={anchorImmediate || !anchorUnlocks(completedChapters).pause} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType} reflectUnlocked={!!classState?.questProgress?.s_reflect || (classState?.activeClass==="sage" && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={classState?.activeClass||null} unlocks={anchorUnlocks(completedChapters)} guideCues={!anchorUnlocks(completedChapters).modifiers ? [
+        {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} timerVisibility={timerVisibility} setTimerVisibility={setTimerVisibility} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onDeleteCloud={handleDeleteCloud} onSignOut={handleSignOut} onVerified={handleVerified} autoCloudSync={autoCloudSync} setAutoCloudSync={setAutoCloudSync}/>}
+        {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType} reflectUnlocked={!!classState?.questProgress?.s_reflect || (classState?.activeClass==="sage" && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={classState?.activeClass||null} unlocks={anchorUnlocks(completedChapters)} guideCues={!anchorUnlocks(completedChapters).modifiers ? [
           {s:0,  e:5,  text:"Sit comfortably."},
           {s:5,  e:10, text:"Let your eyes soften or close."},
           {s:10, e:50, text:"This is your time to simply be here, breathing, for as long as feels right."},
