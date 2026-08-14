@@ -5660,11 +5660,13 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
 
   return (
     <div style={{padding:"4px 20px 100px"}}>
-      {/* Daily contemplation */}
-      <div style={{padding:"14px 0 6px",marginBottom:"8px",borderBottom:`0.5px solid ${C.bord}`}}>
-        <div style={{...body("12px",C.dim),fontStyle:"italic",lineHeight:"1.75",textAlign:"center"}}>{todayContemplation()}</div>
+      <div style={{marginBottom:"10px"}}>
+        <span style={{...dsp("9px",C.muted,400,"0.18em")}}>LIBRARY</span>
       </div>
-      <SL title="Library"/>
+      {/* Daily contemplation — quoted, no border box */}
+      <div style={{padding:"0 0 14px",textAlign:"center"}}>
+        <div style={{...body("12px",C.dim),fontStyle:"italic",lineHeight:"1.75"}}>&ldquo;{todayContemplation()}&rdquo;</div>
+      </div>
       <div style={{display:"flex",gap:"6px",marginBottom:"18px",flexWrap:"wrap"}}>
         {filters.map(f=><Pill key={f} on={filter===f} onClick={()=>setFilter(f)}>{f}</Pill>)}
       </div>
@@ -7573,7 +7575,7 @@ export default function AscendApp(){
             </button>
           </>
         )}
-        <nav style={{position:"absolute",bottom:0,left:0,width:"100%",height:"64px",boxSizing:"border-box",background:C.surf,borderTop:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 0 2px",zIndex:showActComplete?0:260,opacity:showActComplete?0:1,transition:"opacity .8s ease",pointerEvents:showActComplete?"none":"auto"}}>
+        <nav style={{position:"absolute",bottom:0,left:0,width:"100%",height:"calc(64px + env(safe-area-inset-bottom))",boxSizing:"border-box",background:C.surf,borderTop:`0.5px solid ${C.bord}`,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 0 calc(2px + env(safe-area-inset-bottom))",zIndex:showActComplete?0:260,opacity:showActComplete?0:1,transition:"opacity .8s ease",pointerEvents:showActComplete?"none":"auto"}}>
           <div style={{display:"flex",flex:1,justifyContent:"space-around",alignItems:"center"}}>
             {NAV.slice(0,2).map(({id,l})=>(
               <button key={id} onClick={()=>navigateTo(()=>{setTab(id);setAnch(false);if(id==="character")setCapacities(false);})} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",padding:"2px 12px",border:"none",background:"none",cursor:"pointer",flexShrink:0}}>
