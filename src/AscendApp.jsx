@@ -4409,7 +4409,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
     const WISPS   = [{top:"12%",w:140,h:5,d:9,del:0},{top:"31%",w:90,h:4,d:12,del:3},{top:"54%",w:160,h:6,d:8,del:5},{top:"73%",w:110,h:4,d:14,del:1}];
 
     return (
-      <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:"430px",height:"calc(100dvh - 64px)",zIndex:250,display:"flex",flexDirection:"column",background:"#08090f",overflow:"hidden"}}>
+      <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:"430px",height:"calc(100dvh - 64px - env(safe-area-inset-bottom))",zIndex:250,display:"flex",flexDirection:"column",background:"#08090f",overflow:"hidden"}}>
 
         {/* Chapter 1 — mountain backdrop, continuous with the intro */}
         {/* Mountain backdrop — all chapters, tinted to the chapter's mood */}
@@ -5080,6 +5080,71 @@ function clusterZones(zones, radiusM=50000){
   return clusters;
 }
 
+/* ─── SUMMITS & REVEAL REACH ───
+   Anchoring within SUMMIT_RADIUS_M of a peak makes that zone a summit zone:
+   from the top you see further, so it reveals SUMMIT_REVEAL_X × its normal
+   radius (900m on a first visit, up to 3km as the zone grows). The base
+   z.radius is untouched — it still governs merging and growth — only the
+   reveal reach changes. Summit status is permanent. */
+const SUMMIT_RADIUS_M = 100;
+const SUMMIT_REVEAL_X = 3;
+const zoneRevealR = z => z.radius * (z.summit ? SUMMIT_REVEAL_X : 1);
+const zoneFetchR  = z => Math.max(1300, zoneRevealR(z) + 300);
+/* Geometry is needed if never fetched, or if the reveal circle (which can
+   drift with the centroid, or jump on a summit) now reaches past the area
+   that was fetched. Legacy zones have no geoCenter: compare radii only. */
+const zoneNeedsGeo = z => !z.fetchedRadius || (z.geoCenter
+  ? haversineM(z.geoCenter.lat,z.geoCenter.lng,z.lat,z.lng)+zoneRevealR(z) > z.fetchedRadius
+  : zoneRevealR(z) > z.fetchedRadius);
+
+/* How far of a zone the player has already watched being revealed (meters).
+   Legacy zones (fetched before ripples existed) count as seen at base radius. */
+const zoneSeenR = z => z.seenR ?? ((z.fetchedRadius>0 && !z.geoCenter) ? z.radius : 0);
+/* SMIL <animate begin="indefinite"> must be started by hand once mounted.
+   A stable module-level ref callback (not an inline arrow) so re-renders —
+   e.g. panning mid-ripple — never restart the animation. */
+const _smilBegun = new WeakSet();
+function beginSmilOnce(el){ if(el && !_smilBegun.has(el)){ _smilBegun.add(el); try{ el.beginElement?.(); }catch(e){} } }
+const RIPPLE_MS = (fromM,toM) => Math.round(1800 + Math.min(1600, (toM-fromM)*1.2));
+
+/* One pass of zone upkeep, pure: returns a new array, or null if nothing changed.
+   - Legacy zones (fetched before reveal ripples existed) are marked as already
+     seen at their base radius, so only genuinely new reach ever ripples.
+   - Summits: any geo pin within SUMMIT_RADIUS_M of any known peak marks the
+     zone that pin belongs to. Runs whenever peaks or pins change, so a summit
+     anchored before its peaks had loaded is still recognised afterwards. */
+function maintainZones(zones, pins){
+  let changed=false;
+  const next=zones.map(z=>{
+    if(z.seenR==null && z.fetchedRadius>0 && !z.geoCenter){ changed=true; return {...z, seenR:z.radius}; }
+    return z;
+  });
+  const peaks=[], seen=new Set();
+  next.forEach(z=>(z.peaks||[]).forEach(pk=>{ if(!seen.has(pk.id)){ seen.add(pk.id); peaks.push(pk); } }));
+  if(peaks.length){
+    const add={}; // zoneId -> [peakId]
+    pins.forEach(pin=>{
+      if(pin.lat==null||pin.lng==null) return;
+      peaks.forEach(pk=>{
+        if(Math.abs(pk.lat-pin.lat)>0.002) return; // ~220m cheap prefilter
+        if(haversineM(pin.lat,pin.lng,pk.lat,pk.lng)>SUMMIT_RADIUS_M) return;
+        let home=null, best=Infinity;
+        next.forEach(z=>{ const d=haversineM(z.lat,z.lng,pin.lat,pin.lng); if(d<best){best=d;home=z;} });
+        if(!home || (home.summitPeaks||[]).includes(pk.id)) return;
+        (add[home.id]=add[home.id]||new Set()).add(pk.id);
+      });
+    });
+    if(Object.keys(add).length){
+      changed=true;
+      for(let i=0;i<next.length;i++){
+        const a=add[next[i].id]; if(!a) continue;
+        next[i]={...next[i], summit:true, summitPeaks:[...(next[i].summitPeaks||[]), ...a]};
+      }
+    }
+  }
+  return changed?next:null;
+}
+
 function updateRevealZones(zones, lat, lng){
   let matchedId=null;
   for(const z of zones){
@@ -5101,11 +5166,12 @@ function updateRevealZones(zones, lat, lng){
 async function fetchZoneGeometry(lat, lng, radiusM=1300){
   const latD=radiusM/111320, lngD=radiusM/(111320*Math.cos(lat*Math.PI/180));
   const bbox=`${lat-latD},${lng-lngD},${lat+latD},${lng+lngD}`;
-  const q=`[out:json][timeout:20];(way["natural"="water"](${bbox});way["natural"="coastline"](${bbox});way["waterway"="river"](${bbox});way["waterway"="stream"](${bbox});way["landuse"="forest"](${bbox});way["natural"="wood"](${bbox}););out geom;`;
+  const q=`[out:json][timeout:${radiusM>2000?30:20}];(way["natural"="water"](${bbox});way["natural"="coastline"](${bbox});way["waterway"="river"](${bbox});way["waterway"="stream"](${bbox});way["landuse"="forest"](${bbox});way["natural"="wood"](${bbox}););out geom;`;
   try{
     const res=await fetch("https://overpass-api.de/api/interpreter",{method:"POST",body:"data="+encodeURIComponent(q)});
     if(!res.ok) return null;
     const data=await res.json();
+    if(data.remark && /error|timed out|runtime/i.test(data.remark)) return null; // overloaded: answer is incomplete, don't store it
     const water=[], rivers=[], forest=[];
     (data.elements||[]).forEach(el=>{
       if(!el.geometry || el.geometry.some(g=>g.lat==null)) return;
@@ -5136,6 +5202,7 @@ async function fetchZonePeaks(lat, lng, radiusM=PEAK_RADIUS_M){
     const res=await fetch("https://overpass-api.de/api/interpreter",{method:"POST",body:"data="+encodeURIComponent(q)});
     if(!res.ok) return null;
     const data=await res.json();
+    if(data.remark && /error|timed out|runtime/i.test(data.remark)) return null;
     const peaks=(data.elements||[])
       .filter(el=>el.type==="node" && el.lat!=null && el.lon!=null)
       .map(el=>{
@@ -5248,7 +5315,13 @@ function WorldView({ clusters, userPos, onSelectCluster, onReturnToLocal, onClos
   );
 }
 
-function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{} }){
+function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{}, active=true, onZoneSeen=()=>{} }){
+  /* Reveal ripples — the first time new nature reach (a new zone, growth from
+     return visits, or a summit's 3× expansion) is on screen, it unfolds as a
+     slow ripple instead of just appearing. Animated with SVG SMIL so the
+     heavy geometry layer never re-renders per frame. id → {from,to,ms} (m). */
+  const [ripples,setRipples]=useState({});
+  const rippleDoneRef=useRef({}); // id → meters already rippled (bridges the gap until seenR arrives via props)
   const [hoveredPin,setHoveredPin]=useState(null);
   const [locating,setLocating]=useState(false);
   const [locatePulse,setLocatePulse]=useState(false);
@@ -5272,9 +5345,16 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
   const [worldPan,setWorldPan]=useState({x:0,y:0});
   const containerRef=useRef(null);
   const [openPeak,setOpenPeak]=useState(null);   // id of the peak whose card is open
+  /* Real width of the map container. Everything that projects geography —
+     pins, peaks, rings, AND the water/forest SVG — must share this one width.
+     (Previously the SVG was a fixed 350px box anchored at the left edge while
+     pins used % of the real width, so on phones wider than 350px the nature
+     layer drifted left of its pins and was cut off beyond the 350×530 box.) */
+  const [cw,setCw]=useState(350);
   const [userEle,setUserEle]=useState(null);     // ground elevation at the real userPos
   const eleCacheRef=useRef({});                  // "lat,lng" (~100m grid) → meters
-  const panZoomCleanupRef=useRef(null); // holds the teardown fn for whichever DOM node is currently bound
+  const panZoomCleanupRef=useRef(null);
+  const sizeObsRef=useRef(null); // holds the teardown fn for whichever DOM node is currently bound
 
   const geoPins = pins.filter(p=>p.lat!=null&&p.lng!=null);
   const mapW=350, mapH=530;
@@ -5299,12 +5379,12 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
     const zoneDists=revealZones.map(z=>Math.hypot((z.lng-viewCenter.lng)*mPerDegLng,(z.lat-viewCenter.lat)*mPerDegLat)+z.radius)
       .filter(d=>d<=LOCAL_REGION_M);
     const maxDist=Math.max(120,...withDist.map(p=>Math.hypot(p.dx,p.dy)),...zoneDists);
-    const halfPx=Math.min(mapW,mapH)/2; mPerPx=maxDist/(halfPx*0.8);
+    const halfPx=Math.min(cw,mapH)/2; mPerPx=maxDist/(halfPx*0.8);
     const niceM=[10,20,50,100,200,500,1000,2000,5000,10000].filter(v=>v<=halfPx/2.6*mPerPx*1.2).pop()||100;
     ringMeters=niceM; ringPx=niceM/mPerPx;
     projectPoint=(lat,lng)=>{
       const dx=(lng-viewCenter.lng)*mPerDegLng, dy=(lat-viewCenter.lat)*mPerDegLat;
-      return {rx:50+(dx/mPerPx/mapW)*100, ry:50-(dy/mPerPx/mapH)*100};
+      return {rx:50+(dx/mPerPx/cw)*100, ry:50-(dy/mPerPx/mapH)*100}; // true scale: 1px = mPerPx meters on both axes
     };
     renderPins=pins.map(p=>{
       if(p.lat!=null&&p.lng!=null){const pr=projectPoint(p.lat,p.lng); return{...p,rx:pr.rx,ry:pr.ry};}
@@ -5360,6 +5440,39 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
   const zonePrimaryIdx = {};
   renderPins.forEach((p,i)=>{ const zid=pinZoneId[i]; if(zid!=null) zonePrimaryIdx[zid]=i; }); // last write wins = most recent pin
 
+  useEffect(()=>{
+    const onResize=()=>{ const w=containerRef.current?.clientWidth; if(w) setCw(w); };
+    window.addEventListener("resize",onResize);
+    return ()=>window.removeEventListener("resize",onResize);
+  },[]);
+
+  /* Start a ripple for any zone whose reveal reach exceeds what's been seen,
+     once its geometry covers that reach, while the map is actually visible
+     and the zone is on screen. Completion persists seenR via onZoneSeen. */
+  useEffect(()=>{
+    if(!active || mode!=="local" || !viewCenter) return;
+    const add={};
+    revealZones.forEach(z=>{
+      const to=zoneRevealR(z), from=Math.max(zoneSeenR(z), rippleDoneRef.current[z.id]||0);
+      if(to<=from+1 || ripples[z.id] || zoneNeedsGeo(z)) return;
+      const c=projectPoint(z.lat,z.lng);
+      const sx=cw/2+((c.rx/100)*cw-cw/2)*zoom+pan.x, sy=mapH/2+((c.ry/100)*mapH-mapH/2)*zoom+pan.y;
+      const rPx=(to/mPerPx)*zoom;
+      if(sx+rPx<0 || sx-rPx>cw || sy+rPx<0 || sy-rPx>mapH) return; // not in view yet — wait until it is
+      add[z.id]={from,to,ms:RIPPLE_MS(from,to)};
+    });
+    const ids=Object.keys(add);
+    if(!ids.length) return;
+    setRipples(r=>({...r,...add}));
+    ids.forEach(id=>{
+      setTimeout(()=>{
+        rippleDoneRef.current[id]=add[id].to;
+        onZoneSeen(id, add[id].to);
+        setRipples(r=>{ const n={...r}; delete n[id]; return n; });
+      }, add[id].ms+120);
+    });
+  });  // every render: cheap checks; guards above prevent duplicates
+
   /* Elevation of where you actually stand — looked up whenever the real
      position changes (never for a viewed distant cluster). Cached on a ~100m
      grid so re-locating in the same spot doesn't refetch. */
@@ -5400,7 +5513,15 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
   const setContainerEl = useCallback((el) => {
     if(panZoomCleanupRef.current){ panZoomCleanupRef.current(); panZoomCleanupRef.current=null; }
     containerRef.current = el;
+    if(sizeObsRef.current){ sizeObsRef.current.disconnect(); sizeObsRef.current=null; }
     if(!el) return;
+    if(el.clientWidth) setCw(el.clientWidth);
+    /* The Map tab mounts hidden (display:none → width 0) and only gets a real
+       width when shown, which fires no window resize — so observe the node. */
+    if(typeof ResizeObserver!=="undefined"){
+      sizeObsRef.current=new ResizeObserver(()=>{ if(el.clientWidth) setCw(el.clientWidth); });
+      sizeObsRef.current.observe(el);
+    }
     let lastTouch=null, lastPinch=null, isDrag=false, lastMouse=null;
 
     const onTouchStart=e=>{
@@ -5481,7 +5602,6 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
      pinned to the frame edge, in their true direction, so you can always see
      which mountains surround you. Screen math mirrors the canvas transform:
      translate(pan) scale(zoom) about the container center. */
-  const cw = containerRef.current?.clientWidth || mapW;
   const toScreen = pk => {
     const lx=(pk.rx/100)*cw, ly=(pk.ry/100)*mapH;
     return { lx, ly, sx: cw/2+(lx-cw/2)*zoom+pan.x, sy: mapH/2+(ly-mapH/2)*zoom+pan.y };
@@ -5504,6 +5624,7 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
     setPan({x:-(lx-cw/2)*zoom, y:-(ly-mapH/2)*zoom});
     setOpenPeak(pk.id);
   };
+  const summitedPeakIds = new Set(revealZones.flatMap(z=>z.summitPeaks||[]));
   const labeledPeakIds = new Set(renderPeaks.filter(pk=>pk.name).slice(0,6).map(pk=>pk.id));
   const namedPeakCount = renderPeaks.filter(pk=>pk.name).length;
 
@@ -5513,19 +5634,44 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
         {/* Pannable / zoomable canvas */}
         <div style={{position:"absolute",inset:0,transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`,transformOrigin:"50% 50%"}}>
           {/* Revealed geography — water & forest, only within anchored reveal zones */}
-          <svg width={mapW} height={mapH} viewBox={`0 0 ${mapW} ${mapH}`} style={{position:"absolute",top:0,left:0,width:`${mapW}px`,height:`${mapH}px`,pointerEvents:"none"}}>
+          <svg width={cw} height={mapH} viewBox={`0 0 ${cw} ${mapH}`} style={{position:"absolute",top:0,left:0,width:`${cw}px`,height:`${mapH}px`,pointerEvents:"none",overflow:"visible"}}>
             <defs>
               {revealZones.map(z=>{
                 const c=projectPoint(z.lat,z.lng);
-                const r=z.radius/mPerPx;
-                return <clipPath id={`zclip-${z.id}`} key={z.id}><circle cx={(c.rx/100)*mapW} cy={(c.ry/100)*mapH} r={r}/></clipPath>;
+                const rp=ripples[z.id];
+                const seenM=Math.min(Math.max(zoneSeenR(z), rippleDoneRef.current[z.id]||0), zoneRevealR(z));
+                const r=(rp?rp.to:seenM)/mPerPx;
+                return (
+                  <clipPath id={`zclip-${z.id}`} key={z.id}>
+                    <circle cx={(c.rx/100)*cw} cy={(c.ry/100)*mapH} r={r}>
+                      {rp&&<animate key={`a-${rp.to}`} ref={beginSmilOnce} attributeName="r" from={rp.from/mPerPx} to={r}
+                        dur={`${rp.ms}ms`} begin="indefinite" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.22 1 0.36 1"/>}
+                    </circle>
+                  </clipPath>
+                );
               })}
             </defs>
+            {revealZones.filter(z=>ripples[z.id]).map(z=>{
+              const rp=ripples[z.id], c=projectPoint(z.lat,z.lng);
+              const cx=(c.rx/100)*cw, cy=(c.ry/100)*mapH, from=rp.from/mPerPx, to=rp.to/mPerPx;
+              /* two soft rings: the leading edge of the reveal, and a fainter echo */
+              return (
+                <g key={`rip-${z.id}-${rp.to}`}>
+                  {[0,1].map(k=>(
+                    <circle key={k} cx={cx} cy={cy} r={from} fill="none" stroke={k?C.sage:C.cream} strokeWidth={k?0.8:1.2} opacity="0">
+                      <animate ref={beginSmilOnce} attributeName="r" from={from} to={to} dur={`${rp.ms}ms`} begin="indefinite" fill="freeze"
+                        calcMode="spline" keyTimes="0;1" keySplines={k?"0.3 0.9 0.4 1":"0.22 1 0.36 1"}/>
+                      <animate ref={beginSmilOnce} attributeName="opacity" values={k?"0;0.35;0":"0;0.7;0"} keyTimes="0;0.15;1" dur={`${rp.ms}ms`} begin="indefinite" fill="freeze"/>
+                    </circle>
+                  ))}
+                </g>
+              );
+            })}
             {revealZones.map(z=>{
               const c=projectPoint(z.lat,z.lng);
-              const cx=(c.rx/100)*mapW, cy=(c.ry/100)*mapH, r=z.radius/mPerPx;
-              const toPx=pt=>{ const p=projectPoint(pt.lat,pt.lng); return `${(p.rx/100)*mapW},${(p.ry/100)*mapH}`; };
-              const toPxNum=pt=>{ const p=projectPoint(pt.lat,pt.lng); return {x:(p.rx/100)*mapW, y:(p.ry/100)*mapH}; };
+              const cx=(c.rx/100)*cw, cy=(c.ry/100)*mapH, r=zoneRevealR(z)/mPerPx;
+              const toPx=pt=>{ const p=projectPoint(pt.lat,pt.lng); return `${(p.rx/100)*cw},${(p.ry/100)*mapH}`; };
+              const toPxNum=pt=>{ const p=projectPoint(pt.lat,pt.lng); return {x:(p.rx/100)*cw, y:(p.ry/100)*mapH}; };
               return (
                 <g key={z.id}>
                   <g clipPath={`url(#zclip-${z.id})`}>
@@ -5558,20 +5704,22 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
           </div>
           {/* Peaks — landmarks, drawn everywhere (not clipped to reveal zones) */}
           {renderPeaks.map(pk=>{
-            const isOpen=openPeak===pk.id;
-            const stroke=isOpen?C.cream:pk.kind==="hill"?"rgba(217,209,187,0.45)":"rgba(217,209,187,0.75)";
+            const isOpen=openPeak===pk.id, climbed=summitedPeakIds.has(pk.id);
+            const stroke=climbed?C.goldB:isOpen?C.cream:pk.kind==="hill"?"rgba(217,209,187,0.45)":"rgba(217,209,187,0.75)";
+            const fill=climbed?C.gold:"rgba(217,209,187,0.10)";
             return (
               <div key={pk.id} onClick={e=>{e.stopPropagation();setOpenPeak(v=>v===pk.id?null:pk.id);}}
                 style={{position:"absolute",left:`${pk.rx}%`,top:`${pk.ry}%`,transform:`translate(-50%,-70%) scale(${1/Math.max(zoom,0.6)})`,display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",cursor:"pointer",zIndex:isOpen?6:1}}>
                 <svg width={pk.kind==="hill"?10:14} height={pk.kind==="hill"?8:12} viewBox="0 0 14 12">
                   {pk.kind==="volcano"
-                    ? <polygon points="5,1.5 9,1.5 13,11 1,11" fill="rgba(217,209,187,0.10)" stroke={stroke} strokeWidth="0.9" strokeLinejoin="round"/>
-                    : <polygon points="7,1 13,11 1,11" fill="rgba(217,209,187,0.10)" stroke={stroke} strokeWidth="0.9" strokeLinejoin="round"/>}
+                    ? <polygon points="5,1.5 9,1.5 13,11 1,11" fill={fill} stroke={stroke} strokeWidth="0.9" strokeLinejoin="round"/>
+                    : <polygon points="7,1 13,11 1,11" fill={fill} stroke={stroke} strokeWidth="0.9" strokeLinejoin="round"/>}
                 </svg>
                 {pk.name&&labeledPeakIds.has(pk.id)&&!isOpen&&<div style={{...body("8px",C.muted),whiteSpace:"nowrap",textShadow:"0 0 4px rgba(13,20,15,0.9)"}}>{pk.name}</div>}
                 {isOpen&&(
                   <div style={{position:"absolute",bottom:"calc(100% + 6px)",left:"50%",transform:"translateX(-50%)",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.cream}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
-                    <div style={{...body("11px",C.cream),marginBottom:"2px"}}>{pk.name||"Unnamed summit"}</div>
+                    <div style={{...body("11px",climbed?C.goldB:C.cream),marginBottom:"2px"}}>{pk.name||"Unnamed summit"}</div>
+                    {climbed&&<div style={{...dsp("8px",C.gold,400,"0.16em"),marginBottom:"3px"}}>SUMMITED</div>}
                     <div style={{...body("10px",C.muted)}}>{[pk.ele!=null?fmtEle(pk.ele):null, `${fmtDist(pk.dist)} away`].filter(Boolean).join(" · ")}</div>
                   </div>
                 )}
@@ -6657,6 +6805,7 @@ export default function AscendApp(){
   });
   const [timerVisibility,setTimerVisibility]=useState(P.timerVisibility ?? "reveal"); // "visible" | "hidden" | "reveal"
   const [lastKnownPos,setLastKnownPos]=useState(P.lastKnownPos ?? null); // real GPS fix, persisted — survives reload, so the map opens where you actually are, not recomputed from pin data each time
+  const lastKnownPosRef=useRef(lastKnownPos); lastKnownPosRef.current=lastKnownPos;
   const [autoCloudSync,setAutoCloudSync]=useState(P.autoCloudSync ?? true);
   const [splashImgLoaded,setSplashImgLoaded]=useState(false);
   applyTheme(theme);
@@ -6678,51 +6827,63 @@ export default function AscendApp(){
     setZonesMigrated(true);
   },[]); // eslint-disable-line
 
-  // Fetch real water/forest geometry for any reveal zone that doesn't have it yet.
-  // Retries on an interval so a zone created offline picks up data once online.
+  /* ── OVERPASS QUEUE — nature geometry + peaks for every anchored zone ──
+     One request in flight at a time, across both kinds of job (Overpass
+     throttles parallel requests and can answer an overloaded call with an
+     empty result). Each tick takes the job nearest to where you last were,
+     geometry before peaks, so a fresh anchor never waits behind zones on
+     another continent. "In flight" lives in a ref, never on the zone, so a
+     reload mid-fetch can't persist a stuck flag (the old persisted
+     fetchPending could strand a zone forever — it's ignored now).
+       geometry needed: never fetched, or the zone has drifted/grown past the
+                        area that was fetched (geoCenter + fetchedRadius)
+       peaks needed:    z.peaks not an array yet ([] = fetched, none found) */
+  const overpassBusy=useRef(false);
   useEffect(()=>{
-    let cancelled=false;
-    const tryFetch=()=>{
-      setRevealZones(zs=>{
-        const target=zs.find(z=>z.fetchedRadius===0 && !z.fetchPending);
-        if(!target) return zs;
-        fetchZoneGeometry(target.lat, target.lng).then(geo=>{
-          if(cancelled) return;
-          setRevealZones(zs2=>zs2.map(z=>{
-            if(z.id!==target.id) return z;
-            if(geo) return {...z, water:geo.water, rivers:geo.rivers, forest:geo.forest, fetchedRadius:1300, fetchPending:false};
-            return {...z, fetchPending:false}; // offline/failed — interval below will retry
-          }));
+    const needsGeo=zoneNeedsGeo;
+    const needsPeaks=z=> !Array.isArray(z.peaks);
+    const tick=()=>{
+      if(overpassBusy.current) return;
+      const here=lastKnownPosRef.current;
+      const jobs=[];
+      revealZonesRef.current.forEach((z,i)=>{
+        const d=here?haversineM(here.lat,here.lng,z.lat,z.lng):-i; // no position: newest first
+        if(needsGeo(z))   jobs.push({z,kind:"geo",  d, rank:0});
+        if(needsPeaks(z)) jobs.push({z,kind:"peaks",d, rank:1});
+      });
+      if(!jobs.length) return;
+      jobs.sort((a,b)=>(a.d-b.d)||(a.rank-b.rank));
+      const {z,kind}=jobs[0];
+      const at={lat:z.lat,lng:z.lng}, fetchR=zoneFetchR(z);
+      overpassBusy.current=true;
+      const done=()=>{ overpassBusy.current=false; };
+      if(kind==="geo"){
+        fetchZoneGeometry(at.lat,at.lng,fetchR).then(geo=>{
+          done();
+          if(!geo) return; // offline/throttled — retried next tick
+          setRevealZones(zs=>zs.map(x=>x.id===z.id?{...x,water:geo.water,rivers:geo.rivers,forest:geo.forest,
+            fetchedRadius:fetchR,geoCenter:at,fetchPending:false}:x));
+          setTimeout(tick, 2500); // keep the queue moving when there's a backlog
         });
-        return zs.map(z=>z.id===target.id?{...z,fetchPending:true}:z);
-      });
+      } else {
+        fetchZonePeaks(at.lat,at.lng).then(peaks=>{
+          done();
+          if(peaks==null) return;
+          setRevealZones(zs=>zs.map(x=>x.id===z.id?{...x,peaks}:x));
+          setTimeout(tick, 2500);
+        });
+      }
     };
-    tryFetch();
-    const interval=setInterval(tryFetch, 30000);
-    return ()=>{ cancelled=true; clearInterval(interval); };
-  },[revealZones.length]);
+    const first=setTimeout(tick, 600);
+    const interval=setInterval(tick, 15000);
+    return ()=>{ clearTimeout(first); clearInterval(interval); };
+  },[revealZones.length, revealZones.filter(z=>z.summit).length]);
 
-  /* Fetch summits around each zone, one zone per tick (Overpass rate-limits).
-     Separate from geometry so zones that already have water/forest still pick
-     up peaks. "In flight" lives in a ref, not on the zone, so a reload mid-
-     fetch can never persist a stuck pending flag. z.peaks: undefined = not yet
-     fetched, [] = fetched and none found. */
-  const peaksInFlight=useRef(new Set());
+  /* Zone upkeep: legacy seen-marking + summit detection (see maintainZones). */
   useEffect(()=>{
-    const tryFetch=()=>{
-      const target=revealZonesRef.current.find(z=>!Array.isArray(z.peaks) && !peaksInFlight.current.has(z.id));
-      if(!target) return;
-      peaksInFlight.current.add(target.id);
-      fetchZonePeaks(target.lat, target.lng).then(peaks=>{
-        peaksInFlight.current.delete(target.id);
-        if(peaks==null) return; // offline/failed — retry next tick (update by id is safe even if zones changed meanwhile)
-        setRevealZones(zs=>zs.map(z=>z.id===target.id?{...z,peaks}:z));
-      });
-    };
-    tryFetch();
-    const interval=setInterval(tryFetch, 20000);
-    return ()=>clearInterval(interval);
-  },[revealZones.length]);
+    const next=maintainZones(revealZones, pins);
+    if(next) setRevealZones(next);
+  },[revealZones, pins]);
 
   // Restore cloud session — refresh silently if access token expired
   useEffect(()=>{
@@ -7421,6 +7582,7 @@ export default function AscendApp(){
             const pin=makePin(lat,lng);
             setPins(p=>[...p,pin]);
             setRevealZones(zs=>updateRevealZones(zs, lat, lng));
+            setLastKnownPos({lat,lng}); // an anchor fix is a real, confirmed position too
             /* Elevation arrives a moment later; patch it onto the pin by id.
                Offline = the pin simply has no elevation, nothing else changes. */
             fetchElevation(lat,lng).then(ele=>{
@@ -7710,16 +7872,17 @@ export default function AscendApp(){
         </div>
 
         {/* content — all tabs stay mounted so internal state (quest screen, library entry) persists */}
-        <div style={{flex:1,overflowY:"auto",paddingBottom:"118px"}}>
+        <div style={{flex:1,overflowY:"auto",paddingBottom:"calc(118px + env(safe-area-inset-bottom))"}}>
           <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities}/></div>
           <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
             classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}/></div>
-          <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones} savedPos={lastKnownPos} onLocationConfirmed={setLastKnownPos}/></div>
+          <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones} savedPos={lastKnownPos} onLocationConfirmed={setLastKnownPos} active={tab==="map"}
+            onZoneSeen={(id,r)=>setRevealZones(zs=>zs.map(z=>z.id===id&&!((z.seenR??0)>=r)?{...z,seenR:r}:z))}/></div>
           <div style={{display:tab==="library"?"block":"none"}}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)} collapsed={libCollapsed} setCollapsed={setLibCollapsed} classState={classState} chantUnlocked={chantUnlocked}/></div>
         </div>
 
         {/* floating anchor button */}
-        <button onClick={()=>{setScr(null);setAnch(true);}} aria-label="Anchor" style={{position:"absolute",bottom:"-7px",left:"50%",transform:"translateX(-50%)",zIndex:showActComplete?0:261,opacity:showActComplete?0:1,transition:"opacity .8s ease",pointerEvents:showActComplete?"none":"auto",border:"none",background:"none",cursor:"pointer",padding:0,filter:anch?`drop-shadow(0 0 16px rgba(201,168,76,0.85)) drop-shadow(0 -2px 8px ${C.glow})`:`drop-shadow(0 -2px 10px ${C.glow})`}}>
+        <button onClick={()=>{setScr(null);setAnch(true);}} aria-label="Anchor" style={{position:"absolute",bottom:"calc(-7px + env(safe-area-inset-bottom))",left:"50%",transform:"translateX(-50%)",zIndex:showActComplete?0:261,opacity:showActComplete?0:1,transition:"opacity .8s ease",pointerEvents:showActComplete?"none":"auto",border:"none",background:"none",cursor:"pointer",padding:0,filter:anch?`drop-shadow(0 0 16px rgba(201,168,76,0.85)) drop-shadow(0 -2px 8px ${C.glow})`:`drop-shadow(0 -2px 10px ${C.glow})`}}>
           <svg width="82" height="103" viewBox="0 0 70 88" style={{display:"block"}}>
             {/* ── Anchor_1.svg glyph (active) ── */}
             <circle cx="35" cy="30" r="28" fill={C.surf}/>
@@ -7741,11 +7904,11 @@ export default function AscendApp(){
         {/* Journal / Logs flank the anchor on the character tab */}
         {tab==="character" && !anch && scr!=="journal" && scr!=="logs" && scr!=="settings" && (
           <>
-            <button onClick={()=>setScr("journal")} style={{position:"absolute",bottom:"76px",left:"16.5%",transform:"translateX(-50%)",zIndex:261,background:"none",border:"none",cursor:"pointer",padding:"3px 6px",display:"flex",flexDirection:"row",alignItems:"center",gap:"5px"}}>
+            <button onClick={()=>setScr("journal")} style={{position:"absolute",bottom:"calc(76px + env(safe-area-inset-bottom))",left:"16.5%",transform:"translateX(-50%)",zIndex:261,background:"none",border:"none",cursor:"pointer",padding:"3px 6px",display:"flex",flexDirection:"row",alignItems:"center",gap:"5px"}}>
               <NavIcon id="journal" color={C.muted} size={23}/>
               <span style={{...dsp("9.2px",C.muted,400,"0.14em")}}>JOURNAL</span>
             </button>
-            <button onClick={()=>setScr("logs")} style={{position:"absolute",bottom:"76px",right:"16.5%",transform:"translateX(50%)",zIndex:261,background:"none",border:"none",cursor:"pointer",padding:"3px 6px",display:"flex",flexDirection:"row",alignItems:"center",gap:"5px"}}>
+            <button onClick={()=>setScr("logs")} style={{position:"absolute",bottom:"calc(76px + env(safe-area-inset-bottom))",right:"16.5%",transform:"translateX(50%)",zIndex:261,background:"none",border:"none",cursor:"pointer",padding:"3px 6px",display:"flex",flexDirection:"row",alignItems:"center",gap:"5px"}}>
               <span style={{...dsp("9.2px",C.muted,400,"0.14em")}}>LOGS</span>
               <NavIcon id="logs" color={C.muted} size={23}/>
             </button>
