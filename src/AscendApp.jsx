@@ -5119,6 +5119,59 @@ async function fetchZoneGeometry(lat, lng, radiusM=1300){
   }catch(e){ return null; }
 }
 
+/* ─── PEAKS — summits on the horizon ───
+   Unlike water/forest (revealed only inside anchored zones), peaks are
+   landmarks: you can see a mountain long before you've stood on it. So they
+   are fetched at a much wider radius around each zone and drawn anywhere on
+   the map. OSM tags: natural=peak / volcano / hill, usually with name + ele.
+   Returns [] on "no peaks here" and null on network failure (so the caller
+   knows to retry later). */
+const PEAK_RADIUS_M = 12000;
+const PEAKS_PER_ZONE = 50;
+async function fetchZonePeaks(lat, lng, radiusM=PEAK_RADIUS_M){
+  const latD=radiusM/111320, lngD=radiusM/(111320*Math.cos(lat*Math.PI/180));
+  const bbox=`${lat-latD},${lng-lngD},${lat+latD},${lng+lngD}`;
+  const q=`[out:json][timeout:20];(node["natural"="peak"](${bbox});node["natural"="volcano"](${bbox});node["natural"="hill"](${bbox}););out body;`;
+  try{
+    const res=await fetch("https://overpass-api.de/api/interpreter",{method:"POST",body:"data="+encodeURIComponent(q)});
+    if(!res.ok) return null;
+    const data=await res.json();
+    const peaks=(data.elements||[])
+      .filter(el=>el.type==="node" && el.lat!=null && el.lon!=null)
+      .map(el=>{
+        const t=el.tags||{};
+        /* ele should be plain meters, but tagging varies: "2,704" (thousands),
+           "1520,5" (decimal comma), "1520 m", occasionally "5000 ft". */
+        const raw=String(t.ele||"").trim();
+        const num=/^\d{1,3}(,\d{3})+(\.\d+)?/.test(raw) ? raw.replace(/,/g,"") : raw.replace(",",".");
+        let ele=parseFloat(num);
+        if(Number.isFinite(ele) && /ft|feet|'/i.test(raw)) ele*=0.3048;
+        return { id:`osm_${el.id}`, lat:el.lat, lng:el.lon,
+          name:(t.name||"").trim(), ele:Number.isFinite(ele)?Math.round(ele):null,
+          kind:t.natural };
+      });
+    /* Keep the payload small (zones persist): named peaks first, then highest. */
+    peaks.sort((a,b)=>(!!b.name-!!a.name) || ((b.ele??-1e4)-(a.ele??-1e4)));
+    return peaks.slice(0, PEAKS_PER_ZONE);
+  }catch(e){ return null; }
+}
+
+/* Ground elevation from a terrain model (Copernicus DEM, ~90m) via Open-Meteo.
+   Free, keyless, CORS-enabled. Deliberately NOT pos.coords.altitude, which is
+   usually null in Chrome/TWA and ±10–30m when present. Returns meters or null. */
+async function fetchElevation(lat, lng){
+  if(lat==null || lng==null) return null;
+  try{
+    const res=await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lat.toFixed(5)}&longitude=${lng.toFixed(5)}`);
+    if(!res.ok) return null;
+    const data=await res.json();
+    const v=Array.isArray(data.elevation)?data.elevation[0]:null;
+    return Number.isFinite(v)?Math.round(v):null;
+  }catch(e){ return null; }
+}
+const fmtEle = m => m==null ? "" : `${m.toLocaleString("en-US")} m`;
+const fmtDist = m => m>=1000 ? `${(m/1000).toFixed(m>=10000?0:1)} km` : `${Math.round(m)} m`;
+
 /* World view — a simplified, non-literal atlas of every place the player has
    ever anchored, using the bundled continent silhouette. Each cluster of
    nearby zones (within ~50km of each other) renders as one marker; tapping a
@@ -5218,11 +5271,15 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
   const [worldZoom,setWorldZoom]=useState(1);
   const [worldPan,setWorldPan]=useState({x:0,y:0});
   const containerRef=useRef(null);
+  const [openPeak,setOpenPeak]=useState(null);   // id of the peak whose card is open
+  const [userEle,setUserEle]=useState(null);     // ground elevation at the real userPos
+  const eleCacheRef=useRef({});                  // "lat,lng" (~100m grid) → meters
   const panZoomCleanupRef=useRef(null); // holds the teardown fn for whichever DOM node is currently bound
 
   const geoPins = pins.filter(p=>p.lat!=null&&p.lng!=null);
   const mapW=350, mapH=530;
   let renderPins, ringMeters=100, ringPx=52, mPerPx=10, projectPoint=()=>({rx:50,ry:50});
+  let renderPeaks=[]; // only populated in the true-scale (viewCenter) projection
 
   /* viewCenter is what the local map is actually centered on — usually the
      real userPos, but when inspecting a distant cluster from world view it's
@@ -5253,6 +5310,17 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
       if(p.lat!=null&&p.lng!=null){const pr=projectPoint(p.lat,p.lng); return{...p,rx:pr.rx,ry:pr.ry};}
       return{...p,rx:p.x??50,ry:p.y??50};
     });
+    /* Peaks from every zone, de-duplicated (neighbouring zones overlap), kept
+       within the peak radius of where the map is centered, nearest first. */
+    const seenPeak=new Set();
+    revealZones.forEach(z=>(z.peaks||[]).forEach(pk=>{
+      if(seenPeak.has(pk.id)) return; seenPeak.add(pk.id);
+      const dist=haversineM(viewCenter.lat,viewCenter.lng,pk.lat,pk.lng);
+      if(dist>PEAK_RADIUS_M) return;
+      const pr=projectPoint(pk.lat,pk.lng);
+      renderPeaks.push({...pk,dist,rx:pr.rx,ry:pr.ry});
+    }));
+    renderPeaks.sort((a,b)=>a.dist-b.dist);
   } else {
     const allLats=[...geoPins.map(p=>p.lat),...revealZones.map(z=>z.lat)];
     const allLngs=[...geoPins.map(p=>p.lng),...revealZones.map(z=>z.lng)];
@@ -5291,6 +5359,21 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
   });
   const zonePrimaryIdx = {};
   renderPins.forEach((p,i)=>{ const zid=pinZoneId[i]; if(zid!=null) zonePrimaryIdx[zid]=i; }); // last write wins = most recent pin
+
+  /* Elevation of where you actually stand — looked up whenever the real
+     position changes (never for a viewed distant cluster). Cached on a ~100m
+     grid so re-locating in the same spot doesn't refetch. */
+  useEffect(()=>{
+    if(!userPos){ setUserEle(null); return; }
+    const key=`${userPos.lat.toFixed(3)},${userPos.lng.toFixed(3)}`;
+    if(eleCacheRef.current[key]!=null){ setUserEle(eleCacheRef.current[key]); return; }
+    let live=true;
+    fetchElevation(userPos.lat,userPos.lng).then(ele=>{
+      if(ele!=null) eleCacheRef.current[key]=ele;
+      if(live) setUserEle(ele);
+    });
+    return ()=>{ live=false; };
+  },[userPos?.lat, userPos?.lng]);
 
   const handleLocate=()=>{
     setViewingCluster(null);
@@ -5394,6 +5477,36 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
     );
   }
 
+  /* Horizon markers — named peaks currently outside the visible frame are
+     pinned to the frame edge, in their true direction, so you can always see
+     which mountains surround you. Screen math mirrors the canvas transform:
+     translate(pan) scale(zoom) about the container center. */
+  const cw = containerRef.current?.clientWidth || mapW;
+  const toScreen = pk => {
+    const lx=(pk.rx/100)*cw, ly=(pk.ry/100)*mapH;
+    return { lx, ly, sx: cw/2+(lx-cw/2)*zoom+pan.x, sy: mapH/2+(ly-mapH/2)*zoom+pan.y };
+  };
+  const PILL_HALF=62, TOP_PAD=24, BOTTOM_PAD=100;
+  const horizonPeaks = renderPeaks.filter(pk=>pk.name).map(pk=>({...pk,...toScreen(pk)}))
+    .filter(pk=>pk.sx<8||pk.sx>cw-8||pk.sy<8||pk.sy>mapH-BOTTOM_PAD+20)
+    .slice(0,3)
+    .map(pk=>{
+      const cx=cw/2, cy=mapH/2, dx=pk.sx-cx, dy=pk.sy-cy;
+      const hx=cw/2-PILL_HALF, hyUp=cy-TOP_PAD, hyDown=(mapH-BOTTOM_PAD)-cy;
+      const t=Math.min(dx?hx/Math.abs(dx):Infinity, dy<0?hyUp/Math.abs(dy):dy>0?hyDown/dy:Infinity);
+      let px=cx+dx*t, py=cy+dy*t;
+      /* keep clear of the right-hand control column */
+      if(px>cw-PILL_HALF-60) py=Math.min(py, mapH-280);
+      return {...pk, px, py, angle:Math.atan2(dy,dx)*180/Math.PI};
+    });
+  const centerOnPeak = pk => {
+    const {lx,ly}=toScreen(pk);
+    setPan({x:-(lx-cw/2)*zoom, y:-(ly-mapH/2)*zoom});
+    setOpenPeak(pk.id);
+  };
+  const labeledPeakIds = new Set(renderPeaks.filter(pk=>pk.name).slice(0,6).map(pk=>pk.id));
+  const namedPeakCount = renderPeaks.filter(pk=>pk.name).length;
+
   return (
     <div style={{position:"relative",height:"100%"}}>
       <div ref={setContainerEl} style={{background:`linear-gradient(160deg,${C.bg2},${C.surf2} 60%,${C.bg2})`,height:`${mapH}px`,position:"relative",overflow:"hidden",cursor:"grab",touchAction:"none"}}>
@@ -5443,6 +5556,28 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
             {locatePulse&&<div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",width:"40px",height:"40px",borderRadius:"50%",border:`1px solid ${C.sageB}`,opacity:0.4}}/>}
             <div style={{width:"7px",height:"7px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 ${locatePulse?"16px":"8px"} rgba(163,192,137,${locatePulse?"0.9":"0.7"})`,transition:"box-shadow .3s"}}/>
           </div>
+          {/* Peaks — landmarks, drawn everywhere (not clipped to reveal zones) */}
+          {renderPeaks.map(pk=>{
+            const isOpen=openPeak===pk.id;
+            const stroke=isOpen?C.cream:pk.kind==="hill"?"rgba(217,209,187,0.45)":"rgba(217,209,187,0.75)";
+            return (
+              <div key={pk.id} onClick={e=>{e.stopPropagation();setOpenPeak(v=>v===pk.id?null:pk.id);}}
+                style={{position:"absolute",left:`${pk.rx}%`,top:`${pk.ry}%`,transform:`translate(-50%,-70%) scale(${1/Math.max(zoom,0.6)})`,display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",cursor:"pointer",zIndex:isOpen?6:1}}>
+                <svg width={pk.kind==="hill"?10:14} height={pk.kind==="hill"?8:12} viewBox="0 0 14 12">
+                  {pk.kind==="volcano"
+                    ? <polygon points="5,1.5 9,1.5 13,11 1,11" fill="rgba(217,209,187,0.10)" stroke={stroke} strokeWidth="0.9" strokeLinejoin="round"/>
+                    : <polygon points="7,1 13,11 1,11" fill="rgba(217,209,187,0.10)" stroke={stroke} strokeWidth="0.9" strokeLinejoin="round"/>}
+                </svg>
+                {pk.name&&labeledPeakIds.has(pk.id)&&!isOpen&&<div style={{...body("8px",C.muted),whiteSpace:"nowrap",textShadow:"0 0 4px rgba(13,20,15,0.9)"}}>{pk.name}</div>}
+                {isOpen&&(
+                  <div style={{position:"absolute",bottom:"calc(100% + 6px)",left:"50%",transform:"translateX(-50%)",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.cream}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
+                    <div style={{...body("11px",C.cream),marginBottom:"2px"}}>{pk.name||"Unnamed summit"}</div>
+                    <div style={{...body("10px",C.muted)}}>{[pk.ele!=null?fmtEle(pk.ele):null, `${fmtDist(pk.dist)} away`].filter(Boolean).join(" · ")}</div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
           {/* Pins — one full marker per zone (most recent visit), others as small dots */}
           {renderPins.map((p,i)=>{
             const zid=pinZoneId[i];
@@ -5460,7 +5595,7 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
                   {isOpen&&(
                     <div style={{position:"absolute",bottom:"calc(100% + 7px)",left:"50%",transform:`translateX(-50%) scale(${1/zoom})`,transformOrigin:"center bottom",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
                       <div style={{...body("11px",C.cream),marginBottom:"2px"}}>{p.tag||"Anchored"}</div>
-                      <div style={{...body("10px",C.muted)}}>{p.date?p.date.match(/^\d{4}-\d{2}-\d{2}$/)?new Date(p.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):p.date:""}{p.duration?` · ${p.duration} min`:""}</div>
+                      <div style={{...body("10px",C.muted)}}>{p.date?p.date.match(/^\d{4}-\d{2}-\d{2}$/)?new Date(p.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):p.date:""}{p.duration?` · ${p.duration} min`:""}{p.ele!=null?` · ${fmtEle(p.ele)}`:""}</div>
                     </div>
                   )}
                 </div>
@@ -5473,7 +5608,7 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
                 {isOpen&&(
                   <div style={{position:"absolute",bottom:"calc(100% + 7px)",left:"50%",transform:`translateX(-50%) scale(${1/zoom})`,transformOrigin:"center bottom",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
                     <div style={{...body("11px",C.cream),marginBottom:"2px"}}>{p.tag||"Anchored"}</div>
-                    <div style={{...body("10px",C.muted)}}>{p.date?p.date.match(/^\d{4}-\d{2}-\d{2}$/)?new Date(p.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):p.date:""}{p.duration?` · ${p.duration} min`:""}</div>
+                    <div style={{...body("10px",C.muted)}}>{p.date?p.date.match(/^\d{4}-\d{2}-\d{2}$/)?new Date(p.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):p.date:""}{p.duration?` · ${p.duration} min`:""}{p.ele!=null?` · ${fmtEle(p.ele)}`:""}</div>
                   </div>
                 )}
                 {p.tag&&!isOpen&&<div style={{background:"rgba(13,20,15,0.85)",border:`0.5px solid ${C.bord}`,borderRadius:"3px",padding:"1px 5px",...body("8px",C.sage),whiteSpace:"nowrap"}}>{p.tag}</div>}
@@ -5481,6 +5616,16 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
             );
           })}
         </div>
+
+        {/* Horizon — off-frame named peaks pinned to the edge, pointing their way */}
+        {horizonPeaks.map(pk=>(
+          <div key={`hz-${pk.id}`} onClick={e=>{e.stopPropagation();centerOnPeak(pk);}}
+            style={{position:"absolute",left:`${pk.px}px`,top:`${pk.py}px`,transform:"translate(-50%,-50%)",zIndex:4,display:"flex",alignItems:"center",gap:"5px",maxWidth:`${PILL_HALF*2-4}px`,padding:"3px 8px 3px 6px",borderRadius:"10px",background:"rgba(13,20,15,0.78)",border:`0.5px solid ${C.bord}`,backdropFilter:"blur(4px)",cursor:"pointer"}}>
+            <svg width="9" height="9" viewBox="0 0 10 10" style={{flexShrink:0,transform:`rotate(${pk.angle}deg)`}}><path d="M2 2 L8 5 L2 8" fill="none" stroke={C.cream} strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <span style={{...body("9px",C.cream),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pk.name}</span>
+            <span style={{...body("8px",C.dim),flexShrink:0}}>{fmtDist(pk.dist)}</span>
+          </div>
+        ))}
 
         {/* Fixed controls (not part of pannable canvas) */}
         <div style={{position:"absolute",bottom:"80px",right:"14px",display:"flex",flexDirection:"column",gap:"6px",zIndex:4}}>
@@ -5511,6 +5656,8 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
           <div style={{display:"flex",alignItems:"center",gap:"7px"}}>
             <div style={{width:"5px",height:"5px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 5px rgba(163,192,137,0.6)`}}/>
             <span style={{...dsp("9px",C.muted,400,"0.14em")}}>PLACES ANCHORED: {placesCount}</span>
+            {userEle!=null&&!viewingCluster&&<span style={{...dsp("9px",C.muted,400,"0.14em"),marginLeft:"8px"}}>ELEVATION: {fmtEle(userEle).toUpperCase()}</span>}
+            {namedPeakCount>0&&<span style={{...dsp("9px",C.muted,400,"0.14em"),marginLeft:"8px"}}>PEAKS: {namedPeakCount}</span>}
           </div>
         </div>
       </div>
@@ -6463,6 +6610,7 @@ export default function AscendApp(){
   const [ch,setCh]=useState(migrateCh(P.ch) ?? {name:"",totalXP:0,title:"Seeker",stats:{vit:0,str:0,wil:0,hrt:0,voi:0,wis:0,ali:0},_statsFmt:"xp"});
   const [pins,setPins]=useState(P.pins ?? []);
   const [revealZones,setRevealZones]=useState(P.revealZones ?? []);
+  const revealZonesRef=useRef(revealZones); revealZonesRef.current=revealZones; // read-only mirror for interval callbacks
   const [zonesMigrated,setZonesMigrated]=useState(P.zonesMigrated ?? false);
   const [libCollapsed,setLibCollapsed]=useState(P.libCollapsed ?? {});
   const [completedChapters,setCompletedChapters]=useState(P.completedChapters ?? []);
@@ -6552,6 +6700,28 @@ export default function AscendApp(){
     tryFetch();
     const interval=setInterval(tryFetch, 30000);
     return ()=>{ cancelled=true; clearInterval(interval); };
+  },[revealZones.length]);
+
+  /* Fetch summits around each zone, one zone per tick (Overpass rate-limits).
+     Separate from geometry so zones that already have water/forest still pick
+     up peaks. "In flight" lives in a ref, not on the zone, so a reload mid-
+     fetch can never persist a stuck pending flag. z.peaks: undefined = not yet
+     fetched, [] = fetched and none found. */
+  const peaksInFlight=useRef(new Set());
+  useEffect(()=>{
+    const tryFetch=()=>{
+      const target=revealZonesRef.current.find(z=>!Array.isArray(z.peaks) && !peaksInFlight.current.has(z.id));
+      if(!target) return;
+      peaksInFlight.current.add(target.id);
+      fetchZonePeaks(target.lat, target.lng).then(peaks=>{
+        peaksInFlight.current.delete(target.id);
+        if(peaks==null) return; // offline/failed — retry next tick (update by id is safe even if zones changed meanwhile)
+        setRevealZones(zs=>zs.map(z=>z.id===target.id?{...z,peaks}:z));
+      });
+    };
+    tryFetch();
+    const interval=setInterval(tryFetch, 20000);
+    return ()=>clearInterval(interval);
   },[revealZones.length]);
 
   // Restore cloud session — refresh silently if access token expired
@@ -7248,8 +7418,14 @@ export default function AscendApp(){
         navigator.geolocation.getCurrentPosition(
           pos=>{
             const {latitude:lat,longitude:lng}=pos.coords;
-            setPins(p=>[...p,makePin(lat,lng)]);
+            const pin=makePin(lat,lng);
+            setPins(p=>[...p,pin]);
             setRevealZones(zs=>updateRevealZones(zs, lat, lng));
+            /* Elevation arrives a moment later; patch it onto the pin by id.
+               Offline = the pin simply has no elevation, nothing else changes. */
+            fetchElevation(lat,lng).then(ele=>{
+              if(ele!=null) setPins(p=>p.map(x=>x.id===pin.id?{...x,ele}:x));
+            });
           },
           ()=>setPins(p=>[...p,makePin(null,null)]),
           {timeout:8000, maximumAge:0, enableHighAccuracy:true}
