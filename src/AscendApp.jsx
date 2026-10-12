@@ -215,6 +215,22 @@ const CLASSES = [
   },
 ];
 
+/* Advanced classes fuse two foundation paths. Battlemage: Warrior's power
+   directed by Sage's attention, held by the heart. */
+CLASSES.push({
+  id: "battlemage",
+  name: "Battlemage",
+  verb: "Channel",
+  blurb: "Cultivate power, focus, and the field — the three centers working as one.",
+  primaryStats: ["hrt", "wis", "vit"],
+  accent: "#a85068",
+  trial: [
+    { type: "standing", label: "Stand", minutes: 3, stat: "hrt" },
+    { type: "sitting",  label: "Sit",   minutes: 3, stat: "wis" },
+    { type: "walking",  label: "Walk",  minutes: 3, stat: "vit" },
+  ],
+});
+
 const CLASS_BY_ID = Object.fromEntries(CLASSES.map(c => [c.id, c]));
 
 /* ── QUEST CHAINS ──────────────────────────────────────────────────────────
@@ -536,6 +552,77 @@ const QUEST_CHAINS = {
       unlocks: [{ kind: "activity", practiceType: "any", name: "Henosis", stat: "ali", target: 45, unit: "minutes" }],
     },
   ],
+  battlemage: [
+    {
+      id: "b_trial",
+      title: "Battlemage Trial",
+      isTrial: true,
+      myth: "You have trained the body to act and the mind to see. Each path asked for its own vow. This one asks for both at once.\n\nThe Battlemage works with three centers, and they are not three separate things to master. They are one body learning to move as a single current — power from below, clarity from above, and the heart in between, holding the shape of it all.\n\nAs you practice each form, bring your attention to its center — and on the Ascend screen, after the timer, choose that center as where your awareness landed.\n\nStand, and rest your attention in the chest — the heart, the center that holds.\nSit, and bring it to the head — clarity, the center that directs.\nWalk, and let it sink into the belly — vitality, the center that drives.\n\nThree forms. Three centers. One current. Walk through it, and the path of the Battlemage opens.",
+      libId: "lib_b_trial",
+      criteria: "Complete the Battlemage Foundation Trial: 3-min Stand, Sit, Walk.",
+      unlocks: [],
+    },
+    {
+      id: "b_stoke",
+      title: "Stoke the Furnace",
+      myth: "Every old tradition that worked with inner energy put the furnace in the same place: low in the belly, a few fingers below the navel, behind the soft wall of the abdomen. Not a metaphor for courage. A place you can find with your breath.\n\nStand. Let the knees soften and the weight settle. Breathe low, so the belly moves before the chest does. With each breath, gather the warmth there a little more — not by straining, but by returning, the way you'd feed a fire one stick at a time instead of throwing on the whole pile.\n\nWhen the session ends, let the fire bank down. Breathe normally. Feel your feet. If you ever feel light-headed or pressured, stop gathering and simply stand — the furnace is tended, not forced.\n\nYou are learning where your power lives before you ask it to do anything.",
+      libId: "lib_b_stoke",
+      criteria: "Accumulate 10 minutes of Stoke the Furnace.",
+      unlocks: [{ kind: "activity", practiceType: "standing", name: "Stoke the Furnace", stat: "vit", target: 10, unit: "minutes" }],
+    },
+    {
+      id: "b_core",
+      title: "Move from Core",
+      myth: "A fire that only warms the room it's in is half a fire. Now the furnace learns to drive something.\n\nStoke, then move. A strike, a turn, a step, a push — whatever form you choose, let it begin in the belly and travel outward, instead of starting at the hand and hoping the body follows. You'll feel the difference the first time it's right: the movement stops feeling like effort from the limbs and starts feeling like something released from the center.\n\nFive sets of ten. Slow enough to feel where each one starts. Count the movements that truly began at the core.\n\nThe Warrior learned to be strong. You are learning where strength comes from.",
+      libId: "lib_b_core",
+      criteria: "Complete 50 movements from the core — five sets of ten.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Move from Core", stat: "vit", target: 50, unit: "movements" }],
+    },
+    {
+      id: "b_flow",
+      title: "Core Flow",
+      myth: "Single movements are sparks. This is the fire kept burning.\n\nMove continuously for twenty minutes, every motion drawing from the same center — forms, shadowboxing, flowing drills, a dance if that's what your body knows. The task is not to move impressively. It is to never lose the source. When you notice a movement has started from the arms or the head instead of the belly, don't stop. Just return to the furnace, and let the next one begin there.\n\nTwenty minutes, one sitting. Let it end as quietly as it began.\n\nPower that can be sustained is power you actually own.",
+      libId: "lib_b_flow",
+      criteria: "Move from the core continuously for 20 minutes in one session.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Core Flow", stat: "wil", target: 20, unit: "minutes", singleSession: true }],
+    },
+    {
+      id: "b_accel",
+      title: "Mind Acceleration",
+      myth: "The Sage learned to watch attention. The Battlemage learns to drive it.\n\nSit. Feel the warmth of the furnace below, and draw it upward — not literally, but the way you'd lean your whole weight into something. Then narrow your attention to a single point: the breath at the nostrils, a sound, a spot in front of you. For ten seconds, hold it there with everything you have. Sharp. Bright. Nothing else gets in.\n\nThen release completely, and rest before the next round. The release is half the practice. Attention that can't let go is only tension wearing a sharper face.\n\nTen rounds. Count each one honestly.\n\nYou are learning that focus isn't something you have. It's something you can do.",
+      libId: "lib_b_accel",
+      criteria: "Complete 10 rounds of 10-second acceleration.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Mind Acceleration", stat: "wis", target: 10, unit: "rounds" }],
+    },
+    {
+      id: "b_barrier",
+      title: "Barrier",
+      myth: "There is a space around your body that you already know, even if you've never named it. You feel it when someone stands too close, when a room changes as you walk into it, when you're watched from behind.\n\nStand. Let your attention settle in the chest, then let it widen — not out of the body, but around it, until you can sense the whole shape of the space you occupy. Front, sides, back, above. The heart is its center. You are not building anything yet. You are only becoming aware of what's already there.\n\nIt takes practice to hold it for even a minute. That's the whole task for now: notice the field, lose it, find it again.\n\nThe barrier begins as awareness. Everything it becomes later grows from this.",
+      libId: "lib_b_barrier",
+      criteria: "Accumulate 5 minutes of Barrier awareness.",
+      unlocks: [{ kind: "activity", practiceType: "standing", name: "Barrier", stat: "hrt", target: 5, unit: "minutes" }],
+    },
+    {
+      id: "b_field",
+      title: "The Shifting Field",
+      myth: "A field that only holds in a quiet room hasn't been tested yet.\n\nTake Barrier outside. Walk with the field around you, centered in the heart, and let the world move through it — wind, rain, a passing car, a dog, a stranger's glance, a branch you have to duck. Notice what happens at the edge when something crosses it. Does the field flinch? Collapse? Hold? There's no right answer yet. There's only what you notice.\n\nWhen you lose the field, and you will, simply find it again and keep walking.\n\nThe world is not an interruption to the practice. It's the material.",
+      libId: "lib_b_field",
+      criteria: "Accumulate 15 minutes holding the field while walking in a changing world.",
+      unlocks: [{ kind: "activity", practiceType: "walking", name: "The Shifting Field", stat: "ali", target: 15, unit: "minutes" }],
+    },
+    {
+      id: "b_proving",
+      title: "The Proving Ground",
+      isCapstone: true,
+      myth: "Everything so far, you've practiced alone. Now the field meets something that moves back.\n\nFind a partner, a game, a ball, a sparring drill — anything with another body in it and an element you can't predict. Hold the Barrier from the heart. Bring the acceleration to the moment something comes toward you. Notice what you see before you think, what your body does before you decide, what the field registers that your eyes haven't yet.\n\nPlay. Keep it light enough to stay safe, and real enough to matter. Afterward, write a few lines: what met the field, and what happened when it did.\n\nThree centers, working as one, with someone else in the room. This is the path of the Battlemage.",
+      libId: "lib_b_proving",
+      criteria: "Accumulate 30 minutes of Barrier and Mind Acceleration in practice with others, and write a reflection after one of those sessions.",
+      unlocks: [
+        { kind: "activity", practiceType: "train", name: "The Proving Ground", stat: "wil", target: 30, unit: "minutes" },
+        { kind: "sessionNote", activity: "The Proving Ground" },
+      ],
+    },
+  ],
 };
 
 /* Convenience: the verb shown for each unlocked practice type. */
@@ -578,9 +665,21 @@ function classGateMet(presenceLevel, completedChapters) {
    This is a deliberately simple first gate for testing; more requirements
    (mastery level beyond 1, Warrior too, etc.) may be added later — keep this
    as a single small function so additional conditions are a one-line change. */
+/* Advanced classes and the foundation chains each one requires. A class
+   listed here stays hidden until every required chain is complete
+   (Mastery 1). One line per class; see ADVANCED_CLASS_MASTERY_GATE for the
+   possible future higher bar. */
+const ADVANCED_CLASS_REQS = {
+  mystic:     ["healer", "sage"],
+  battlemage: ["warrior", "sage"],
+};
+function advancedGateMet(classId, questProgress={}){
+  const reqs = ADVANCED_CLASS_REQS[classId];
+  return !reqs || reqs.every(cid=>chainComplete(cid, questProgress));
+}
 function mysticGateMet(classState){
   if(!classState) return false;
-  return chainComplete("healer", classState.questProgress) && chainComplete("sage", classState.questProgress);
+  return advancedGateMet("mystic", classState.questProgress);
 }
 
 /* ── PROGRESSIVE CONTROL UNLOCKS ──────────────────────────────────────────
@@ -643,7 +742,7 @@ function freshClassState() {
    Curve: same cubic shape as the Presence curve, own tunable constant per path
    so a path that earns more easily (e.g. Sage, via plain Sit) can be tuned to
    need proportionally more XP per level without touching the earning rules. */
-const MASTERY_XP_A = { warrior: 27, healer: 27, sage: 35, mystic: 27 }; // placeholder — Sage tuned higher since Sit is the most common practice; Mystic has no "free" session-type earning rule (unlike Warrior/Sit, Sage/Sit, Healer/chest-throat) so it doesn't need compensation the way Sage does. Mastery 10 (advanced-class gate) lands around 50-70 hours of qualifying practice; tune after real testing.
+const MASTERY_XP_A = { warrior: 27, healer: 27, sage: 35, mystic: 27, battlemage: 27 }; // placeholder — Sage tuned higher since Sit is the most common practice; Mystic has no "free" session-type earning rule (unlike Warrior/Sit, Sage/Sit, Healer/chest-throat) so it doesn't need compensation the way Sage does. Mastery 10 (advanced-class gate) lands around 50-70 hours of qualifying practice; tune after real testing.
 const masteryTotalXPForLevel = (classId, L) => Math.round((MASTERY_XP_A[classId]??0.25) * Math.max(0,L-1) ** 3);
 const masteryLevelFromXP = (classId, xp) => {
   let L=1;
@@ -722,6 +821,10 @@ const TRIAL_WELCOME = {
     title: "The Question Is Asked",
     body: "Three forms, three centers — clarity, alignment, voice — and the body agreed to look. That's the entire vow this path has ever required: not answers, just a willingness to actually see what's there before deciding what it means.\n\nKnow thyself was carved above a temple older than almost anything else still standing, and nobody has improved on it since. You've just taken the first real step toward it — not by finding something out, but by agreeing to keep looking. Everything ahead is more of the same question, asked with progressively sharper attention.",
   },
+  battlemage: {
+    title: "The Current Is Lit",
+    body: "Three forms, three centers — heart, head, belly — and for a few minutes each, the body that trains and the mind that sees were asked to stand in the same place. That's the whole beginning of this path.\n\nNothing here will ask you to become someone else. It asks you to let what you've already built start working together: the Warrior's fire, the Sage's clear eye, and the heart holding the space between them.\n\nThe furnace comes first. Go find it.",
+  },
   mystic: {
     title: "The Boundary Has Thinned",
     body: "Three forms, three centers — crown, chest, belly — and for three minutes each, the line between you and where you placed your attention got a little less solid. That's not nothing. That's the entire claim this path has ever made, tested in miniature, three times, just now.\n\nEverything ahead is the same small thinning, applied to something a little larger each time — a pulse, a breath, a thought, a stranger, a moment, and eventually all of it at once. You don't have to believe any of that's possible yet. You only have to keep showing up the way you just did.",
@@ -735,6 +838,7 @@ const MASTERY_BONUSES = {
   healer: [],
   sage: [],
   mystic: [],
+  battlemage: [],
 };
 
 /* Shared: has this path's 7-quest foundation chain been fully completed? */
@@ -3313,8 +3417,7 @@ function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onRet
      testing; already-active/walked classes always remain visible regardless,
      so this never hides a class the player has already committed to. */
   const visibleClasses = CLASSES.filter(c=>
-    c.id!=="mystic" || activeClass==="mystic" || alreadyChosen.includes("mystic") ||
-    (chainComplete("healer",questProgress) && chainComplete("sage",questProgress))
+    activeClass===c.id || alreadyChosen.includes(c.id) || advancedGateMet(c.id, questProgress)
   );
   return (
     <div style={{padding:"4px 4px 20px"}}>
@@ -4993,46 +5096,77 @@ function usePanZoom(initialZoom, minZoom=0.3, maxZoom=12, controlled=null){
   const pan = controlled ? controlled.pan : internalPan;
   const setZoom = controlled ? controlled.setZoom : setInternalZoom;
   const setPan = controlled ? controlled.setPan : setInternalPan;
+  /* Live mirrors of zoom/pan, written synchronously on every gesture step so
+     a burst of events between renders compounds correctly (and so one
+     gesture never has to set state from inside another state updater). */
+  const zRef=useRef(zoom), pRef=useRef(pan);
+  zRef.current=zoom; pRef.current=pan;
   const elRef=useRef(null);
   useEffect(()=>{
     const el=elRef.current; if(!el) return;
+    const apply=(z,p)=>{ zRef.current=z; pRef.current=p; setZoom(z); setPan(p); };
+    /* Zoom by `factor` keeping the point under (clientX,clientY) fixed:
+       content is translate(pan) scale(zoom) about the container center. */
+    const zoomAt=(factor,clientX,clientY)=>{
+      const rect=el.getBoundingClientRect();
+      const offX=clientX-rect.left-rect.width/2, offY=clientY-rect.top-rect.height/2;
+      const z=zRef.current, p=pRef.current;
+      const nz=Math.max(minZoom,Math.min(maxZoom,z*factor)), k=nz/z;
+      apply(nz,{x:offX*(1-k)+k*p.x, y:offY*(1-k)+k*p.y});
+    };
+    const movePan=(dx,dy)=>{ const p=pRef.current; apply(zRef.current,{x:p.x+dx,y:p.y+dy}); };
+    const onMarker=e=>!!(e.target && e.target.closest && e.target.closest("[data-pz-ignore]"));
     let lastTouch=null, lastPinch=null, isDrag=false, lastMouse=null;
+    let tapStart=null, moved=false, lastTap=null;
     const onTouchStart=e=>{
-      if(e.touches.length===1){ lastTouch={x:e.touches[0].clientX,y:e.touches[0].clientY}; lastPinch=null; }
-      else if(e.touches.length===2){ lastPinch=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); lastTouch=null; }
+      if(e.touches.length===1){
+        lastTouch={x:e.touches[0].clientX,y:e.touches[0].clientY}; lastPinch=null;
+        tapStart={...lastTouch,t:Date.now()}; moved=false;
+      } else if(e.touches.length===2){
+        lastPinch=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+        lastTouch=null; moved=true;
+      }
     };
     const onTouchMove=e=>{
       e.preventDefault();
       if(e.touches.length===1&&lastTouch){
-        const dx=e.touches[0].clientX-lastTouch.x, dy=e.touches[0].clientY-lastTouch.y;
-        setPan(p=>({x:p.x+dx,y:p.y+dy}));
-        lastTouch={x:e.touches[0].clientX,y:e.touches[0].clientY};
+        const x=e.touches[0].clientX, y=e.touches[0].clientY;
+        if(tapStart && Math.hypot(x-tapStart.x,y-tapStart.y)>8) moved=true;
+        movePan(x-lastTouch.x, y-lastTouch.y);
+        lastTouch={x,y};
       } else if(e.touches.length===2&&lastPinch!==null){
         const t0=e.touches[0], t1=e.touches[1];
         const d=Math.hypot(t0.clientX-t1.clientX,t0.clientY-t1.clientY);
-        const rawRatio=d/lastPinch;
-        /* Same fix as the local map: anchor zoom on the pinch midpoint,
-           not the fixed container center, by compensating pan. */
-        const rect=el.getBoundingClientRect();
-        const midX=(t0.clientX+t1.clientX)/2 - rect.left;
-        const midY=(t0.clientY+t1.clientY)/2 - rect.top;
-        const offX=midX - rect.width/2, offY=midY - rect.height/2;
-        setZoom(z=>{
-          const newZ=Math.max(minZoom,Math.min(maxZoom,z*rawRatio));
-          const applied=newZ/z;
-          setPan(p=>({ x: offX*(1-applied) + applied*p.x, y: offY*(1-applied) + applied*p.y }));
-          return newZ;
-        });
+        zoomAt(d/lastPinch,(t0.clientX+t1.clientX)/2,(t0.clientY+t1.clientY)/2);
         lastPinch=d;
       }
     };
-    const onWheel=e=>{ e.preventDefault(); setZoom(z=>Math.max(minZoom,Math.min(maxZoom,z*(e.deltaY<0?1.12:0.88)))); };
+    /* Double-tap zooms in 2.5× where you tapped (one-handed on a phone). */
+    const onTouchEnd=e=>{
+      if(e.touches.length>0) return;
+      if(tapStart && !moved && Date.now()-tapStart.t<300 && !onMarker(e)){
+        const now=Date.now();
+        if(lastTap && now-lastTap.t<320 && Math.hypot(tapStart.x-lastTap.x,tapStart.y-lastTap.y)<40){
+          zoomAt(2.5,tapStart.x,tapStart.y); lastTap=null;
+        } else lastTap={x:tapStart.x,y:tapStart.y,t:now};
+      }
+      tapStart=null;
+    };
+    /* Wheel / trackpad: proportional to the scroll amount, anchored at the cursor. */
+    const onWheel=e=>{
+      e.preventDefault();
+      const dy=e.deltaMode===1?e.deltaY*16:e.deltaY;
+      zoomAt(Math.exp(-Math.max(-300,Math.min(300,dy))*0.0022), e.clientX, e.clientY);
+    };
+    const onDblClick=e=>{ if(!onMarker(e)) zoomAt(e.shiftKey?0.4:2.5, e.clientX, e.clientY); };
     const onMouseDown=e=>{ isDrag=true; lastMouse={x:e.clientX,y:e.clientY}; };
-    const onMouseMove=e=>{ if(!isDrag||!lastMouse) return; setPan(p=>({x:p.x+e.clientX-lastMouse.x,y:p.y+e.clientY-lastMouse.y})); lastMouse={x:e.clientX,y:e.clientY}; };
+    const onMouseMove=e=>{ if(!isDrag||!lastMouse) return; movePan(e.clientX-lastMouse.x,e.clientY-lastMouse.y); lastMouse={x:e.clientX,y:e.clientY}; };
     const onMouseUp=()=>{ isDrag=false; lastMouse=null; };
     el.addEventListener('touchstart',onTouchStart,{passive:true});
     el.addEventListener('touchmove',onTouchMove,{passive:false});
+    el.addEventListener('touchend',onTouchEnd);
     el.addEventListener('wheel',onWheel,{passive:false});
+    el.addEventListener('dblclick',onDblClick);
     el.addEventListener('mousedown',onMouseDown);
     el.addEventListener('mousemove',onMouseMove);
     el.addEventListener('mouseup',onMouseUp);
@@ -5040,7 +5174,9 @@ function usePanZoom(initialZoom, minZoom=0.3, maxZoom=12, controlled=null){
     return ()=>{
       el.removeEventListener('touchstart',onTouchStart);
       el.removeEventListener('touchmove',onTouchMove);
+      el.removeEventListener('touchend',onTouchEnd);
       el.removeEventListener('wheel',onWheel);
+      el.removeEventListener('dblclick',onDblClick);
       el.removeEventListener('mousedown',onMouseDown);
       el.removeEventListener('mousemove',onMouseMove);
       el.removeEventListener('mouseup',onMouseUp);
@@ -5245,22 +5381,105 @@ const fmtDist = m => m>=1000 ? `${(m/1000).toFixed(m>=10000?0:1)} km` : `${Math.
    marker jumps into a read-only local view of that place (no live "you are
    here" pin, since the player isn't actually there); tapping "my location"
    always returns to a true, live local view. */
-function WorldView({ clusters, userPos, onSelectCluster, onReturnToLocal, onClose, zoom, pan, setZoom, setPan, locating, placesCount }){
-  const W=100, H=50; // matches WORLD_LAND_D's viewBox
-  const project = (lat,lng) => ({ x:(lng+180)/360*W, y:(90-lat)/180*H });
+/* ─── WORLD VIEW ───
+   Equirectangular world (WORLD_LAND_D, viewBox 0 0 100 50; 8px per unit at
+   zoom 1). Instead of CSS-scaling a fixed SVG (which blurs and makes markers
+   balloon as you zoom), the land is redrawn through a viewBox that follows
+   zoom/pan, so it stays crisp from the whole planet down to city scale, and
+   markers are plain HTML at a constant on-screen size.
+   Places are grouped in SCREEN space: anchors closer than ~30px merge into one
+   counted marker, so the grouping loosens as you zoom in and anchors in the
+   same country separate naturally. Tapping a group flies in to fit it;
+   tapping a single place (or a group small enough for the local map) opens it. */
+const WORLD_MAX_ZOOM = 700;     // ~50 m/px at mid-latitudes, about local-map scale
+const WORLD_CLUSTER_PX = 30;
+const LOCAL_OPEN_SPREAD_M = 8000; // a group this tight opens straight into the local map
+function WorldView({ zones=[], userPos, onSelectCluster, onReturnToLocal, onClose, zoom, pan, setZoom, setPan, locating, placesCount }){
+  const W=100, H=50, U=8;
+  const toWorld = (lat,lng) => ({ x:(lng+180)/360*W, y:(90-lat)/180*H });
   const containerRef=useRef(null);
-  const [containerH,setContainerH]=useState(420);
+  const [size,setSize]=useState({w:400,h:420});
   useEffect(()=>{
-    if(containerRef.current) setContainerH(containerRef.current.clientHeight || 420);
+    const el=containerRef.current; if(!el) return;
+    const measure=()=>{ if(el.clientWidth&&el.clientHeight) setSize({w:el.clientWidth,h:el.clientHeight}); };
+    measure();
+    if(typeof ResizeObserver==="undefined") return;
+    const ro=new ResizeObserver(measure); ro.observe(el);
+    return ()=>ro.disconnect();
   },[]);
-  /* "Fill the height" baseline: the zoom level at which the H=50 viewBox
-     exactly fills the container's pixel height. Used as the starting point
-     ONLY the very first time world view is ever opened (zoom still at its
-     initial default) — after that, the player's own zoom/pan is remembered
-     and this is only what the zoom-out-all button returns to. */
-  const fillZoom = containerH / (H * 8); // 8px-per-viewBox-unit is the SVG's natural base scale at zoom 1
-  const [,,,,panZoomRef] = usePanZoom(zoom, 0.4, 14, {zoom,pan,setZoom,setPan});
+  const {w:cw,h:ch}=size;
+  /* Starting zoom the very first time world view opens: the whole world fits
+     the height. After that the player's own zoom/pan is remembered. */
+  const fillZoom = ch / (H * U);
+  const [,,,,panZoomRef] = usePanZoom(zoom, 0.4, WORLD_MAX_ZOOM, {zoom,pan,setZoom,setPan});
   useEffect(()=>{ if(fillZoom && zoom===1 && pan.x===0 && pan.y===0) setZoom(fillZoom); },[fillZoom]);
+
+  /* world units → screen px (same math the old CSS transform used) */
+  const toScreen = (x,y) => ({ sx: cw/2+pan.x+zoom*(U*x-W*U/2), sy: ch/2+pan.y+zoom*(U*y-H*U/2) });
+  const vb = { x:((-cw/2-pan.x)/zoom+W*U/2)/U, y:((-ch/2-pan.y)/zoom+H*U/2)/U, w:cw/(U*zoom), h:ch/(U*zoom) };
+  const pxPerDeg = W*U*zoom/360;
+  const centerLat = Math.max(-85,Math.min(85, 90-(vb.y+vb.h/2)*180/H));
+
+  /* Smooth fly-to (cancelled the moment the player touches the map). */
+  const animRef=useRef(null);
+  const stopAnim=()=>{ if(animRef.current){ cancelAnimationFrame(animRef.current); animRef.current=null; } };
+  useEffect(()=>stopAnim,[]);
+  const flyTo=(targetZoom, cx=W/2, cy=H/2)=>{
+    stopAnim();
+    const z0=zoom, z1=Math.max(0.4,Math.min(WORLD_MAX_ZOOM,targetZoom));
+    const c0={x:vb.x+vb.w/2, y:vb.y+vb.h/2};
+    const t0=performance.now(), dur=750;
+    const step=now=>{
+      const t=Math.min(1,(now-t0)/dur), e=1-Math.pow(1-t,3);
+      const z=z0*Math.pow(z1/z0,e);                       // geometric: steady feel across 100× jumps
+      const x=c0.x+(cx-c0.x)*e, y=c0.y+(cy-c0.y)*e;       // view center glides in world units
+      setZoom(z); setPan({x:-z*(U*x-W*U/2), y:-z*(U*y-H*U/2)});
+      animRef.current = t<1 ? requestAnimationFrame(step) : null;
+    };
+    animRef.current=requestAnimationFrame(step);
+  };
+
+  /* Screen-space grouping */
+  const groups=[];
+  zones.forEach(z=>{
+    const w=toWorld(z.lat,z.lng), sp=toScreen(w.x,w.y);
+    let g=groups.find(g=>Math.hypot(g.sx-sp.sx,g.sy-sp.sy)<WORLD_CLUSTER_PX);
+    if(!g){ g={zones:[],sx:0,sy:0,lat:0,lng:0}; groups.push(g); }
+    g.zones.push(z);
+    const n=g.zones.length;
+    g.lat=g.zones.reduce((a,v)=>a+v.lat,0)/n; g.lng=g.zones.reduce((a,v)=>a+v.lng,0)/n;
+    const c=toWorld(g.lat,g.lng), cs=toScreen(c.x,c.y); g.sx=cs.sx; g.sy=cs.sy;
+  });
+  groups.forEach(g=>{ g.id=`wg_${g.zones.map(z=>z.id).sort()[0]}`; g.summit=g.zones.some(z=>z.summit); });
+
+  const openGroup=g=>{
+    const spread=Math.max(0,...g.zones.map(z=>haversineM(g.lat,g.lng,z.lat,z.lng)));
+    if(g.zones.length===1 || spread<LOCAL_OPEN_SPREAD_M){ stopAnim(); onSelectCluster({id:g.id,lat:g.lat,lng:g.lng,zones:g.zones}); return; }
+    const pts=g.zones.map(z=>toWorld(z.lat,z.lng));
+    const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y);
+    const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
+    const bw=Math.max(maxX-minX,1e-4), bh=Math.max(maxY-minY,1e-4);
+    const fit=Math.min((cw*0.55)/(U*bw),(ch*0.5)/(U*bh));
+    flyTo(Math.max(zoom*1.8,fit),(minX+maxX)/2,(minY+maxY)/2);
+  };
+
+  /* Graticule: a faint lat/lng grid at a spacing that suits the zoom, so
+     there's still a sense of place and motion where the coastline is far away. */
+  const gStep=[30,10,5,2,1,0.5,0.2,0.1,0.05,0.02,0.01].find(st=>st*pxPerDeg<=150) ?? 0.01;
+  const lng0=vb.x*360/W-180, lng1=(vb.x+vb.w)*360/W-180, lat1=90-vb.y*180/H, lat0=90-(vb.y+vb.h)*180/H;
+  const gLines=[];
+  for(let L=Math.ceil(lng0/gStep)*gStep; L<=lng1 && gLines.length<60; L+=gStep){ if(L>=-180&&L<=180){ const x=(L+180)/360*W; gLines.push(<line vectorEffect="non-scaling-stroke" key={`v${L.toFixed(3)}`} x1={x} x2={x} y1={Math.max(0,vb.y)} y2={Math.min(H,vb.y+vb.h)}/>); } }
+  for(let L=Math.ceil(lat0/gStep)*gStep; L<=lat1 && gLines.length<120; L+=gStep){ if(L>=-90&&L<=90){ const y=(90-L)/180*H; gLines.push(<line vectorEffect="non-scaling-stroke" key={`h${L.toFixed(3)}`} y1={y} y2={y} x1={Math.max(0,vb.x)} x2={Math.min(W,vb.x+vb.w)}/>); } }
+
+  /* Scale bar (horizontal meters per px at the view's center latitude) */
+  const mPerPx = 111320*Math.cos(centerLat*Math.PI/180)/pxPerDeg;
+  const rawM = 70*mPerPx, pow=Math.pow(10,Math.floor(Math.log10(rawM)));
+  const niceM = [1,2,5,10].map(k=>k*pow).filter(v=>v<=rawM).pop() || pow;
+  const scalePx = niceM/mPerPx;
+
+  const me = userPos ? (()=>{ const w=toWorld(userPos.lat,userPos.lng); return toScreen(w.x,w.y); })() : null;
+  const onScreen = (sx,sy,m=40) => sx>-m && sx<cw+m && sy>-m && sy<ch+m;
+  const ctrlBtn={width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"};
 
   return (
     <div style={{position:"absolute",inset:0,background:C.bg,display:"flex",flexDirection:"column"}}>
@@ -5269,38 +5488,44 @@ function WorldView({ clusters, userPos, onSelectCluster, onReturnToLocal, onClos
         <div style={{flex:1}}/>
         <div style={{width:"60px"}}/>
       </div>
-      <div ref={(el)=>{containerRef.current=el; panZoomRef.current=el;}} style={{flex:1,position:"relative",overflow:"hidden",touchAction:"none",cursor:"grab"}}>
-        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`,transformOrigin:"50% 50%"}}>
-          <svg width={W*8} height={H*8} viewBox={`0 0 ${W} ${H}`} style={{display:"block"}}>
-            <path d={WORLD_LAND_D} fill={C.surf2} stroke={C.bord} strokeWidth="0.12" fillRule="evenodd"/>
-            {userPos && (()=>{ const p=project(userPos.lat,userPos.lng); return (
-              <circle cx={p.x} cy={p.y} r="0.9" fill={C.gold} stroke={C.bg} strokeWidth="0.25"/>
-            ); })()}
-            {clusters.map(c=>{
-              const p=project(c.lat,c.lng);
-              return (
-                <g key={c.id} onClick={()=>onSelectCluster(c)} style={{cursor:"pointer"}}>
-                  <circle cx={p.x} cy={p.y} r="1.6" fill="transparent"/>
-                  <circle cx={p.x} cy={p.y} r="0.7" fill={C.sageB} opacity="0.85"/>
-                  <circle cx={p.x} cy={p.y} r="1.3" fill="none" stroke={C.sageB} strokeWidth="0.15" opacity="0.5"/>
-                </g>
-              );
-            })}
-          </svg>
+      <div ref={(el)=>{containerRef.current=el; panZoomRef.current=el;}}
+        onTouchStart={stopAnim} onMouseDown={stopAnim} onWheel={stopAnim}
+        style={{flex:1,position:"relative",overflow:"hidden",touchAction:"none",cursor:"grab"}}>
+        <svg width={cw} height={ch} viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`} preserveAspectRatio="none" style={{position:"absolute",inset:0,display:"block"}}>
+          <g stroke={C.bord} strokeWidth="0.6" opacity="0.35">{gLines}</g>
+          <path d={WORLD_LAND_D} fill={C.surf2} stroke={C.bord} strokeWidth="0.8" vectorEffect="non-scaling-stroke" fillRule="evenodd"/>
+        </svg>
+        {me && onScreen(me.sx,me.sy) && (
+          <div style={{position:"absolute",left:me.sx,top:me.sy,width:"9px",height:"9px",borderRadius:"50%",background:C.gold,border:`2px solid ${C.bg}`,transform:"translate(-50%,-50%)",pointerEvents:"none",zIndex:2}}/>
+        )}
+        {groups.filter(g=>onScreen(g.sx,g.sy)).map(g=>{
+          const n=g.zones.length, d=n>1?Math.min(30,18+Math.log2(n)*3):10;
+          return (
+            <div key={g.id} data-pz-ignore="1" onClick={e=>{e.stopPropagation();openGroup(g);}}
+              style={{position:"absolute",left:g.sx,top:g.sy,width:"40px",height:"40px",transform:"translate(-50%,-50%)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",zIndex:3}}>
+              {g.summit&&<svg width="9" height="7" viewBox="0 0 14 12" style={{position:"absolute",top:`${20-d/2-9}px`}}><polygon points="7,1 13,11 1,11" fill={C.gold} stroke={C.goldB} strokeWidth="1"/></svg>}
+              {n>1 ? (
+                <div style={{width:`${d}px`,height:`${d}px`,borderRadius:"50%",background:"rgba(125,154,106,0.28)",border:`1px solid ${C.sageB}`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 8px rgba(163,192,137,0.25)`,...body("10px",C.cream)}}>{n}</div>
+              ) : (
+                <div style={{width:"8px",height:"8px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 0 4px rgba(163,192,137,0.18), 0 0 6px rgba(163,192,137,0.5)`}}/>
+              )}
+            </div>
+          );
+        })}
+        {/* Scale bar */}
+        <div style={{position:"absolute",left:"14px",bottom:"16px",zIndex:4,pointerEvents:"none"}}>
+          <div style={{...body("8px",C.dim),letterSpacing:"0.06em",marginBottom:"3px"}}>{fmtDist(niceM)}</div>
+          <div style={{width:`${scalePx}px`,height:"4px",borderLeft:`1px solid ${C.muted}`,borderRight:`1px solid ${C.muted}`,borderBottom:`1px solid ${C.muted}`}}/>
         </div>
-        {/* Fixed controls — identical markup/position to the local map's own
-            controls, so the two views feel like the same instrument. */}
+        {/* Fixed controls — same instrument as the local map's */}
         <div style={{position:"absolute",bottom:"14px",right:"14px",display:"flex",flexDirection:"column",gap:"6px",zIndex:4}}>
-          <button onClick={onReturnToLocal} style={{width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+          <button onClick={()=>{stopAnim();onReturnToLocal();}} style={ctrlBtn}>
             {locating?<div style={{width:"12px",height:"12px",borderRadius:"50%",border:`1.5px solid ${C.sageB}`,borderTopColor:"transparent",animation:"spin 0.8s linear infinite"}}/>
             :<svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" fill={C.sageB}/><circle cx="10" cy="10" r="7" stroke={C.sageB} strokeWidth="1" fill="none"/><line x1="10" y1="1" x2="10" y2="4" stroke={C.sageB} strokeWidth="1.2"/><line x1="10" y1="16" x2="10" y2="19" stroke={C.sageB} strokeWidth="1.2"/><line x1="1" y1="10" x2="4" y2="10" stroke={C.sageB} strokeWidth="1.2"/><line x1="16" y1="10" x2="19" y2="10" stroke={C.sageB} strokeWidth="1.2"/></svg>}
           </button>
-          <button onClick={()=>{ setZoom(fillZoom||1); setPan({x:0,y:0}); }} title="Reset view" style={{width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",...body("11px",C.muted)}}>
-            ⌂
-          </button>
-          <div style={{width:"36px",padding:"4px 0",borderRadius:"8px",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",...body("8px",C.dim),whiteSpace:"nowrap",letterSpacing:"0"}}>
-            {Math.round(zoom*100)}%
-          </div>
+          <button onClick={()=>{ const z=zoom*2.5; const cx=vb.x+vb.w/2, cy=vb.y+vb.h/2; flyTo(z,cx,cy); }} title="Zoom in" style={{...ctrlBtn,...body("16px",C.muted)}}>+</button>
+          <button onClick={()=>{ const z=zoom/2.5; const cx=vb.x+vb.w/2, cy=vb.y+vb.h/2; flyTo(z,cx,cy); }} title="Zoom out" style={{...ctrlBtn,...body("16px",C.muted)}}>−</button>
+          <button onClick={()=>flyTo(fillZoom||1)} title="Whole world" style={{...ctrlBtn,...body("11px",C.muted)}}>⌂</button>
         </div>
       </div>
       {/* Bottom bar — identical markup to the local map's own bar */}
@@ -5582,15 +5807,18 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
      rendering entirely, since it's showing fundamentally different content
      (every anchored place, not the detailed geometry around just one). */
   if(mode==="world"){
-    const clusters = clusterZones(revealZones);
     return (
       <div style={{position:"relative",height:`${mapH}px`}}>
         <WorldView
-          clusters={clusters}
+          zones={revealZones}
           userPos={userPos}
           zoom={worldZoom} pan={worldPan} setZoom={setWorldZoom} setPan={setWorldPan}
           locating={locating} placesCount={placesCount}
-          onSelectCluster={(c)=>{ setViewingCluster(c); setMode("local"); setZoom(1); setPan({x:0,y:0}); }}
+          onSelectCluster={(c)=>{
+            /* A place near where you actually are is home, not "a distant place". */
+            const home = userPos && haversineM(userPos.lat,userPos.lng,c.lat,c.lng) < 10000;
+            setViewingCluster(home?null:c); setMode("local"); setZoom(1); setPan({x:0,y:0});
+          }}
           onReturnToLocal={()=>{ setViewingCluster(null); setMode("local"); handleLocate(); }}
           onClose={()=>setMode("local")}
         />
@@ -7514,7 +7742,13 @@ export default function AscendApp(){
           const entriesOk = entryUnlocks.every(u=>
             jEnt.some(e=>e.tag==="release" && e.releaseKind===u.entryKind)
           );
-          if(entriesOk) completeClassQuest(q.id);
+          /* sessionNote: at least one session that used the named activity
+             (this one included) carried a written reflection. */
+          const noteUnlocks = (q.unlocks||[]).filter(u=>u.kind==="sessionNote");
+          const notesOk = noteUnlocks.every(u=>
+            [s,...sessions].some(x=>(x.activities||[]).some(a=>a.name===u.activity) && x.reflection && String(x.reflection).trim())
+          );
+          if(entriesOk && notesOk) completeClassQuest(q.id);
         });
       });
       /* Chant is standalone (not part of any class's QUEST_CHAINS), so it gets
