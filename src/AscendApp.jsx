@@ -218,6 +218,19 @@ const CLASSES = [
 /* Advanced classes fuse two foundation paths. Battlemage: Warrior's power
    directed by Sage's attention, held by the heart. */
 CLASSES.push({
+  id: "martial",
+  name: "Martial Arts",
+  verb: "Form",
+  blurb: "Cultivate stance, movement, and technique: power given form.",
+  primaryStats: ["str", "wil", "wis"],
+  accent: "#9a6f3e",
+  trial: [
+    { type: "standing", label: "Stand", minutes: 3, stat: "str" },
+    { type: "sitting",  label: "Sit",   minutes: 3, stat: "vit" },
+    { type: "walking",  label: "Walk",  minutes: 3, stat: "wis" },
+  ],
+});
+CLASSES.push({
   id: "battlemage",
   name: "Battlemage",
   verb: "Channel",
@@ -276,55 +289,39 @@ const QUEST_CHAINS = {
       unlocks: [{ kind: "activity", practiceType: "walking", name: "Run", stat: "wil", target: 10, unit: "km" }],
     },
     {
-      id: "w_horse",
-      title: "Horse Stance",
-      myth: "The tree does not rise by growing tall first.\n\nIt rises because it rooted first — deep, unseen, patient — and only then did the trunk dare to climb. Horse Stance is the Warrior's root. Before the punch, before the kick, before any form takes shape, there is this: legs bent, spine still, weight sunk into the earth like something that has always belonged there.\n\nPower does not begin at the fist. It begins at the feet, and travels up through a body that has learned to stand its ground. A strike thrown from a shaking stance is a strike thrown from nowhere. Hold the root, and everything built on top of it — every punch, every kick, every form still to come — inherits that strength.\n\nThis is the quietest trial yet. No motion. No reps. Only stillness, and the discipline to stay in it.\n\nHorse Stance unlocked. Find it in your Standing practice.",
-      libId: "lib_w_horse",
-      criteria: "Accumulate held time in Horse Stance.",
-      unlocks: [{ kind: "activity", practiceType: "standing", name: "Horse Stance", stat: "str" }],
+      id: "w_measure",
+      title: "The Measure",
+      myth: "You have trained. Now find out where you actually stand.\n\nOne honest test of each Fundamental: your biggest set of Arms, of Legs, of Core, and your longest Endure. Not a performance and not a competition. A mark on the doorframe, so that months from now you can stand against it again and see how far you've grown.\n\nGo to your edge, not past it. Write down what's true.\n\nThis is your baseline. Everything after is measured against you.",
+      libId: "lib_w_measure",
+      criteria: "Log a test of each Fundamental: Arms, Legs, Core and Endure.",
+      unlocks: [{ kind: "groups", scope: "since", recordBaseline: true, groups: [
+        { label: "Arms",   names: ["Arms","Pushups"] },
+        { label: "Legs",   names: ["Legs","Squats"] },
+        { label: "Core",   names: ["Core"] },
+        { label: "Endure", names: ["Endure","Run"] },
+      ] }],
     },
-    {
-      id: "w_punch",
-      title: "Punch",
-      myth: "The root holds. Now it speaks.\n\nEverything Horse Stance built lives in this moment — the legs that learned to sink, the spine that learned to stand. A punch is not thrown by the arm. The arm is only where the power finally arrives, after traveling up through ground, through legs, through hips that turn like a door swinging open. Hit with the arm alone, and you hit with nothing. Hit with the whole body behind it, and even a small fist carries the weight of everything beneath it.\n\nThis is why the stance came first. A strike thrown from a shaking root is a strike thrown from nowhere.\n\nForm first. Speed later. The fist that lands clean is built long before it ever moves.",
-      libId: "lib_w_punch",
-      criteria: "Complete Punch training.",
-      unlocks: [{ kind: "activity", practiceType: "train", name: "Punch", stat: "str" }],
-    },
-    {
-      id: "w_kick",
-      title: "Kick",
-      myth: "The root learned to speak through the fist. Now it must speak standing on one leg.\n\nA kick asks more of the root than a punch ever did. Half the base is gone — one leg lifted, balance narrowed to a single point of contact with the earth — and still the power must travel the same path: up from the ground, through the hip, out through the limb. Chamber the knee before you fire. The more it bends, the more it gathers, the way a bow gathers force before the string is loosed.\n\nFlexibility is not decoration here. A tight hip is a closed door — the kick that should travel in a full arc becomes a tap, all that gathered power with nowhere to go. Open the hip, and the same leg that nearly stumbled becomes the most honest test of the root yet: can it hold, even when there's almost nothing left to stand on?",
-      libId: "lib_w_kick",
-      criteria: "Complete Kick training.",
-      unlocks: [{ kind: "activity", practiceType: "train", name: "Kick", stat: "str" }],
-    },
-    {
-      id: "w_footwork",
-      title: "Footwork",
-      myth: "Until now, the root has held still. Now it must learn to move without ever leaving.\n\nThere is an old saying: stillness in movement, movement in stillness. The beginner believes these are opposites — that to move, you must give up your ground, and to hold your ground, you must stay still. The Warrior learns otherwise. True footwork loses nothing. The root does not empty when the foot lifts. It simply moves to where it is needed next.\n\nAnother saying: one leg full, the other empty — learn to tell them apart, always. At every moment, one leg carries the weight and one is free to move. Confuse the two, and you are unstable no matter how still you appear. Know them clearly, and you can move through anything without ever losing your footing.\n\nThe old masters who could not be pushed were not simply heavy or strong. Even mid-stride, they remained an extension of the ground beneath them, not something standing apart from it.\n\nThis is not stillness traded for speed. It is stillness that has learned to travel.",
-      libId: "lib_w_footwork",
-      criteria: "Complete Footwork training.",
-      unlocks: [{ kind: "activity", practiceType: "train", name: "Footwork", stat: "wil" }],
-    },
-    {
-      id: "w_flow",
-      title: "Martial Flow",
-      isCapstone: true,
-      myth: "Punch. Kick. Footwork. Three things, learned one at a time, each its own small mountain.\n\nNow they stop being three things.\n\nThere is a word for what happens next: Mushin. No mind. Not the absence of thought, but the absence of the gap between thought and action — the moment a strike no longer needs to be decided before it's thrown. The body already knows. It has known since the first sloppy pushup, the first hundred meters, the first held breath in Horse Stance. All of it was leading here, even when none of it looked like this.\n\nThis is strange: the deeper the flow, the quieter the body becomes. Heartbeat slows. The face softens. What looks, from outside, like power, feels, from inside, like rest.\n\nYou cannot force this. You can only become someone it's willing to happen to.",
-      libId: "lib_w_flow",
-      criteria: "Complete Martial Flow sessions.",
-      unlocks: [{ kind: "activity", practiceType: "train", name: "Martial Flow", stat: "wil" }],
-    },
-    /* Epilogue — revealed after the chain completes, not a numbered quest. */
     {
       id: "w_cold",
       title: "Cold Exposure",
-      isEpilogue: true,
       myth: "You have built the body. Now you are given something harder: presence with nothing to do.\n\nEvery skill before this asked you to generate something — a rep, a stride, a strike. Cold asks the opposite. It asks you to stay, while something difficult happens to you, and not flee. This is the final face of \"presence under pressure\" — not power, but stillness inside discomfort.\n\nCold Exposure is a condition you can carry into any practice — sit in it, stand in it, walk in it. Seek it where you can find it: a cold shower, an early swim, the morning air.",
       libId: "lib_w_cold",
-      criteria: "Reach Warrior Mastery 1 — complete the Warrior chain.",
-      unlocks: [],
+      criteria: "Practice Cold Exposure, then mark it complete.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Cold Exposure", stat: "wil" }],
+    },
+    {
+      id: "w_proving",
+      title: "The Proving",
+      isCapstone: true,
+      myth: "Four Fundamentals, trained apart, day after day. Now they meet.\n\nIn one session, train them all: Arms, Legs, Core, and Endure. Not as four exercises in a row, but as one body that has become capable — pushing, carrying, holding, going the distance.\n\nIf you can, take it up a mountain. Climb, and train at the top.\n\nThe Warrior's path was never about strength for its own sake. It was about a body you can trust. This is where you find out you have one.",
+      libId: "lib_w_proving",
+      criteria: "Train all four Fundamentals in a single session.",
+      unlocks: [{ kind: "groups", scope: "single", groups: [
+        { label: "Arms",   names: ["Arms","Pushups"] },
+        { label: "Legs",   names: ["Legs","Squats"] },
+        { label: "Core",   names: ["Core"] },
+        { label: "Endure", names: ["Endure","Run"] },
+      ] }],
     },
   ],
 
@@ -552,6 +549,58 @@ const QUEST_CHAINS = {
       unlocks: [{ kind: "activity", practiceType: "any", name: "Henosis", stat: "ali", target: 45, unit: "minutes" }],
     },
   ],
+  martial: [
+    {
+      id: "ma_trial",
+      title: "Martial Arts Trial",
+      isTrial: true,
+      myth: "The Warrior built a body you can trust. This path asks what that body can do with intention.\n\nBefore any technique, the vow: sit, stand, walk, three minutes each, attention placed at a center each time — and on the Ascend screen, after the timer, choose that center as where your awareness landed.\n\nStand, and sink your attention into the legs — the root every technique grows from.\nSit, and gather it in the belly — the center every movement returns to.\nWalk, and lift it to the head — the clarity that sees before it moves.\n\nThree forms. Three centers. One vow. Walk through it, and the path of Martial Arts opens.",
+      libId: "lib_ma_trial",
+      criteria: "Complete the Martial Arts Foundation Trial: 3-min Stand, Sit, Walk.",
+      unlocks: [],
+    },
+    {
+      id: "w_horse",
+      title: "Stance",
+      myth: "The tree does not rise by growing tall first.\n\nIt rises because it rooted first — deep, unseen, patient — and only then did the trunk dare to climb. Horse Stance is the Warrior's root. Before the punch, before the kick, before any form takes shape, there is this: legs bent, spine still, weight sunk into the earth like something that has always belonged there.\n\nPower does not begin at the fist. It begins at the feet, and travels up through a body that has learned to stand its ground. A strike thrown from a shaking stance is a strike thrown from nowhere. Hold the root, and everything built on top of it — every punch, every kick, every form still to come — inherits that strength.\n\nThis is the quietest trial yet. No motion. No reps. Only stillness, and the discipline to stay in it.\n\nHorse Stance unlocked. Find it in your Standing practice.",
+      libId: "lib_w_horse",
+      criteria: "Accumulate held time in Horse Stance.",
+      unlocks: [{ kind: "activity", practiceType: "standing", name: "Horse Stance", stat: "str" }],
+    },
+    {
+      id: "w_footwork",
+      title: "Footwork",
+      myth: "Until now, the root has held still. Now it must learn to move without ever leaving.\n\nThere is an old saying: stillness in movement, movement in stillness. The beginner believes these are opposites — that to move, you must give up your ground, and to hold your ground, you must stay still. The Warrior learns otherwise. True footwork loses nothing. The root does not empty when the foot lifts. It simply moves to where it is needed next.\n\nAnother saying: one leg full, the other empty — learn to tell them apart, always. At every moment, one leg carries the weight and one is free to move. Confuse the two, and you are unstable no matter how still you appear. Know them clearly, and you can move through anything without ever losing your footing.\n\nThe old masters who could not be pushed were not simply heavy or strong. Even mid-stride, they remained an extension of the ground beneath them, not something standing apart from it.\n\nThis is not stillness traded for speed. It is stillness that has learned to travel.",
+      libId: "lib_w_footwork",
+      criteria: "Complete Footwork training.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Footwork", stat: "wil" }],
+    },
+    {
+      id: "w_punch",
+      title: "Punch",
+      myth: "The root holds. Now it speaks.\n\nEverything Horse Stance built lives in this moment — the legs that learned to sink, the spine that learned to stand. A punch is not thrown by the arm. The arm is only where the power finally arrives, after traveling up through ground, through legs, through hips that turn like a door swinging open. Hit with the arm alone, and you hit with nothing. Hit with the whole body behind it, and even a small fist carries the weight of everything beneath it.\n\nThis is why the stance came first. A strike thrown from a shaking root is a strike thrown from nowhere.\n\nForm first. Speed later. The fist that lands clean is built long before it ever moves.",
+      libId: "lib_w_punch",
+      criteria: "Complete Punch training.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Punch", stat: "str" }],
+    },
+    {
+      id: "w_kick",
+      title: "Kick",
+      myth: "The root learned to speak through the fist. Now it must speak standing on one leg.\n\nA kick asks more of the root than a punch ever did. Half the base is gone — one leg lifted, balance narrowed to a single point of contact with the earth — and still the power must travel the same path: up from the ground, through the hip, out through the limb. Chamber the knee before you fire. The more it bends, the more it gathers, the way a bow gathers force before the string is loosed.\n\nFlexibility is not decoration here. A tight hip is a closed door — the kick that should travel in a full arc becomes a tap, all that gathered power with nowhere to go. Open the hip, and the same leg that nearly stumbled becomes the most honest test of the root yet: can it hold, even when there's almost nothing left to stand on?",
+      libId: "lib_w_kick",
+      criteria: "Complete Kick training.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Kick", stat: "str" }],
+    },
+    {
+      id: "w_flow",
+      title: "Martial Flow",
+      isCapstone: true,
+      myth: "Punch. Kick. Footwork. Three things, learned one at a time, each its own small mountain.\n\nNow they stop being three things.\n\nThere is a word for what happens next: Mushin. No mind. Not the absence of thought, but the absence of the gap between thought and action — the moment a strike no longer needs to be decided before it's thrown. The body already knows. It has known since the first sloppy pushup, the first hundred meters, the first held breath in Horse Stance. All of it was leading here, even when none of it looked like this.\n\nThis is strange: the deeper the flow, the quieter the body becomes. Heartbeat slows. The face softens. What looks, from outside, like power, feels, from inside, like rest.\n\nYou cannot force this. You can only become someone it's willing to happen to.",
+      libId: "lib_w_flow",
+      criteria: "Complete Martial Flow sessions.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Martial Flow", stat: "wil" }],
+    },
+  ],
   battlemage: [
     {
       id: "b_trial",
@@ -672,6 +721,7 @@ function classGateMet(presenceLevel, completedChapters) {
 const ADVANCED_CLASS_REQS = {
   mystic:     ["healer", "sage"],
   battlemage: ["warrior", "sage"],
+  martial:    ["warrior"],
 };
 function advancedGateMet(classId, questProgress={}){
   const reqs = ADVANCED_CLASS_REQS[classId];
@@ -742,7 +792,7 @@ function freshClassState() {
    Curve: same cubic shape as the Presence curve, own tunable constant per path
    so a path that earns more easily (e.g. Sage, via plain Sit) can be tuned to
    need proportionally more XP per level without touching the earning rules. */
-const MASTERY_XP_A = { warrior: 27, healer: 27, sage: 35, mystic: 27, battlemage: 27 }; // placeholder — Sage tuned higher since Sit is the most common practice; Mystic has no "free" session-type earning rule (unlike Warrior/Sit, Sage/Sit, Healer/chest-throat) so it doesn't need compensation the way Sage does. Mastery 10 (advanced-class gate) lands around 50-70 hours of qualifying practice; tune after real testing.
+const MASTERY_XP_A = { warrior: 27, healer: 27, sage: 35, mystic: 27, battlemage: 27, martial: 27 }; // placeholder — Sage tuned higher since Sit is the most common practice; Mystic has no "free" session-type earning rule (unlike Warrior/Sit, Sage/Sit, Healer/chest-throat) so it doesn't need compensation the way Sage does. Mastery 10 (advanced-class gate) lands around 50-70 hours of qualifying practice; tune after real testing.
 const masteryTotalXPForLevel = (classId, L) => Math.round((MASTERY_XP_A[classId]??0.25) * Math.max(0,L-1) ** 3);
 const masteryLevelFromXP = (classId, xp) => {
   let L=1;
@@ -821,6 +871,10 @@ const TRIAL_WELCOME = {
     title: "The Question Is Asked",
     body: "Three forms, three centers — clarity, alignment, voice — and the body agreed to look. That's the entire vow this path has ever required: not answers, just a willingness to actually see what's there before deciding what it means.\n\nKnow thyself was carved above a temple older than almost anything else still standing, and nobody has improved on it since. You've just taken the first real step toward it — not by finding something out, but by agreeing to keep looking. Everything ahead is more of the same question, asked with progressively sharper attention.",
   },
+  martial: {
+    title: "The Form Is Taken",
+    body: "Three forms, three centers — legs, belly, head — and the body agreed to hold each one with intention. That's where every martial art actually begins: not with a strike, but with standing well.\n\nThe Warrior gave you a body you can trust. This path teaches it to move with purpose: root first, then the feet, then the hands.\n\nStance comes first. Go find your ground.",
+  },
   battlemage: {
     title: "The Current Is Lit",
     body: "Three forms, three centers — heart, head, belly — and for a few minutes each, the body that trains and the mind that sees were asked to stand in the same place. That's the whole beginning of this path.\n\nNothing here will ask you to become someone else. It asks you to let what you've already built start working together: the Warrior's fire, the Sage's clear eye, and the heart holding the space between them.\n\nThe furnace comes first. Go find it.",
@@ -832,9 +886,8 @@ const TRIAL_WELCOME = {
 };
 
 const MASTERY_BONUSES = {
-  warrior: [
-    { level: 1, id: "bonus_w_cold", name: "Cold Exposure", stat: "wil", practiceType: "any" },
-  ],
+  warrior: [],   // Cold Exposure moved into the Warrior chain (quest 4)
+  martial: [],
   healer: [],
   sage: [],
   mystic: [],
@@ -868,6 +921,10 @@ function migrateActivityMetadata(activities){
     if(a.name==="Communion"){
       a = {...a, id:"cls_commune", name:"Commune"};
     }
+    if(a.id==="bonus_w_cold" && a.masteryBonus){
+      const { masteryBonus, bonusPath, ...rest } = a;
+      a = rest;
+    }
     if(a.id==="chant_voi"){
       const inSync = a.target===CHANT_QUEST.target && a.unit===CHANT_QUEST.unit && a.practiceType==="core";
       return inSync ? a : {...a, practiceType:"core", target:CHANT_QUEST.target, unit:CHANT_QUEST.unit};
@@ -888,12 +945,26 @@ function migrateActivityMetadata(activities){
    new code only ever checks questProgress.h_commune. */
 function migrateClassState(cs){
   if(!cs || typeof cs!=="object") return cs;
-  const qp = cs.questProgress;
+  let out = cs;
+  const qp = out.questProgress;
   if(qp && qp.h_communion!==undefined && qp.h_commune===undefined){
     const { h_communion, ...rest } = qp;
-    return { ...cs, questProgress: { ...rest, h_commune: h_communion } };
+    out = { ...out, questProgress: { ...rest, h_commune: h_communion } };
   }
-  return cs;
+  /* Warrior restructure (Oct 2026): the martial quests (Stance/Horse,
+     Punch, Kick, Footwork, Flow) moved to the Martial Arts path, keeping
+     their ids, so any progress on them carries straight across. Anyone who
+     had COMPLETED the old seven-quest Warrior chain is credited with the new
+     chain too (The Measure, Cold Exposure, The Proving), so their Warrior
+     mastery and every gate built on it (Battlemage, Martial Arts) stay open. */
+  const q2 = out.questProgress || {};
+  const OLD_WARRIOR = ["w_strength","w_run","w_horse","w_punch","w_kick","w_footwork","w_flow"];
+  if(!out.warriorRestructured){
+    const legacyDone = OLD_WARRIOR.every(id=>q2[id]);
+    out = { ...out, warriorRestructured:true,
+      questProgress: legacyDone ? { ...q2, w_measure:true, w_cold:true, w_proving:true } : q2 };
+  }
+  return out;
 }
 
 function chainComplete(classId, questProgress={}){
@@ -922,6 +993,138 @@ function questActiveOrDone(classId, questId, questProgress={}, trialDoneFn=()=>t
    mastery XP to a path whenever one of its skills is actually used in a
    session, regardless of which session TYPE that skill happens to live under
    (e.g. Run is a Warrior skill even though it's logged under a Walk session). */
+/* ─── FUNDAMENTALS ────────────────────────────────────────────────────────
+   The repeatable core of each path — the basics returned to for life, after
+   the quest chain has taught them. The chain is learned once; Fundamentals
+   are walked forever.
+   Counting: a DAY counts once per Fundamental when it is trained at all, in
+   any honest amount — no quota. Growth shows as a personal best (longest
+   session for minute-based ones, biggest single-session total otherwise).
+   Everything is computed from session + journal history, so existing
+   players start with their real record, not zero.
+     name         also the loggable activity's name (reused if one exists)
+     sources      other activity names whose use counts for this Fundamental
+     journal      journal entries that count ({tag, tendKind?, releaseKind?})
+     reflectSit   a Sit with a written reflection counts (Sage's Reflect)
+     activity     false = counted only from journal/reflection, nothing to pick
+     unlockQuest  the activity becomes pickable once this quest is active
+                  (omitted = once the path's trial is complete)            */
+const FUNDAMENTALS = {
+  warrior: [
+    { id:"w_arms",   name:"Arms",   unit:"reps",    stat:"str", practiceType:"train", variations:"Pushups, rows, chin-ups, hangs",     sources:["Pushups"], unlockQuest:"w_strength" },
+    { id:"w_legs",   name:"Legs",   unit:"reps",    stat:"str", practiceType:"train", variations:"Squats, lunges, step-ups",           sources:["Squats"],  unlockQuest:"w_strength" },
+    { id:"w_core",   name:"Core",   unit:"reps",    stat:"vit", practiceType:"train", variations:"Planks, holds, leg raises",          sources:[],          unlockQuest:"w_strength" },
+    { id:"w_endure", name:"Endure", unit:"minutes", stat:"wil", practiceType:"any",   variations:"Run, hike, swim, cycle",             sources:["Run"],     unlockQuest:"w_run" },
+  ],
+  healer: [
+    { id:"h_body",  name:"Body",          unit:"minutes", stat:"vit", practiceType:"any", variations:"Release, breath, rest, toning",          sources:["Tension Release","Voice Work"] },
+    { id:"h_heart", name:"Heart",         unit:"minutes", stat:"hrt", practiceType:"any", variations:"Heart listening, forgiveness, gratitude", sources:["Heart Listening","Forgiveness & Gratitude"], journal:[{tag:"release"}] },
+    { id:"h_rel",   name:"Relationships", unit:"minutes", stat:"hrt", practiceType:"any", variations:"Deep listening, kind speech, repair",     sources:[], journal:[{tag:"tend", tendKind:"Deep Listening"}] },
+    { id:"h_world", name:"World",         unit:"minutes", stat:"wil", practiceType:"any", variations:"Service, tending people and places",     sources:[], journal:[{tag:"tend", tendKind:"Service"}] },
+  ],
+  sage: [
+    { id:"s_observe", name:"Observe", unit:"minutes", stat:"wis", practiceType:"sitting", variations:"Sound, thought, emotion, body, attention", sources:["Observe Sound","Observe Thought","Observe Emotion","Observe Body","Observe Attention"], unlockQuest:"s_sound" },
+    { id:"s_reflect", name:"Reflect", activity:false, stat:"wis", variations:"A sit, then a written reflection", reflectSit:true },
+    { id:"s_inquire", name:"Inquire", activity:false, stat:"ali", variations:"A question sat with, answered in the journal", journal:[{tag:"inquire"}] },
+  ],
+  mystic: [
+    { id:"m_devotion",  name:"Devotion",  unit:"minutes", stat:"hrt", practiceType:"any",     variations:"Chant, prayer, gratitude offered outward", sources:["Chant"] },
+    { id:"m_communion", name:"Communion", unit:"minutes", stat:"ali", practiceType:"any",     variations:"With the living world, or another person",  sources:["The Senses","Another Person"], unlockQuest:"m_senses" },
+    { id:"m_henosis",   name:"Henosis",   unit:"minutes", stat:"ali", practiceType:"any",     variations:"Resting with no object",                    sources:["Pulse","Breath","Thought","The Moment"], unlockQuest:"m_henosis" },
+  ],
+  martial: [
+    { id:"ma_stance",   name:"Stance",       activity:false, unit:"minutes", stat:"str", variations:"Horse stance and the stances of your art",  sources:["Horse Stance"] },
+    { id:"ma_footwork", name:"Footwork",     unit:"minutes", stat:"wil", practiceType:"train", variations:"Stepping, shifting, angles, distance",  sources:[], unlockQuest:"w_footwork" },
+    { id:"ma_strike",   name:"Strike",       activity:false, unit:"minutes", stat:"str", variations:"Punches, kicks, elbows, knees",  sources:["Punch","Kick"] },
+    { id:"ma_throw",    name:"Throw",        unit:"minutes", stat:"str", practiceType:"train", variations:"Grips, off-balancing, throws, takedowns", sources:[], minMastery:2 },
+    { id:"ma_flow",     name:"Martial Flow", unit:"minutes", stat:"wil", practiceType:"train", variations:"Forms, shadow work, free movement",  sources:[], unlockQuest:"w_flow" },
+  ],
+  battlemage: [
+    { id:"b_stoke",   name:"Stoke the Furnace", unit:"minutes", stat:"vit", practiceType:"standing", variations:"Breath to the furnace, then movement from core", sources:["Move from Core","Core Flow"], unlockQuest:"b_stoke" },
+    { id:"b_accel",   name:"Mind Acceleration", unit:"rounds",  stat:"wis", practiceType:"sitting",  variations:"Rounds of focus, then full release",            sources:[], unlockQuest:"b_accel" },
+    { id:"b_barrier", name:"Barrier",           unit:"minutes", stat:"hrt", practiceType:"standing", variations:"The field, in stillness and in the world",       sources:["The Shifting Field","The Proving Ground"], unlockQuest:"b_barrier" },
+  ],
+};
+const FUND_MARKS = [7, 21, 49, 108, 216, 365, 1000];
+
+/* "groups" quests (The Measure, The Proving): each group is met by a session
+   that used one of its activities for real — a logged count for counted
+   activities, at least 30 s of session for minute-based ones.
+     scope "since":  across every session since the quest became active
+     scope "single": all groups inside ONE session
+   best = the group's biggest value in a qualifying session (recorded as the
+   baseline when recordBaseline is set). */
+function sessionGroupValue(s, g){
+  let v=0, hit=false;
+  (s.activities||[]).forEach(a=>{
+    if(!g.names.includes(a.name)) return;
+    if(!a.unit || a.unit==="minutes"){ if((s.elapsed||0)>=30){ hit=true; v=Math.max(v,(s.elapsed||0)/60); } }
+    else { const c=Number(s.loggedCounts?.[a.id])||0; if(c>0){ hit=true; v+=c; } }
+  });
+  return hit ? v : null;
+}
+function groupsStatus(u, sessions=[], startedOn=null){
+  const pool=(sessions||[]).filter(s=>s && s.date && (!startedOn || s.date>=startedOn));
+  if(u.scope==="single"){
+    let bestSession=null, bestHits=-1;
+    pool.forEach(s=>{ const hits=u.groups.filter(g=>sessionGroupValue(s,g)!=null).length; if(hits>bestHits){ bestHits=hits; bestSession=s; } });
+    return u.groups.map(g=>{ const v=bestSession?sessionGroupValue(bestSession,g):null; return {label:g.label, met:v!=null, best:v||0}; });
+  }
+  return u.groups.map(g=>{
+    let best=null; pool.forEach(s=>{ const v=sessionGroupValue(s,g); if(v!=null) best=Math.max(best??0,v); });
+    return {label:g.label, met:best!=null, best:best||0};
+  });
+}
+
+function classTrialDone(classState, cid){
+  const cls=CLASS_BY_ID[cid]; if(!cls || !classState) return false;
+  const prog=classState.trialProgress?.[cid]||{};
+  return cls.trial.every(st=>prog[st.type]);
+}
+function fundamentalUnlocked(f, cid, classState){
+  if(!classState || !classTrialDone(classState, cid)) return false;
+  if(f.minMastery){
+    if(!chainComplete(cid, classState.questProgress||{})) return false;
+    if(masteryLevelFromXP(cid, classState.mastery?.[cid]?.xp||0) < f.minMastery) return false;
+  }
+  if(!f.unlockQuest) return true;
+  return questActiveOrDone(cid, f.unlockQuest, classState.questProgress, c=>classTrialDone(classState, c));
+}
+/* Days trained, personal best and marks for each of a path's Fundamentals. */
+function computeFundamentals(cid, sessions=[], jEnt=[]){
+  return (FUNDAMENTALS[cid]||[]).map(f=>{
+    const names=new Set([f.name, ...(f.sources||[])]);
+    const days=new Set(); let best=0;
+    (sessions||[]).forEach(s=>{
+      const d=s.date; if(!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+      const acts=(s.activities||[]).filter(a=>names.has(a.name));
+      const reflectHit = !!(f.reflectSit && s.typeId==="sitting" && s.reflection && String(s.reflection).trim());
+      if(!acts.length && !reflectHit) return;
+      days.add(d);
+      if(!acts.length || !f.unit) return;
+      if(f.unit==="minutes") best=Math.max(best,(s.elapsed||0)/60);
+      else {
+        const sum=acts.filter(a=>a.name===f.name || a.unit===f.unit).reduce((t,a)=>t+(Number(s.loggedCounts?.[a.id])||0),0);
+        best=Math.max(best,sum);
+      }
+    });
+    (jEnt||[]).forEach(e=>{
+      if(!e || !e.date) return;
+      const hit=(f.journal||[]).some(j=>e.tag===j.tag && (!j.tendKind||e.tendKind===j.tendKind) && (!j.releaseKind||e.releaseKind===j.releaseKind));
+      if(!hit) return;
+      days.add(e.date);
+      if(f.unit==="minutes" && e.tendMinutes) best=Math.max(best, Number(e.tendMinutes)||0);
+    });
+    const n=days.size;
+    return {...f, days:n, best, next:FUND_MARKS.find(m=>m>n)||null, prev:[...FUND_MARKS].reverse().find(m=>m<=n)||0};
+  });
+}
+const fmtFundBest = f => {
+  if(!f.best) return "—";
+  if(f.unit==="minutes") return `${Math.round(f.best)} min`;
+  return `${Math.round(f.best)} ${f.unit||""}`.trim();
+};
+
 const PATH_SKILL_NAMES = {};
 Object.entries(QUEST_CHAINS).forEach(([cid,chain])=>{
   PATH_SKILL_NAMES[cid] = new Set();
@@ -929,6 +1132,9 @@ Object.entries(QUEST_CHAINS).forEach(([cid,chain])=>{
 });
 Object.entries(MASTERY_BONUSES).forEach(([cid,bonuses])=>{
   bonuses.forEach(b=>PATH_SKILL_NAMES[cid]?.add(b.name));
+});
+Object.entries(FUNDAMENTALS).forEach(([cid,fs])=>{
+  fs.forEach(f=>{ if(f.activity!==false) PATH_SKILL_NAMES[cid]?.add(f.name); });
 });
 
 /* Which path(s) does a completed session qualify for mastery XP? Inclusive,
@@ -1943,7 +2149,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 need real-time +/-10 interaction here, during the session) */}
             {activeActIds.map(id=>{
               const act=activities.find(a=>a.id===id);
-              if(!act || !act.target) return null;
+              if(!act || (!act.target && !act.fundamental)) return null;
               const sc=STAT_COLORS[act.stat]||C.sageB;
               if(act.unit==="minutes") return null;
               const entered = actCounts[id]??0;
@@ -2390,7 +2596,7 @@ function CapacitiesList({ stats, devMode, setCh }){
   );
 }
 
-function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacities, setCapacities }){
+function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacities, setCapacities, classState=null, classGateOpen=false, onOpenPath=()=>{} }){
   const totalMin = sessions.reduce((a,s)=>a+s.duration,0);
   const longestMin = sessions.reduce((a,s)=>Math.max(a,s.duration),0);
   const todayISO = new Date().toISOString().slice(0,10);
@@ -2517,6 +2723,8 @@ function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacit
           </div>
         ))}
       </div>
+
+      <PathBadges classState={classState} gateOpen={classGateOpen} onOpenPath={onOpenPath}/>
 
       {/* ── JOURNAL / LOGS now float flanking the anchor button (rendered in App) ── */}
     </div>
@@ -3410,6 +3618,142 @@ const CHAPTER_QUESTS = {
 
 /* The "Choose Your Path" screen, shown when the gate is met and no class chosen.
    Picking a class sets it active and drops the player into the Foundation Trial. */
+/* ─── PATH BADGES + PORTAL ───────────────────────────────────────────────
+   Character sheet: one badge per path the player can see. Walked paths show
+   their mastery (or chain progress while still learning); foundation paths
+   not yet chosen sit faint; advanced paths appear only once their gate opens.
+   Tapping a walked path opens its portal: one screen, mostly numbers. */
+function classBadgeState(cid, classState){
+  const chosen=(classState?.chosenClasses||[]).includes(cid);
+  const qp=classState?.questProgress||{};
+  const chain=(QUEST_CHAINS[cid]||[]).filter(q=>!q.isTrial && !q.isEpilogue);
+  const done=chain.filter(q=>qp[q.id]).length;
+  const complete=chainComplete(cid, qp);
+  const level=complete ? masteryLevelFromXP(cid, classState?.mastery?.[cid]?.xp||0) : 0;
+  return { chosen, done, total:chain.length, complete, level };
+}
+function PathSigil({ cls, size=44, faint=false }){
+  return (
+    <div style={{width:`${size}px`,height:`${size}px`,borderRadius:"50%",border:`1px solid ${cls.accent}${faint?"55":""}`,
+      background:faint?"transparent":`${cls.accent}1f`,display:"flex",alignItems:"center",justifyContent:"center",
+      boxShadow:faint?"none":`0 0 10px ${cls.accent}33`}}>
+      <span style={{...dsp(`${Math.round(size*0.4)}px`,faint?C.dim:C.cream,500,"0")}}>{cls.name[0]}</span>
+    </div>
+  );
+}
+function PathBadges({ classState, gateOpen=false, onOpenPath=()=>{} }){
+  if(!gateOpen && !(classState?.chosenClasses||[]).length) return null;
+  const visible=CLASSES.filter(c=>{
+    const chosen=(classState?.chosenClasses||[]).includes(c.id);
+    if(chosen) return true;
+    if(ADVANCED_CLASS_REQS[c.id]) return advancedGateMet(c.id, classState?.questProgress||{});
+    return true;
+  });
+  return (
+    <div style={{margin:"14px 14px 0"}}>
+      <SL title="Paths"/>
+      <div style={{display:"flex",flexWrap:"wrap",justifyContent:"center",gap:"14px 10px"}}>
+        {visible.map(c=>{
+          const st=classBadgeState(c.id, classState);
+          const label = !st.chosen ? "—" : st.complete ? `MASTERY ${st.level}` : `${st.done}/${st.total}`;
+          return (
+            <button key={c.id} onClick={()=>st.chosen&&onOpenPath(c.id)} disabled={!st.chosen}
+              style={{background:"none",border:"none",padding:0,cursor:st.chosen?"pointer":"default",width:"64px",display:"flex",flexDirection:"column",alignItems:"center",gap:"5px",opacity:st.chosen?1:0.55}}>
+              <div style={{position:"relative"}}>
+                <PathSigil cls={c} faint={!st.chosen}/>
+                {(()=>{ const cap=(QUEST_CHAINS[c.id]||[]).find(q=>q.isCapstone); return cap&&classState?.ascents?.[cap.id] ? <svg width="12" height="10" viewBox="0 0 14 12" style={{position:"absolute",right:"-3px",top:"-3px"}}><polygon points="7,1 13,11 1,11" fill={C.gold} stroke={C.goldB} strokeWidth="1"/></svg> : null; })()}
+              </div>
+              <span style={{...body("11px",st.chosen?C.cream:C.dim)}}>{c.name}</span>
+              <span style={{...dsp("7px",st.chosen?c.accent:C.dim,400,"0.12em"),marginTop:"-3px"}}>{label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PathPortal({ classId, classState, sessions=[], jEnt=[], activities=[], onBack }){
+  const cls=CLASS_BY_ID[classId]; if(!cls) return null;
+  const st=classBadgeState(classId, classState);
+  const qp=classState?.questProgress||{};
+  const funds=computeFundamentals(classId, sessions, jEnt);
+  const xp=classState?.mastery?.[classId]?.xp||0;
+  const lvlFloor=masteryTotalXPForLevel(classId, st.level), lvlNext=masteryTotalXPForLevel(classId, st.level+1);
+  const lvlPct = st.complete ? Math.min(100, Math.round((xp-lvlFloor)/Math.max(1,lvlNext-lvlFloor)*100)) : Math.round(st.done/Math.max(1,st.total)*100);
+  const chain=(QUEST_CHAINS[classId]||[]).filter(q=>!q.isTrial && !q.isEpilogue);
+  const trialDone=classTrialDone(classState, classId);
+  const skills=[];
+  chain.forEach(q=>{
+    if(!questActiveOrDone(classId, q.id, qp, c=>classTrialDone(classState,c))) return;
+    (q.unlocks||[]).forEach(u=>{ if(u.kind==="activity" && !skills.includes(u.name)) skills.push(u.name); });
+  });
+  (MASTERY_BONUSES[classId]||[]).forEach(b=>{ if(st.complete && st.level>=b.level && !skills.includes(b.name)) skills.push(b.name); });
+  const leadsTo=Object.entries(ADVANCED_CLASS_REQS).filter(([,reqs])=>reqs.includes(classId))
+    .map(([aid,reqs])=>{ const others=reqs.filter(r=>r!==classId).map(r=>CLASS_BY_ID[r]?.name); return `${CLASS_BY_ID[aid]?.name}${others.length?` (with ${others.join(", ")})`:""}`; });
+  const builtOn=(ADVANCED_CLASS_REQS[classId]||[]).map(r=>CLASS_BY_ID[r]?.name);
+  const unlockTitle = f => (QUEST_CHAINS[classId]||[]).find(q=>q.id===f.unlockQuest)?.title;
+  const row = {display:"flex",alignItems:"baseline",gap:"8px"};
+  return (
+    <Overlay title={cls.name} onBack={onBack}>
+      <div style={{display:"flex",alignItems:"center",gap:"16px",marginBottom:"22px"}}>
+        <PathSigil cls={cls} size={58}/>
+        <div style={{flex:1}}>
+          <div style={{...dsp("12px",cls.accent,400,"0.16em"),marginBottom:"3px"}}>{st.complete?`MASTERY ${st.level}`:`PATH ${st.done}/${st.total}`}</div>
+          <div style={{...body("13px",C.muted),fontStyle:"italic",lineHeight:1.4,marginBottom:"8px"}}>{cls.blurb}</div>
+          <div style={{height:"3px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}><div style={{height:"100%",width:`${lvlPct}%`,background:cls.accent}}/></div>
+        </div>
+      </div>
+
+      <SL title="Fundamentals"/>
+      <div style={{marginBottom:"22px"}}>
+        {funds.map(f=>{
+          const open = f.activity===false ? trialDone : fundamentalUnlocked(f, classId, classState);
+          const span = f.next ? f.next-f.prev : 1;
+          const pct = f.next ? Math.round((f.days-f.prev)/span*100) : 100;
+          return (
+            <div key={f.id} style={{padding:"9px 0",borderBottom:`0.5px solid ${C.bord}`,opacity:open||f.days?1:0.45}}>
+              <div style={row}>
+                <span style={{...body("15px",C.cream),flex:1}}>{f.name}</span>
+                <span style={{...body("13px",C.cream)}}>{f.days}<span style={{...body("11px",C.dim)}}> {f.days===1?"day":"days"}</span></span>
+                {f.unit && <span style={{...body("11px",C.muted),minWidth:"64px",textAlign:"right"}}>best {fmtFundBest(f)}</span>}
+              </div>
+              <div style={{...body("11px",C.dim),margin:"1px 0 6px"}}>{open||f.days ? f.variations : `Opens with ${unlockTitle(f)||"the trial"}`}</div>
+              <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                <div style={{flex:1,height:"3px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:cls.accent,opacity:0.8}}/></div>
+                <span style={{...dsp("7px",C.dim,400,"0.1em"),minWidth:"52px",textAlign:"right"}}>{f.next?`NEXT ${f.next}`:"BEYOND MARKS"}</span>
+              </div>
+            </div>
+          );
+        })}
+        <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"8px"}}>A day counts whenever you train it, in any amount.</div>
+      </div>
+
+      {skills.length>0 && (<>
+        <SL title="Skills"/>
+        <div style={{...body("13px",C.muted),lineHeight:1.7,marginBottom:"22px"}}>{skills.join(" · ")}</div>
+      </>)}
+
+      <SL title="Path"/>
+      <div style={{marginBottom:"22px"}}>
+        {chain.map(q=>(
+          <div key={q.id} style={{...row,padding:"3px 0"}}>
+            <span style={{...body("12px",qp[q.id]?cls.accent:C.dim),width:"14px"}}>{qp[q.id]?"✓":"○"}</span>
+            <span style={{...body("13px",qp[q.id]?C.cream:C.muted)}}>{q.title}</span>
+            {q.isCapstone&&<span style={{...dsp("7px",C.dim,400,"0.12em")}}>CAPSTONE</span>}
+            {q.isCapstone&&classState?.ascents?.[q.id]&&<span style={{...dsp("7px",C.gold,400,"0.12em")}}>▲ ASCENT · {String(classState.ascents[q.id].peak||"").toUpperCase()}</span>}
+          </div>
+        ))}
+      </div>
+
+      {(leadsTo.length>0 || builtOn.length>0) && (<>
+        <SL title={builtOn.length?"Built on":"Leads to"}/>
+        <div style={{...body("13px",C.muted),lineHeight:1.7}}>{(builtOn.length?builtOn:leadsTo).join(" · ")}</div>
+      </>)}
+    </Overlay>
+  );
+}
+
 function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onReturn=()=>{}, questProgress={}, trialComplete=()=>true, mastery={} }){
   const [sel,setSel]=useState(null);
   /* Mystic stays hidden entirely (not just disabled) until both Healer and
@@ -3637,7 +3981,7 @@ function questProgressLine(q, activities, jEnt=[]){
 }
 
 function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epilogueRevealed={}, activities=[],
-                             masteryXP=0, isActivePath=true, jEnt=[],
+                             masteryXP=0, isActivePath=true, jEnt=[], ascents={},
                              onOpenQuest, onOpenLib }){
   const cls = CLASS_BY_ID[classId];
   if(!cls) return null;
@@ -3708,6 +4052,7 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
                 marginBottom:"8px",transition:"all .2s"}}>
               <div style={{...dsp("8px",complete?cls.accent:active?C.sageB:C.muted,400,"0.16em"),marginBottom:"3px"}}>
                 {complete?"COMPLETE":active?"ACTIVE":"LOCKED"}{q.isCapstone?" · CAPSTONE":""}
+                {q.isCapstone&&ascents[q.id]&&<span style={{color:C.gold}}> · ▲ ASCENT</span>}
               </div>
               <div style={{...body("15px",C.cream)}}>{q.title}</div>
               {active && <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{questProgressLine(q,activities,jEnt)}</div>}
@@ -3732,7 +4077,7 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
 
 /* Quest reader — shows a single class quest's myth, a library link, a complete
    button, and for Inquire, the five tappable questions with checkmarks. */
-function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=false, activities=[], jEnt=[],
+function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=false, activities=[], jEnt=[], sessions=[], questStartedOn=null,
                             onBack, onComplete, onOpenLib, onOpenInquire }){
   const cls = CLASS_BY_ID[classId];
   const q = (QUEST_CHAINS[classId]||[]).find(x=>x.id===questId);
@@ -3756,6 +4101,8 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
   const entriesMet = hasEntryRequirements && entryUnlocks.every(u=>jEnt.some(e=>e.tag==="release" && e.releaseKind===u.entryKind));
   const reflectUnlock = (q.unlocks||[]).find(u=>u.kind==="reflect" && u.minDuration);
   const isReflectQuest = !!reflectUnlock;
+  const groupUnlock = (q.unlocks||[]).find(u=>u.kind==="groups");
+  const groupState = groupUnlock ? groupsStatus(groupUnlock, sessions, questStartedOn) : [];
 
   return (
     <Overlay title={q.title} onBack={onBack}>
@@ -3887,6 +4234,17 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
       ) : hasTendTargets ? (
         <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
           {tendsMet ? "Logged enough — completing…" : "Log each real instance in your Tend journal to track progress."}
+        </div>
+      ) : groupUnlock ? (
+        <div>
+          <div style={{display:"flex",gap:"14px",flexWrap:"wrap",margin:"4px 0 8px"}}>
+            {groupState.map(g=>(
+              <span key={g.label} style={{...body("13px",g.met?C.cream:C.dim)}}>{g.met?"✓":"○"} {g.label}</span>
+            ))}
+          </div>
+          <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
+            {groupUnlock.scope==="single" ? "Select all four in one session, and log your counts." : "Log a real test of each, any session, any order."}
+          </div>
         </div>
       ) : isReflectQuest ? (
         <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
@@ -4882,7 +5240,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
             return (
               <div key={actName} style={{marginBottom:"6px"}}>
                 <button onClick={()=>setActCollapsed(prev=>({...prev,[actName]:!collapsed}))} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",cursor:"pointer",padding:"10px 0 10px"}}>
-                  <span style={{...dsp("11px",C.gold,400,"0.16em")}}>{actTitles[actName]||actName}</span>
+                  <span style={{...dsp("11px",C.gold,400,"0.16em")}}>{actTitles[actName]||actName}{ACT_CAPSTONES.some(a=>a.label.toUpperCase()===actName && classState?.ascents?.[a.key])&&<span style={{color:C.goldB}}> ▲</span>}</span>
                   <span style={{...body("13px",C.muted),transform:collapsed?"rotate(-90deg)":"none",transition:"transform .2s"}}>▾</span>
                 </button>
                 {!collapsed && chaptersInAct.map((c,ci)=>{
@@ -5022,7 +5380,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                 <ClassQuestSection classId={classState.activeClass} questProgress={classState.questProgress}
                   inquireAnswered={classState.inquireAnswered} epilogueRevealed={classState.epilogueRevealed}
                   masteryXP={classState.mastery?.[classState.activeClass]?.xp||0} isActivePath={true}
-                  activities={activities} jEnt={jEnt} onOpenQuest={onOpenClassQuest} onOpenLib={onGoToLib}/>
+                  activities={activities} jEnt={jEnt} ascents={classState.ascents||{}} onOpenQuest={onOpenClassQuest} onOpenLib={onGoToLib}/>
               </>
             )}
           </div>
@@ -5223,6 +5581,47 @@ function clusterZones(zones, radiusM=50000){
    z.radius is untouched — it still governs merging and growth — only the
    reveal reach changes. Summit status is permanent. */
 const SUMMIT_RADIUS_M = 100;
+
+/* ─── ASCENTS ─────────────────────────────────────────────────────────────
+   A bonus on any capstone, class or Act: complete its practice on a real,
+   mapped summit. A pinned session within SUMMIT_RADIUS_M of a peak is a
+   summit session; it earns the Ascent for every capstone that is active or
+   already complete and not yet ascended —
+     class capstone: the session used one of that path's skills/Fundamentals
+     Act capstone:   any practice, once the Act's final chapter is reached
+   Ascents are stored on classState.ascents (questId | "act1" | "act2"), so
+   they persist with no new top-level state. Detection is retroactive: peaks
+   often load after the session is saved, so pins are matched to peaks
+   whenever either changes. */
+const ACT_CAPSTONES = [
+  { key:"act1", label:"Act I",  chapter:ACT1_FINAL_CHAPTER },
+  { key:"act2", label:"Act II", chapter:ACT2_FINAL_CHAPTER },
+];
+function matchPinsToPeaks(pins, zones){
+  const peaks=[], seen=new Set();
+  (zones||[]).forEach(z=>(z.peaks||[]).forEach(pk=>{ if(!seen.has(pk.id)){ seen.add(pk.id); peaks.push(pk); } }));
+  if(!peaks.length) return null;
+  let changed=false;
+  const next=(pins||[]).map(pin=>{
+    if(pin.peakId || pin.lat==null || pin.lng==null) return pin;
+    let best=null, bestD=Infinity;
+    peaks.forEach(pk=>{
+      if(Math.abs(pk.lat-pin.lat)>0.002) return;
+      const d=haversineM(pin.lat,pin.lng,pk.lat,pk.lng);
+      if(d<=SUMMIT_RADIUS_M && d<bestD){ bestD=d; best=pk; }
+    });
+    if(!best) return pin;
+    changed=true;
+    return {...pin, peakId:best.id, peakName:best.name||"Unnamed summit"};
+  });
+  return changed ? next : null;
+}
+/* Distinct days each peak has been ascended (summit sessions), by peak id. */
+function peakAscentDays(pins){
+  const m={};
+  (pins||[]).forEach(p=>{ if(p.peakId){ (m[p.peakId]=m[p.peakId]||new Set()).add(p.date||p.id); } });
+  return Object.fromEntries(Object.entries(m).map(([k,v])=>[k,v.size]));
+}
 const SUMMIT_REVEAL_X = 3;
 const zoneRevealR = z => z.radius * (z.summit ? SUMMIT_REVEAL_X : 1);
 const zoneFetchR  = z => Math.max(1300, zoneRevealR(z) + 300);
@@ -5853,6 +6252,7 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
     setOpenPeak(pk.id);
   };
   const summitedPeakIds = new Set(revealZones.flatMap(z=>z.summitPeaks||[]));
+  const ascentDays = peakAscentDays(pins);
   const labeledPeakIds = new Set(renderPeaks.filter(pk=>pk.name).slice(0,6).map(pk=>pk.id));
   const namedPeakCount = renderPeaks.filter(pk=>pk.name).length;
 
@@ -5947,7 +6347,7 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
                 {isOpen&&(
                   <div style={{position:"absolute",bottom:"calc(100% + 6px)",left:"50%",transform:"translateX(-50%)",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.cream}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
                     <div style={{...body("11px",climbed?C.goldB:C.cream),marginBottom:"2px"}}>{pk.name||"Unnamed summit"}</div>
-                    {climbed&&<div style={{...dsp("8px",C.gold,400,"0.16em"),marginBottom:"3px"}}>SUMMITED</div>}
+                    {(climbed||ascentDays[pk.id])&&<div style={{...dsp("8px",C.gold,400,"0.16em"),marginBottom:"3px"}}>SUMMITED{ascentDays[pk.id]?` · ${ascentDays[pk.id]}×`:""}</div>}
                     <div style={{...body("10px",C.muted)}}>{[pk.ele!=null?fmtEle(pk.ele):null, `${fmtDist(pk.dist)} away`].filter(Boolean).join(" · ")}</div>
                   </div>
                 )}
@@ -6981,6 +7381,7 @@ export default function AscendApp(){
   const [types,setTypes]=useState(P.types ?? TYPES);
   const [library,setLibrary]=useState(P.library ?? Object.fromEntries(TYPES.map(t=>[t.id,[]])));
   const [sessions,setSessions]=useState(P.sessions ?? INIT_S);
+  const [pathView,setPathView]=useState(null); // classId whose Path portal is open
   const [jEnt,setJEnt]=useState(P.jEnt ?? [
   ]);
   const [ch,setCh]=useState(migrateCh(P.ch) ?? {name:"",totalXP:0,title:"Seeker",stats:{vit:0,str:0,wil:0,hrt:0,voi:0,wis:0,ali:0},_statsFmt:"xp"});
@@ -7112,6 +7513,41 @@ export default function AscendApp(){
     const next=maintainZones(revealZones, pins);
     if(next) setRevealZones(next);
   },[revealZones, pins]);
+
+  /* Ascents — match pins to peaks, then award each summit session once. */
+  useEffect(()=>{
+    const next=matchPinsToPeaks(pins, revealZones);
+    if(next) setPins(next);
+  },[pins, revealZones]);
+  useEffect(()=>{
+    if(!classState) return;
+    const ready=pins.filter(p=>p.peakId && !p.ascentChecked);
+    if(!ready.length) return;
+    const have={...(classState.ascents||{})}, won={}, awards=[];
+    ready.forEach(pin=>{
+      if(!Array.isArray(pin.acts)) return; // pins from before Ascents existed carry no session detail
+      const rec={peakId:pin.peakId, peak:pin.peakName, date:pin.date};
+      (classState.chosenClasses||[]).forEach(cid=>{
+        const cap=(QUEST_CHAINS[cid]||[]).find(q=>q.isCapstone);
+        if(!cap || have[cap.id] || won[cap.id]) return;
+        if(!questActiveOrDone(cid, cap.id, classState.questProgress, trialComplete)) return;
+        if(!pin.acts.some(n=>PATH_SKILL_NAMES[cid]?.has(n))) return;
+        won[cap.id]=rec; awards.push(`${cap.title}`);
+      });
+      ACT_CAPSTONES.forEach(a=>{
+        if(have[a.key] || won[a.key]) return;
+        if(!(completedChapters.includes(a.chapter) || completedChapters.includes(a.chapter-1))) return;
+        won[a.key]=rec; awards.push(`${a.label}`);
+      });
+    });
+    const ids=new Set(ready.map(p=>p.id));
+    setPins(ps=>ps.map(p=>ids.has(p.id)?{...p, ascentChecked:true}:p));
+    if(awards.length){
+      setClassState(cs=>({...cs, ascents:{...(cs.ascents||{}), ...won}}));
+      const peak=Object.values(won)[0]?.peak||"the summit";
+      notifyQuestComplete({title:awards.join(" · "), accent:C.gold, kind:`ASCENT · ${peak.toUpperCase()}`, isCapstone:true});
+    }
+  },[pins, classState, completedChapters]);
 
   // Restore cloud session — refresh silently if access token expired
   useEffect(()=>{
@@ -7424,6 +7860,10 @@ export default function AscendApp(){
      `count` (real, earned progress) is the one thing this never touches. */
   const applyQuestUnlocks = (quest) => {
     if(!quest?.unlocks) return;
+    /* remember the day this quest became active (The Measure counts only
+       tests logged from then on) */
+    const startedToday=new Date().toISOString().slice(0,10);
+    setClassState(cs=>cs?.questStartedOn?.[quest.id] ? cs : {...cs, questStartedOn:{...(cs?.questStartedOn||{}), [quest.id]:startedToday}});
     quest.unlocks.forEach(u=>{
       if(u.kind==="activity"){
         const target = u.target ?? null, unit = u.unit ?? null, singleSession = !!u.singleSession;
@@ -7501,12 +7941,53 @@ export default function AscendApp(){
     return cls.trial.every(step=>prog[step.type]);
   };
 
+  /* Self-healing after a chain is restructured: every quest that is active
+     or done for a walked path has its activities, and the active quest has
+     a start date (so The Measure never counts tests from before it began). */
+  useEffect(()=>{
+    if(!classState) return;
+    const today=new Date().toISOString().slice(0,10);
+    const stamp={};
+    (classState.chosenClasses||[]).forEach(cid=>{
+      if(!trialComplete(cid)) return;
+      (QUEST_CHAINS[cid]||[]).filter(q=>!q.isTrial && !q.isEpilogue).forEach(q=>{
+        if(!questActiveOrDone(cid, q.id, classState.questProgress, trialComplete)) return;
+        const missing=(q.unlocks||[]).some(u=>u.kind==="activity" && !activities.some(a=>a.name===u.name));
+        if(missing) applyQuestUnlocks(q);
+        else if(!classState.questProgress?.[q.id] && !classState.questStartedOn?.[q.id]) stamp[q.id]=today;
+      });
+    });
+    if(Object.keys(stamp).length) setClassState(cs=>({...cs, questStartedOn:{...stamp, ...(cs.questStartedOn||{})}}));
+  },[classState, activities.length]);
+
+  /* Fundamentals become pickable activities once unlocked (trial done, or
+     their teaching quest active). An activity that already exists under the
+     same name (Core, Barrier, Henosis…) is reused, never duplicated. */
+  useEffect(()=>{
+    if(!classState) return;
+    const toAdd=[];
+    (classState.chosenClasses||[]).forEach(cid=>{
+      (FUNDAMENTALS[cid]||[]).forEach(f=>{
+        if(f.activity===false || !fundamentalUnlocked(f, cid, classState)) return;
+        toAdd.push({ id:`fund_${f.id}`, name:f.name, stat:f.stat, fundamental:true, fundamentalOf:cid,
+          practiceType:f.practiceType||"any", unit:f.unit||null, count:0, target:null });
+      });
+    });
+    if(!toAdd.length) return;
+    setActivities(prev=>{
+      const names=new Set(prev.map(a=>a.name));
+      const fresh=toAdd.filter(a=>!names.has(a.name));
+      return fresh.length ? [...prev, ...fresh] : prev;
+    });
+  },[classState]);
+
   const completeClassQuest = (questId) => {
     const quest = findQuest(questId);
     setClassState(cs=>({ ...cs, questProgress:{...cs.questProgress, [questId]:true} }));
     if(quest){
       const chainId = Object.keys(QUEST_CHAINS).find(cid=>QUEST_CHAINS[cid].includes(quest));
-      notifyQuestComplete({title:quest.title, accent:CLASS_BY_ID[chainId]?.accent||C.sageB, kind:quest.isCapstone?"CHAIN COMPLETE":"QUEST COMPLETE"});
+      const ascended = quest.isCapstone && classState?.ascents?.[questId];
+      notifyQuestComplete({title:quest.title, accent:ascended?C.gold:(CLASS_BY_ID[chainId]?.accent||C.sageB), kind:quest.isCapstone?(ascended?"CHAIN COMPLETE · ASCENT":"CHAIN COMPLETE"):"QUEST COMPLETE"});
       /* the moment this quest completes, the NEXT quest in its chain becomes
          active — apply its unlocks now, immediately, not on its own completion */
       const chain = QUEST_CHAINS[chainId]||[];
@@ -7789,6 +8270,23 @@ export default function AscendApp(){
       });
     } catch(e) { /* reflect-quest check failure should never block anything else */ }
 
+    try {
+      /* "groups" quests — The Measure (each Fundamental tested since the
+         quest began) and The Proving (all four in one session). */
+      const allSessions=[s, ...sessions];
+      Object.keys(QUEST_CHAINS).forEach(cid=>{
+        QUEST_CHAINS[cid].forEach(q=>{
+          if(classState.questProgress?.[q.id]) return;
+          const gu=(q.unlocks||[]).find(u=>u.kind==="groups"); if(!gu) return;
+          if(!questActiveOrDone(cid, q.id, classState.questProgress, trialComplete)) return;
+          const st=groupsStatus(gu, allSessions, classState.questStartedOn?.[q.id]);
+          if(!st.every(g=>g.met)) return;
+          if(gu.recordBaseline) setClassState(cs=>({...cs, baselines:{...(cs.baselines||{}), [q.id]:Object.fromEntries(st.map(g=>[g.label, Math.round(g.best*10)/10]))}}));
+          completeClassQuest(q.id);
+        });
+      });
+    } catch(e) { /* groups-quest check failure should never block anything else */ }
+
     /* Foundation Trial: a qualifying ≥3-min sit/stand/walk advances the active
        class's trial while it's still in progress. */
     if(!isA && classState.activeClass && (elapsedSecs||0)>=180 &&
@@ -7806,6 +8304,7 @@ export default function AscendApp(){
       const makePin=(lat,lng)=>({
         id:`${Date.now()}_${Math.random().toString(36).substr(2,6)}`,
         lat,lng,tag:pinTag||"",date:_date,duration,
+        acts:(activeActivities||[]).map(a=>a.name), typeId:typeId||null, // for Ascent detection
         /* fallback map position used when no GPS */
         x:30+Math.random()*40, y:25+Math.random()*50,
       });
@@ -8107,7 +8606,7 @@ export default function AscendApp(){
 
         {/* content — all tabs stay mounted so internal state (quest screen, library entry) persists */}
         <div style={{flex:1,overflowY:"auto",paddingBottom:"calc(118px + env(safe-area-inset-bottom))"}}>
-          <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities}/></div>
+          <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities} classState={classState} classGateOpen={classGateOpen} onOpenPath={cid=>{setPathView(cid);setScr("path");}}/></div>
           <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
             classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}/></div>
           <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones} savedPos={lastKnownPos} onLocationConfirmed={setLastKnownPos} active={tab==="map"}
@@ -8136,7 +8635,7 @@ export default function AscendApp(){
         </button>
 
         {/* Journal / Logs flank the anchor on the character tab */}
-        {tab==="character" && !anch && scr!=="journal" && scr!=="logs" && scr!=="settings" && (
+        {tab==="character" && !anch && scr!=="journal" && scr!=="logs" && scr!=="settings" && scr!=="path" && (
           <>
             <button onClick={()=>setScr("journal")} style={{position:"absolute",bottom:"calc(76px + env(safe-area-inset-bottom))",left:"16.5%",transform:"translateX(-50%)",zIndex:261,background:"none",border:"none",cursor:"pointer",padding:"3px 6px",display:"flex",flexDirection:"row",alignItems:"center",gap:"5px"}}>
               <NavIcon id="journal" color={C.muted} size={23}/>
@@ -8247,12 +8746,13 @@ export default function AscendApp(){
           </div>
         )}
         {openClassQuest&&<ClassQuestReader classId={openClassQuest.classId} questId={openClassQuest.questId}
-          inquireAnswered={classState?.inquireAnswered||{}} questDone={!!classState?.questProgress?.[openClassQuest.questId]} activities={activities} jEnt={jEnt}
+          inquireAnswered={classState?.inquireAnswered||{}} questDone={!!classState?.questProgress?.[openClassQuest.questId]} activities={activities} jEnt={jEnt} sessions={sessions} questStartedOn={classState?.questStartedOn?.[openClassQuest.questId]||null}
           onBack={()=>setOpenClassQuest(null)}
           onComplete={()=>{completeClassQuest(openClassQuest.questId);setOpenClassQuest(null);}}
           onOpenLib={(id)=>{setOpenClassQuest(null);setTab("library");setLibOpenId(id);}}
           onOpenInquire={(question)=>{setPendingInquiry(question);setOpenClassQuest(null);setScr("journal");}}/>}
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
+        {scr==="path"&&pathView&&<PathPortal classId={pathView} classState={classState} sessions={sessions} jEnt={jEnt} activities={activities} onBack={()=>setScr(null)}/>}
         {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} timerVisibility={timerVisibility} setTimerVisibility={setTimerVisibility} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onDeleteCloud={handleDeleteCloud} onSignOut={handleSignOut} onVerified={handleVerified} autoCloudSync={autoCloudSync} setAutoCloudSync={setAutoCloudSync}/>}
         {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType} reflectUnlocked={!!classState?.questProgress?.s_reflect || (classState?.activeClass==="sage" && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={classState?.activeClass||null} unlocks={anchorUnlocks(completedChapters)} guideCues={!anchorUnlocks(completedChapters).modifiers ? [
           {s:0,  e:5,  text:"Sit comfortably."},
