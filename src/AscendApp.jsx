@@ -1,20 +1,31 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 
-/* ───────────────────────── THEMES — three dark palettes ──────────────────── */
+/* ───────────────────────── THEMES ─────────────────────────────────────────
+   Three dark palettes plus Light. "system" is not a palette: it follows the
+   device (Light by day, Charcoal when the device is in dark mode) and is the
+   default for new players. A theme may override the accents (Light deepens
+   gold and sage so they read on a pale ground) and sets inkRGB, the base for
+   ink-on-surface tints that used to be hard-coded white. */
 const ACCENTS = { gold:"#C9A84C", goldB:"#e0c068", sage:"#7d9a6a", sageB:"#a3c089",
   goldRGB:"201,168,76", sageRGB:"163,192,137", glowRGB:"120,160,96" };
 const THEMES = {
   forest:   { label:"Forest",   bg:"#0d140f", bg2:"#101a13", surf:"#16211a", surf2:"#1d2a20", bord:"#27362b", txt:"#e6e1d2", cream:"#d9d1bb", muted:"#8b9684", dim:"#46523f", slate:"#6f8088" },
   navy:     { label:"Navy",     bg:"#0c1018", bg2:"#0e1622", surf:"#141d2b", surf2:"#1b2638", bord:"#283446", txt:"#e2e5ee", cream:"#cfd5e2", muted:"#838ea2", dim:"#3c465a", slate:"#6f8094" },
   charcoal: { label:"Charcoal", bg:"#101011", bg2:"#141416", surf:"#1a1b1d", surf2:"#222426", bord:"#313234", txt:"#e6e3df", cream:"#d6d2ca", muted:"#8d8c88", dim:"#4a4a48", slate:"#76787c" },
+  light:    { label:"Light",    bg:"#f3efe6", bg2:"#ebe6da", surf:"#fbf9f4", surf2:"#efe9dd", bord:"#d6cdbb", txt:"#2b2a25", cream:"#35322b", muted:"#6c675b", dim:"#9e9787", slate:"#56636b",
+              light:true, inkRGB:"40,36,28", gold:"#9c7a22", goldB:"#8a6a16", sage:"#5a7a48", sageB:"#4f7340", goldRGB:"156,122,34", sageRGB:"79,115,64", glowRGB:"90,122,72" },
 };
+const THEME_CHOICES = ["system","forest","navy","charcoal","light"];
+const systemPrefersDark = () => { try { return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches); } catch(e){ return true; } };
+const resolveTheme = key => key==="system" ? (systemPrefersDark() ? "charcoal" : "light") : (THEMES[key] ? key : "forest");
 const C = {};
 function applyTheme(key){
-  const t = THEMES[key] || THEMES.forest;
-  Object.assign(C, t, ACCENTS, {
-    goldDim:`rgba(${ACCENTS.goldRGB},0.28)`,
-    goldFt:`rgba(${ACCENTS.goldRGB},0.08)`,
-    glow:`rgba(${ACCENTS.glowRGB},0.45)`,
+  const t = THEMES[resolveTheme(key)];
+  for(const k of Object.keys(C)) delete C[k];
+  Object.assign(C, ACCENTS, { light:false, inkRGB:"255,255,255" }, t, {
+    goldDim:`rgba(${t.goldRGB||ACCENTS.goldRGB},0.28)`,
+    goldFt:`rgba(${t.goldRGB||ACCENTS.goldRGB},0.08)`,
+    glow:`rgba(${t.glowRGB||ACCENTS.glowRGB},0.45)`,
   });
   // Update status bar color on mobile
   const meta = document.querySelector('meta[name="theme-color"]');
@@ -22,6 +33,11 @@ function applyTheme(key){
 }
 applyTheme("forest");
 const W = a => `rgba(230,225,210,${a})`;
+/* Glow art (the silhouette) was painted for dark grounds: on Light it is
+   luminance-inverted with its hue kept, so pale light becomes deep colour. */
+const LIGHT_GLOW_FILTER = "invert(1) hue-rotate(180deg) saturate(1.3)";
+const INK = a => `rgba(${C.inkRGB||"255,255,255"},${a})`;   // ink-on-surface tint, theme-aware
+const PANEL = a => `${C.bg}${Math.round(Math.max(0,Math.min(1,a))*255).toString(16).padStart(2,"0")}`; // translucent page-colour panel
 let FONT_SCALE = 1.0;
 const dsp = (s,c=C.cream,w=400,ls="0.1em") => ({fontFamily:"Cinzel,serif",fontSize:`${parseFloat(s)*FONT_SCALE}px`,color:c,fontWeight:w,letterSpacing:ls});
 const body= (s,c=C.txt) => ({fontFamily:"'Crimson Pro',Georgia,serif",fontSize:`${parseFloat(s)*FONT_SCALE}px`,color:c});
@@ -1345,7 +1361,7 @@ function MorningScene({ sceneIdx=0, paraPage=0, progOverride=null }){
 function SplashLogo({ size=200, onLoad }){
   const [failed,setFailed] = useState(false);
   if(failed) return <Emblem size={Math.round(size*0.52)}/>;
-  return <img src="/ascend-logo.webp" alt="Ascend"
+  return <img src="/ascend-logo.webp" alt="Ascend: Infinite Potential"
     onError={()=>setFailed(true)}
     onLoad={onLoad}
     style={{width:size+"px",height:size+"px",objectFit:"contain"}}/>;
@@ -1510,8 +1526,8 @@ function Radar({ stats, size=210, circular=false, showLabels=true, totalXP=0 }){
       </defs>
       {ang.map((a,i)=><line key={i} x1={cx} y1={cy} x2={cx+Math.cos(a)*r} y2={cy+Math.sin(a)*r} stroke={C.bord} strokeWidth="0.6"/>)}
       {circular
-        ? [.25,.5,.75,1].map((rt,i)=><circle key={i} cx={cx} cy={cy} r={r*rt} fill="none" stroke={i===3?C.goldDim:"rgba(125,154,106,0.12)"} strokeWidth={i===3?0.8:0.5}/>)
-        : [.25,.5,.75,1].map((rt,i)=><polygon key={i} points={ring(rt)} fill="none" stroke={i===3?C.goldDim:"rgba(125,154,106,0.12)"} strokeWidth={i===3?0.8:0.5}/>)
+        ? [.25,.5,.75,1].map((rt,i)=><circle key={i} cx={cx} cy={cy} r={r*rt} fill="none" stroke={i===3?C.goldDim:`rgba(${C.sageRGB},${C.light?0.3:0.12})`} strokeWidth={i===3?0.8:0.5}/>)
+        : [.25,.5,.75,1].map((rt,i)=><polygon key={i} points={ring(rt)} fill="none" stroke={i===3?C.goldDim:`rgba(${C.sageRGB},${C.light?0.3:0.12})`} strokeWidth={i===3?0.8:0.5}/>)
       }
       <polygon points={shape} fill={`url(#${uid})`} stroke={C.sageB} strokeWidth="1.4" strokeLinejoin="round"/>
       {pts.map(([x,y],i)=><circle key={i} cx={x} cy={y} r={size*.022} fill={STAT_COLORS[STATS[i].k]||C.sageB}/>)}
@@ -1648,7 +1664,7 @@ function SpiralCircle({ t, running, tappable=false, onTap=()=>{} }){
         </defs>
         <circle cx="91" cy="91" r="74" fill="url(#warmGlow)"/>
         <circle cx="91" cy="91" r="58" fill="none" stroke={C.goldDim} strokeWidth="0.6"/>
-        <circle cx="91" cy="91" r="57" fill={C.surf2} fillOpacity={darkO} mask="url(#spiralErase)"/>
+        <circle cx="91" cy="91" r="57" fill={C.light?C.bord:C.surf2} fillOpacity={darkO} mask="url(#spiralErase)"/>
         {/* Trickle particles radiating from centre */}
         {cPtcls.map(p=>(
           <circle key={p.id}
@@ -2201,7 +2217,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
           </div>
 
           {xp<=0 && (
-            <div style={{textAlign:"left",background:"rgba(255,255,255,0.03)",border:`0.5px solid ${C.bord}`,borderRadius:"6px",padding:"11px 14px",marginBottom:"22px",opacity:0.7}}>
+            <div style={{textAlign:"left",background:INK(0.03),border:`0.5px solid ${C.bord}`,borderRadius:"6px",padding:"11px 14px",marginBottom:"22px",opacity:0.7}}>
               <div style={{...body("13px",C.cream),fontStyle:"italic",lineHeight:"1.65"}}>
                 This practice was too brief to establish the anchor.<br/>Spend a little longer before ending the session.
               </div>
@@ -2256,7 +2272,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 const on=awarenessLanding.includes(k);
                 return (
                   <button key={k} onClick={()=>setAwarenessLanding(p=>p.includes(k)?p.filter(x=>x!==k):[...p,k])}
-                    style={{flex:1,padding:"7px 2px",borderRadius:"5px",border:`0.5px solid ${on?sc:C.muted}`,background:on?sc+"22":"rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",transition:"all .15s"}}>
+                    style={{flex:1,padding:"7px 2px",borderRadius:"5px",border:`0.5px solid ${on?sc:C.muted}`,background:on?sc+"22":INK(0.04),cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",transition:"all .15s"}}>
                     <span style={{fontSize:"8px",fontFamily:"Cinzel,serif",letterSpacing:"0.04em",color:on?sc:C.cream}}>{label.toUpperCase()}</span>
                   </button>
                 );
@@ -2274,7 +2290,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 const on=awarenessLanding.includes(k);
                 return (
                   <button key={k} onClick={()=>setAwarenessLanding(p=>p.includes(k)?p.filter(x=>x!==k):[...p,k])}
-                    style={{flex:1,padding:"7px 2px",borderRadius:"5px",border:`0.5px solid ${on?sc:C.muted}`,background:on?sc+"22":"rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",transition:"all .15s"}}>
+                    style={{flex:1,padding:"7px 2px",borderRadius:"5px",border:`0.5px solid ${on?sc:C.muted}`,background:on?sc+"22":INK(0.04),cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",transition:"all .15s"}}>
                     <span style={{fontSize:"8px",fontFamily:"Cinzel,serif",letterSpacing:"0.04em",color:on?sc:C.cream}}>{label.toUpperCase()}</span>
                   </button>
                 );
@@ -2655,7 +2671,7 @@ function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacit
       <div style={{display:"flex",margin:"8px 14px 0",gap:"0",height:"400px"}}>
         <div style={{flex:"0 0 62%",position:"relative",display:"flex",alignItems:"center",justifyContent:"center",overflow:"visible"}}>
           <div style={{width:"100%",height:"100%",transform:"scale(1.35)",transformOrigin:"center center"}}>
-            <EmbodimentSilhouette stats={ch.stats} totalXP={ch.totalXP??0}/>
+            <div style={{width:"100%",height:"100%",filter:C.light?LIGHT_GLOW_FILTER:"none"}}><EmbodimentSilhouette stats={ch.stats} totalXP={ch.totalXP??0}/></div>
           </div>
         </div>
         <div style={{flex:"0 0 112px",display:"flex",flexDirection:"column",alignItems:"center",paddingTop:"0px",gap:"4px",transform:"translateX(15px)"}}>
@@ -2718,13 +2734,13 @@ function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacit
           {l:"LONGEST SESSION", v:`${Math.floor(longestMin/60)}h ${longestMin%60}m`},
         ].map(({l,v},i)=>(
           <div key={l} style={{flex:1,padding:"9px 6px",textAlign:"center"}}>
-            <div style={{...dsp("6.5px","rgba(255,255,255,0.72)",400,"0.12em"),marginBottom:"3px"}}>{l}</div>
-            <div style={{...body("13px","rgba(255,255,255,0.48)")}}>{v}</div>
+            <div style={{...dsp("6.5px",INK(0.72),400,"0.12em"),marginBottom:"3px"}}>{l}</div>
+            <div style={{...body("13px",INK(0.48))}}>{v}</div>
           </div>
         ))}
       </div>
 
-      <PathBadges classState={classState} gateOpen={classGateOpen} onOpenPath={onOpenPath}/>
+
 
       {/* ── JOURNAL / LOGS now float flanking the anchor button (rendered in App) ── */}
     </div>
@@ -2745,10 +2761,10 @@ const ACT1_CHAPTERS=[
 // Chapter 1's in-quest reading, below — nothing here is duplicated there.
 const ONBOARDING_SCENE=[
   {label:"the invitation",body:[
-    "Welcome to Ascend.",
+    "Welcome to Ascend: Infinite Potential.",
     "Every civilization is shaped by the people who create it.",
     "The world grows more whole as its people grow more present, more capable, more connected to one another.",
-    "Ascend is a cultivation game designed to help you develop those capacities — through real-world practice, meaningful quests, and community.",
+    "Infinite Potential is a cultivation game designed to help you develop those capacities — through real-world practice, meaningful quests, and community.",
     "This is not about escaping life.",
     "It is about learning to participate in it more fully.",
     "It's time to reclaim your power.",
@@ -3673,6 +3689,220 @@ function PathBadges({ classState, gateOpen=false, onOpenPath=()=>{} }){
   );
 }
 
+/* ─── CULTIVATE — the class map, home screen and practice selector ─────────
+   The app opens here. The Center (Align, Relax, Breath, Attention through
+   Sit, Stand, Walk) sits in the middle; foundation paths orbit it, and each
+   path unlocked by others sits one orbit out at the mean angle of its
+   parents. Tapping a node selects what you will practice; the Cultivate
+   button in the nav then starts that session (a chosen path opens in its
+   own mode: Train, Restore, Sit...).
+   Reveal-when-open: foundations appear once the class gate opens, advanced
+   paths once their gate opens (or they are chosen), and planned paths with
+   no chain yet ("coming") once every parent path is complete.
+   Adapted from Dominique's ClassMapTab: same orbit layout, icons and
+   pan/zoom, drawn in the app's own themes and fed by the app's real data. */
+const CM_ICONS = {
+  sage: "M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z M12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z",
+  warrior: "M12 3l7 2.5v5.5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V5.5z M9 11.5l3 2 3-2",
+  healer: "M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z M12 10v4 M10 12h4",
+  battlemage: "M13 3L5 13.5h6L10 21l9-11.5h-6z",
+  mystic: "M5 13.5S8 9 12 9 19 13.5 19 13.5 16 18 12 18 5 13.5 5 13.5z M12 11.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z M12 2.5v3.5 M5.5 5.5l2.3 2.6 M18.5 5.5l-2.3 2.6 M2 11.5l3 1 M22 11.5l-3 1 M7 21l1.3-2 M17 21l-1.3-2",
+  sword: "M12 2.5l2 2.5v9.5h-4V5z M8 14.5h8 M12 14.5V21 M10 21h4",
+  martial: "M12 3.2a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8z M12 7.5V13 M12 9h7.3 M21.7 9a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0z M12 9.5l-3.5 1.5v2.2 M12 13l-5 2.5V21 M12 13l5 2.5V21",
+  wizard: "M12 3L7.5 17h9z M4 17.5h16 M9.6 12.5h4.8",
+  herbalist: "M5 19C5 10 10 5 19 5c0 9-5 14-14 14z M5 19l8-8",
+};
+/* Planned paths: on the map, no quest chain yet. */
+const CM_COMING = [
+  { id:"sword",     name:"Sword Saint", parents:["healer","warrior"], accent:"#8FD0D6", blurb:"Healer and Warrior, joined." },
+  { id:"wizard",    name:"Wizard",      parents:["sage"],             accent:"#9FB4F2", blurb:"A path that grows from Sage." },
+  { id:"herbalist", name:"Herbalist",   parents:["healer"],           accent:"#A8C66C", blurb:"Healing through plants and preparations." },
+];
+const CM_ANGLE = { sage:0, healer:120, warrior:240 };
+const CM_ORBITS = [0, 180, 320, 460, 600];
+/* The session mode a chosen path opens in when you press Cultivate. */
+const CLASS_MODE = { warrior:"train", martial:"train", healer:"restore", sage:"sitting", mystic:"sitting", battlemage:"standing" };
+const MODE_LABEL = { train:"Train", restore:"Restore", sitting:"Sit", standing:"Stand", walking:"Walk" };
+
+function cmNodes(){
+  const all=[
+    ...CLASSES.map(c=>({ id:c.id, name:c.name, accent:c.accent, blurb:c.blurb, parents:ADVANCED_CLASS_REQS[c.id]||null, real:true })),
+    ...CM_COMING.map(c=>({ ...c, real:false })),
+  ];
+  const by=Object.fromEntries(all.map(n=>[n.id,n]));
+  const rad=d=>d*Math.PI/180;
+  const place=n=>{
+    if(n.pos) return n.pos;
+    let tier=1, ang=CM_ANGLE[n.id]??0;
+    if(n.parents){
+      const ps=n.parents.filter(p=>by[p]).map(p=>place(by[p]));
+      tier=1+Math.max(...ps.map(p=>p.tier));
+      const sx=ps.reduce((t,p)=>t+Math.sin(rad(p.ang)),0), sy=ps.reduce((t,p)=>t+Math.cos(rad(p.ang)),0);
+      ang=((Math.atan2(sx,sy)*180/Math.PI)+360)%360;
+    }
+    const r=CM_ORBITS[tier]??(CM_ORBITS[CM_ORBITS.length-1]+150*(tier-CM_ORBITS.length+1));
+    n.pos={tier, ang, r, x:r*Math.sin(rad(ang)), y:-r*Math.cos(rad(ang))};
+    return n.pos;
+  };
+  all.forEach(place);
+  return all;
+}
+function cmVisible(n, classState, gateOpen){
+  const qp=classState?.questProgress||{};
+  if((classState?.chosenClasses||[]).includes(n.id)) return true;
+  if(!n.parents) return !!gateOpen;
+  if(n.real) return advancedGateMet(n.id, qp);
+  return n.parents.every(p=>chainComplete(p, qp));
+}
+
+function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel="center", onSelect=()=>{}, onOpenPath=()=>{}, onChoosePath=()=>{} }){
+  const nodes=useMemo(cmNodes,[]);
+  const visible=nodes.filter(n=>cmVisible(n, classState, gateOpen));
+  const visIds=new Set(visible.map(n=>n.id));
+  const wrapRef=useRef(null);
+  const [vw,setVw]=useState(390);
+  const VH=420;
+  useEffect(()=>{
+    const el=wrapRef.current; if(!el) return;
+    const m=()=>{ if(el.clientWidth) setVw(el.clientWidth); };
+    m();
+    if(typeof ResizeObserver==="undefined") return;
+    const ro=new ResizeObserver(m); ro.observe(el); return ()=>ro.disconnect();
+  },[]);
+  const maxR=Math.max(0,...visible.map(n=>n.pos.r));
+  const fitK=maxR ? Math.min(0.85, (Math.min(vw,VH)/2-40)/maxR) : 0.85;
+  const [view,setView]=useState(null);
+  const v=view||{k:fitK, ox:0, oy:0};          // ox/oy: pan offset from the centre of the frame
+  const tx=vw/2+v.ox, ty=VH/2+v.oy, k=v.k;
+  useEffect(()=>{ setView(null); },[visible.length]); // refit when a path opens
+  const raf=useRef(0);
+  const stop=()=>{ if(raf.current){ cancelAnimationFrame(raf.current); raf.current=0; } };
+  useEffect(()=>stop,[]);
+  const glide=(wx,wy)=>{
+    stop();
+    const s0={...v}, x1=-wx*v.k, y1=-wy*v.k, t0=performance.now();
+    let calm=false; try{ calm=!!(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches); }catch(e){}
+    const D=calm?0:320;
+    const step=now=>{ const t=D?Math.min(1,(now-t0)/D):1, e=1-Math.pow(1-t,3);
+      setView({k:s0.k, ox:s0.ox+(x1-s0.ox)*e, oy:s0.oy+(y1-s0.oy)*e});
+      raf.current=t<1?requestAnimationFrame(step):0; };
+    raf.current=requestAnimationFrame(step);
+  };
+  const zoomAt=(px,py,f)=>{ stop(); setView(s0=>{ const s=s0||v; const nk=Math.max(0.35,Math.min(2.5,s.k*f)), r=nk/s.k;
+    const cx=vw/2+s.ox, cy=VH/2+s.oy; const ncx=px-(px-cx)*r, ncy=py-(py-cy)*r; return {k:nk, ox:ncx-vw/2, oy:ncy-VH/2}; }); };
+  const ptrs=useRef({}), lastD=useRef(0);
+  const onDown=e=>{ stop(); ptrs.current[e.pointerId]={x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,cap:false};
+    const ids=Object.keys(ptrs.current);
+    if(ids.length===2){ const a=ptrs.current[ids[0]], b=ptrs.current[ids[1]]; lastD.current=Math.hypot(a.x-b.x,a.y-b.y); a.cap=b.cap=true; try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){} } };
+  const onMove=e=>{ const p=ptrs.current[e.pointerId]; if(!p) return;
+    const ids=Object.keys(ptrs.current), r=e.currentTarget.getBoundingClientRect();
+    if(ids.length>=2){ p.x=e.clientX; p.y=e.clientY; const a=ptrs.current[ids[0]], b=ptrs.current[ids[1]], d=Math.hypot(a.x-b.x,a.y-b.y);
+      if(lastD.current>0&&d>0) zoomAt((a.x+b.x)/2-r.left,(a.y+b.y)/2-r.top,d/lastD.current); lastD.current=d; return; }
+    if(!p.cap){ if(Math.hypot(e.clientX-p.sx,e.clientY-p.sy)>6){ p.cap=true; try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){} } else return; }
+    const dx=e.clientX-p.x, dy=e.clientY-p.y; p.x=e.clientX; p.y=e.clientY;
+    setView(s0=>{ const s=s0||v; return {...s, ox:s.ox+dx, oy:s.oy+dy}; }); };
+  const onUp=e=>{ delete ptrs.current[e.pointerId]; lastD.current=0; };
+  const onWheel=e=>{ const r=e.currentTarget.getBoundingClientRect(); zoomAt(e.clientX-r.left,e.clientY-r.top,Math.exp(-e.deltaY*0.0015)); };
+
+  const X=x=>tx+x*k, Y=y=>ty+y*k;
+  const trim=(x1,y1,x2,y2,t1,t2)=>{ const d=Math.hypot(x2-x1,y2-y1)||1, ux=(x2-x1)/d, uy=(y2-y1)/d; return `M ${x1+ux*t1} ${y1+uy*t1} L ${x2-ux*t2} ${y2-uy*t2} `; };
+  let solid="", dashed="", rings="";
+  const tiers=new Set();
+  visible.forEach(n=>{
+    tiers.add(n.pos.tier);
+    if(!n.parents) solid+=trim(tx,ty,X(n.pos.x),Y(n.pos.y),36,28);
+    else n.parents.filter(p=>visIds.has(p)).forEach(p=>{ const pp=nodes.find(m=>m.id===p).pos; dashed+=trim(X(pp.x),Y(pp.y),X(n.pos.x),Y(n.pos.y),28,28); });
+  });
+  tiers.forEach(t=>{ const rr=(CM_ORBITS[t]??0)*k; rings+=`M ${tx-rr} ${ty} a ${rr} ${rr} 0 1 0 ${2*rr} 0 a ${rr} ${rr} 0 1 0 ${-2*rr} 0 `; });
+
+  const selNode = sel!=="center" && visIds.has(sel) ? nodes.find(n=>n.id===sel) : null;
+  const centerOn = !selNode;
+  const st = selNode&&selNode.real ? classBadgeState(selNode.id, classState) : null;
+  const trialDone = selNode&&selNode.real ? classTrialDone(classState, selNode.id) : false;
+  const funds = selNode&&selNode.real&&st.chosen ? computeFundamentals(selNode.id, sessions, jEnt) : [];
+  const mode = selNode&&st?.chosen&&trialDone ? CLASS_MODE[selNode.id] : null;
+  const btn = {width:"36px",height:"36px",borderRadius:"50%",background:PANEL(0.8),border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:C.muted,padding:0};
+  const hint = centerOn ? "Press Cultivate to practice: Sit, Stand or Walk."
+    : !selNode.real ? "This path is coming. Its practices are still being written."
+    : !st.chosen ? "Open to you. Choose it to begin its trial."
+    : !trialDone ? "Complete this path's trial in the Quest tab. Cultivate opens a plain session until then."
+    : `Press Cultivate to practice ${selNode.name} · ${MODE_LABEL[mode]||"Practice"}.`;
+
+  return (
+    <div style={{paddingBottom:"10px"}}>
+      <div style={{padding:"12px 20px 6px",display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
+        <div>
+          <div style={{...dsp("8px",C.muted,400,"0.24em")}}>ASCEND: INFINITE POTENTIAL</div>
+          <div style={{...dsp("15px",C.cream,400,"0.14em"),marginTop:"3px"}}>CULTIVATE</div>
+        </div>
+        <div style={{...body("11px",C.dim),textAlign:"right",lineHeight:1.35}}>Tap to choose<br/>Drag · pinch to zoom</div>
+      </div>
+      <div ref={wrapRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onWheel={onWheel}
+        style={{position:"relative",width:"100%",height:`${VH}px`,overflow:"hidden",touchAction:"none",cursor:"grab"}}>
+        <svg aria-hidden="true" width={vw} height={VH} viewBox={`0 0 ${vw} ${VH}`} style={{position:"absolute",left:0,top:0,fill:"none",strokeLinecap:"round",pointerEvents:"none"}}>
+          <path d={rings} stroke={INK(0.14)} strokeWidth="1" strokeDasharray="2 6"/>
+          <path d={solid} stroke={INK(0.3)} strokeWidth="1.4"/>
+          <path d={dashed} stroke={INK(0.3)} strokeWidth="1.4" strokeDasharray="4 5"/>
+        </svg>
+        <button type="button" aria-label="The Center" aria-pressed={centerOn} onClick={()=>{ onSelect("center"); glide(0,0); }}
+          style={{position:"absolute",left:tx-32,top:ty-32,width:64,height:64,borderRadius:"50%",padding:0,cursor:"pointer",border:`1.5px solid ${C.gold}`,
+            background:centerOn?`rgba(${C.goldRGB},0.16)`:`rgba(${C.goldRGB},0.06)`,boxShadow:centerOn?`0 0 0 5px rgba(${C.goldRGB},0.18)`:"none",display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <span style={{...dsp("8px",C.gold,400,"0.2em")}}>CENTER</span>
+        </button>
+        {visible.map(n=>{
+          const on=sel===n.id;
+          const chosen=(classState?.chosenClasses||[]).includes(n.id);
+          return (
+            <button key={n.id} type="button" aria-pressed={on} onClick={()=>{ onSelect(n.id); glide(n.pos.x,n.pos.y); }}
+              style={{position:"absolute",left:X(n.pos.x)-44,top:Y(n.pos.y)-24,width:88,padding:0,background:"none",border:0,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
+              <div style={{width:48,height:48,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",color:n.accent,
+                border:`${chosen?2:1.5}px ${n.parents&&!chosen?"dashed":"solid"} ${n.accent}`,background:on?`${n.accent}2e`:C.surf,boxShadow:on?`0 0 0 5px ${n.accent}33`:"none",opacity:n.real?1:0.75}}>
+                {CM_ICONS[n.id] ? <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={CM_ICONS[n.id]}/></svg>
+                  : <span style={{...dsp("19px",n.accent)}}>{n.name[0]}</span>}
+              </div>
+              <span style={{...body("12.5px",on?C.cream:C.muted),lineHeight:"14px",textShadow:`0 0 6px ${C.bg}`}}>{n.name}</span>
+            </button>
+          );
+        })}
+        <div style={{position:"absolute",right:12,bottom:12,display:"flex",flexDirection:"column",gap:6}}>
+          <button type="button" aria-label="Zoom in" onClick={()=>zoomAt(vw/2,VH/2,1.35)} style={btn}><svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M9 3v12M3 9h12"/></svg></button>
+          <button type="button" aria-label="Zoom out" onClick={()=>zoomAt(vw/2,VH/2,1/1.35)} style={btn}><svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 9h12"/></svg></button>
+          <button type="button" aria-label="Fit whole map" onClick={()=>{ stop(); setView(null); }} style={btn}><svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V3h4M11 3h4v4M15 11v4h-4M7 15H3v-4"/></svg></button>
+        </div>
+      </div>
+
+      <div style={{padding:"16px 20px 8px",borderTop:`0.5px solid ${C.bord}`}}>
+        {centerOn ? (<>
+          <div style={{...dsp("8px",C.gold,400,"0.22em")}}>THE CENTER</div>
+          <div style={{...dsp("19px",C.cream,400,"0.06em"),margin:"4px 0 6px"}}>Presence</div>
+          <div style={{...body("14px",C.muted),lineHeight:1.5,marginBottom:"10px"}}>Every path draws on these four, practiced through Sit, Stand and Walk.</div>
+          <div style={{...body("14px",C.cream),lineHeight:1.9}}>Align · Relax · Breath · Attention</div>
+        </>) : (<>
+          <div style={{...dsp("8px",selNode.accent,400,"0.22em")}}>
+            {!selNode.real ? "COMING" : st.chosen ? (st.complete?`MASTERY ${st.level}`:`PATH ${st.done}/${st.total}`) : "OPEN"}
+          </div>
+          <div style={{...dsp("19px",C.cream,400,"0.06em"),margin:"4px 0 6px"}}>{selNode.name}</div>
+          <div style={{...body("14px",C.muted),lineHeight:1.5,marginBottom:"10px"}}>{selNode.blurb}</div>
+          {funds.length>0 && funds.map(f=>(
+            <div key={f.id} style={{display:"flex",alignItems:"baseline",gap:"8px",padding:"6px 0",borderBottom:`0.5px solid ${C.bord}`}}>
+              <span style={{...body("14px",C.cream),flex:1}}>{f.name}</span>
+              <span style={{...body("12px",C.muted)}}>{f.days} {f.days===1?"day":"days"}</span>
+              {f.unit&&<span style={{...body("11px",C.dim),minWidth:"62px",textAlign:"right"}}>best {fmtFundBest(f)}</span>}
+            </div>
+          ))}
+          {selNode.real && !st.chosen && (
+            <button onClick={()=>onChoosePath(selNode.id)} style={{marginTop:"12px",padding:"9px 18px",background:"transparent",border:`0.5px solid ${selNode.accent}`,borderRadius:"6px",cursor:"pointer",...dsp("9px",selNode.accent,400,"0.16em")}}>CHOOSE THIS PATH</button>
+          )}
+          {selNode.real && st.chosen && (
+            <button onClick={()=>onOpenPath(selNode.id)} style={{marginTop:"12px",padding:"8px 16px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"6px",cursor:"pointer",...dsp("8.5px",C.muted,400,"0.16em")}}>OPEN PATH ›</button>
+          )}
+        </>)}
+        <div style={{...body("12px",C.dim),fontStyle:"italic",marginTop:"14px"}}>{hint}</div>
+      </div>
+    </div>
+  );
+}
+
 function PathPortal({ classId, classState, sessions=[], jEnt=[], activities=[], onBack }){
   const cls=CLASS_BY_ID[classId]; if(!cls) return null;
   const st=classBadgeState(classId, classState);
@@ -3784,7 +4014,7 @@ function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onRet
         return (
           <div key={c.id}
             onClick={()=>setSel(isOpen?null:c.id)}
-            style={{border:`0.5px solid ${isOpen?c.accent:isActive?c.accent+"88":C.bord}`,background:isOpen?"rgba(255,255,255,0.03)":C.surf,
+            style={{border:`0.5px solid ${isOpen?c.accent:isActive?c.accent+"88":C.bord}`,background:isOpen?INK(0.03):C.surf,
               borderRadius:"7px",padding:"14px 16px",marginBottom:"10px",cursor:"pointer",transition:"all .2s"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
               <div style={{...dsp("17px",C.cream,500,"0.04em")}}>{c.name}</div>
@@ -3804,7 +4034,7 @@ function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onRet
                 </div>
                 {!isActive && (
                   <button onClick={(e)=>{e.stopPropagation();onChoose(c.id);}}
-                    style={{marginTop:"12px",width:"100%",padding:"11px",background:"rgba(255,255,255,0.04)",
+                    style={{marginTop:"12px",width:"100%",padding:"11px",background:INK(0.04),
                       border:`0.5px solid ${c.accent}`,color:c.accent,...dsp("10px",undefined,400,"0.14em"),
                       cursor:"pointer",borderRadius:"6px"}}>
                     WALK THE PATH OF THE {c.name.toUpperCase()}
@@ -3812,7 +4042,7 @@ function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onRet
                 )}
                 {isActive && (
                   <button onClick={(e)=>{e.stopPropagation();onReturn();}}
-                    style={{marginTop:"12px",width:"100%",padding:"11px",background:"rgba(255,255,255,0.04)",
+                    style={{marginTop:"12px",width:"100%",padding:"11px",background:INK(0.04),
                       border:`0.5px solid ${c.accent}`,color:c.accent,...dsp("10px",undefined,400,"0.14em"),
                       cursor:"pointer",borderRadius:"6px"}}>
                     RETURN TO YOUR PATH
@@ -3877,7 +4107,7 @@ function ActCompleteScreen({ onContinue, act=1 }){
         </div>
       )}
       {showContinue && (
-        <button onClick={onContinue} style={{marginTop:"34px",padding:"11px 26px",background:"rgba(255,255,255,0.03)",
+        <button onClick={onContinue} style={{marginTop:"34px",padding:"11px 26px",background:INK(0.03),
           border:`0.5px solid ${C.gold}`,color:C.goldB,...dsp("9px",undefined,400,"0.16em"),cursor:"pointer",borderRadius:"6px",
           animation:"fadeRise 1.2s ease 0.6s both"}}>
           CONTINUE
@@ -3902,7 +4132,7 @@ function TrialCompleteScreen({ classId, onContinue }){
         ))}
       </div>
       <button onClick={onContinue}
-        style={{marginTop:"8px",padding:"12px 28px",background:"rgba(255,255,255,0.04)",
+        style={{marginTop:"8px",padding:"12px 28px",background:INK(0.04),
           border:`0.5px solid ${cls.accent}`,color:cls.accent,...dsp("10px",undefined,400,"0.16em"),
           cursor:"pointer",borderRadius:"6px"}}>
         BEGIN THE PATH OF THE {cls.name.toUpperCase()}
@@ -4006,7 +4236,7 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
   return (
     <div style={{padding:"8px 0 4px"}}>
       {fullyComplete && (
-        <div style={{marginBottom:"22px",padding:"14px 16px",borderRadius:"8px",border:`0.5px solid ${cls.accent}55`,background:"rgba(255,255,255,0.02)"}}>
+        <div style={{marginBottom:"22px",padding:"14px 16px",borderRadius:"8px",border:`0.5px solid ${cls.accent}55`,background:INK(0.02)}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:"8px"}}>
             <div style={{...dsp("13px",cls.accent,500,"0.08em")}}>{cls.name.toUpperCase()} MASTERY {masteryLvl}</div>
             {!isActivePath && <div style={{...body("10px",C.dim),fontStyle:"italic"}}>accruing · go active to use bonuses</div>}
@@ -4046,7 +4276,7 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
               {i<numbered.length-1 && <div style={{width:"1px",flex:1,minHeight:"22px",background:complete?`${cls.accent}55`:C.bord,marginTop:"4px"}}/>}
             </div>
             <div onClick={()=>{ if(active||complete) onOpenQuest(q.id); }}
-              style={{flex:1,background:complete?"rgba(255,255,255,0.02)":active?C.surf:"transparent",
+              style={{flex:1,background:complete?INK(0.02):active?C.surf:"transparent",
                 border:`0.5px solid ${complete?`${cls.accent}44`:active?C.sageB:C.bord}`,borderRadius:"6px",
                 padding:"11px 14px",cursor:(active||complete)?"pointer":"default",opacity:active||complete?1:0.4,
                 marginBottom:"8px",transition:"all .2s"}}>
@@ -4309,7 +4539,7 @@ function ForgeMovement({ mv, value, surfacedEntry, onChange }){
     <div>
       <div style={{...dsp("10px",FORGE_ACCENT,400,"0.22em"),marginBottom:"10px"}}>{mv.label.toUpperCase()}</div>
       {surfacedEntry && (
-        <div style={{background:"rgba(255,255,255,0.03)",border:`0.5px solid ${C.bord}`,borderLeft:`2px solid ${FORGE_ACCENT}66`,borderRadius:"6px",padding:"10px 12px",marginBottom:"12px"}}>
+        <div style={{background:INK(0.03),border:`0.5px solid ${C.bord}`,borderLeft:`2px solid ${FORGE_ACCENT}66`,borderRadius:"6px",padding:"10px 12px",marginBottom:"12px"}}>
           <div style={{...dsp("8px",C.muted,400,"0.18em"),marginBottom:"5px"}}>YOU WROTE, EARLIER ON THE PATH</div>
           <div style={{...body("12px",C.muted),fontStyle:"italic",lineHeight:"1.7",maxHeight:"110px",overflowY:"auto",whiteSpace:"pre-wrap"}}>{surfacedEntry}</div>
         </div>
@@ -4389,7 +4619,7 @@ function ForgeFlow({ way, onWayChange, jEnt, onOpenAnchor, onSeal }){
           {story && (
             <div style={{marginBottom:"16px"}}>
               <div style={{...body("13px",C.cream),fontStyle:"italic",lineHeight:"1.8",marginBottom:"10px"}}>One more thing, before it is sealed. Read this.</div>
-              <div style={{background:"rgba(255,255,255,0.03)",border:`0.5px solid ${C.bord}`,borderRadius:"6px",padding:"12px",marginBottom:"10px"}}>
+              <div style={{background:INK(0.03),border:`0.5px solid ${C.bord}`,borderRadius:"6px",padding:"12px",marginBottom:"10px"}}>
                 <div style={{...dsp("8px",C.muted,400,"0.18em"),marginBottom:"5px"}}>THE STORY YOU WERE LIVING · WRITTEN AT THE START OF THIS ACT</div>
                 <div style={{...body("12px",C.muted),fontStyle:"italic",lineHeight:"1.7",maxHeight:"140px",overflowY:"auto",whiteSpace:"pre-wrap"}}>{story}</div>
               </div>
@@ -4572,7 +4802,7 @@ function ForgeFlow({ way, onWayChange, jEnt, onOpenAnchor, onSeal }){
                 Glows while pending so completing a part never *looks* like a
                 dead end — the one remaining step stays impossible to miss. */}
             {st==="done" && g && (
-              <div style={{margin:"6px 0 0 18px",padding:"10px 12px",background:gMet?"rgba(255,255,255,0.02)":"rgba(216,120,60,0.05)",border:`0.5px solid ${gMet?`${C.sageB}55`:`${FORGE_ACCENT}77`}`,borderRadius:"6px",animation:gMet?"none":"questGlow 2.6s ease-in-out infinite"}}>
+              <div style={{margin:"6px 0 0 18px",padding:"10px 12px",background:gMet?INK(0.02):"rgba(216,120,60,0.05)",border:`0.5px solid ${gMet?`${C.sageB}55`:`${FORGE_ACCENT}77`}`,borderRadius:"6px",animation:gMet?"none":"questGlow 2.6s ease-in-out infinite"}}>
                 <div style={{...dsp("9px",gMet?C.sageB:FORGE_ACCENT_B,400,"0.14em"),marginBottom:"4px"}}>{gMet?"✓ BETWEEN THE FIRES · ":"ONE STEP BEFORE THE NEXT FIRE · "}{g.label.toUpperCase()}</div>
                 <div style={{...body("11px",C.muted),fontStyle:"italic",lineHeight:"1.6",marginBottom:gMet?0:"8px"}}>{g.desc}</div>
                 {!gMet && g.key!=="strikeOnce" && (
@@ -4651,7 +4881,7 @@ function ForgeSection({ way, onWayChange, onAwardWayXP }){
       )}
 
       {/* ── The Way — the most honored, least interactive object here ── */}
-      <button onClick={()=>setWayOpen(o=>!o)} style={{width:"100%",textAlign:"left",background:"rgba(255,255,255,0.02)",border:`0.5px solid ${C.goldDim||C.bord}`,borderRadius:"8px",padding:"14px 16px",cursor:"pointer",marginBottom:"14px"}}>
+      <button onClick={()=>setWayOpen(o=>!o)} style={{width:"100%",textAlign:"left",background:INK(0.02),border:`0.5px solid ${C.goldDim||C.bord}`,borderRadius:"8px",padding:"14px 16px",cursor:"pointer",marginBottom:"14px"}}>
         <div style={{...dsp("9px",C.gold,400,"0.22em"),marginBottom:"8px"}}>THE WAY</div>
         <div style={{...body("14px",C.cream),fontStyle:"italic",lineHeight:"1.8"}}>"{way.calling.sentence}"</div>
         {(way.commitments||[]).filter(cm=>cm.identityLine).map(cm=>(
@@ -5055,7 +5285,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                                 {sc.key&&<div style={{...dsp("10px",done?C.sageB:C.muted,400,"0.06em")}}>{Math.min(chStats[sc.key]||0,sc.xpTarget)}/{sc.xpTarget} XP</div>}
                               </div>
                               {sc.key&&!done&&rDone&&(
-                                <div style={{marginTop:"4px",height:"3px",background:"rgba(255,255,255,0.08)",borderRadius:"2px",overflow:"hidden"}}>
+                                <div style={{marginTop:"4px",height:"3px",background:INK(0.08),borderRadius:"2px",overflow:"hidden"}}>
                                   <div style={{height:"100%",width:`${Math.min(100,((chStats[sc.key]||0)/sc.xpTarget)*100)}%`,background:statColor,borderRadius:"2px",transition:"width 0.4s"}}/>
                                 </div>
                               )}
@@ -5084,7 +5314,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                 <div style={{marginBottom:"20px"}}>
                   <div style={{...dsp("9px",C.muted,400,"0.2em"),marginBottom:"8px"}}>INVITATIONS</div>
                   {(CHAPTER_REQUIREMENTS[readingN]?.invitations||[]).map((iv,i)=>(
-                    <div key={i} style={{padding:"9px 12px",background:"rgba(255,255,255,0.02)",border:`0.5px solid ${C.bord}`,borderRadius:"6px",marginBottom:"6px"}}>
+                    <div key={i} style={{padding:"9px 12px",background:INK(0.02),border:`0.5px solid ${C.bord}`,borderRadius:"6px",marginBottom:"6px"}}>
                       <div style={{...dsp("10px",C.cream,400,"0.08em"),marginBottom:"3px"}}>{iv.t}</div>
                       <div style={{...body("11px",C.muted),fontStyle:"italic",lineHeight:"1.6"}}>{iv.d}</div>
                     </div>
@@ -5161,7 +5391,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
     <div>
       <div style={{position:"relative"}}>
         <RidgelineScene h={190}/>
-        <div style={{position:"absolute",inset:0,background:`linear-gradient(to bottom, rgba(13,20,15,0) 35%, ${C.bg} 100%)`}}/>
+        <div style={{position:"absolute",inset:0,background:`linear-gradient(to bottom, ${PANEL(0)} 35%, ${C.bg} 100%)`}}/>
         <div style={{position:"absolute",top:"14px",left:"20px"}}>
           <span style={{...dsp("13px",C.cream,400,"0.16em")}}>QUEST</span>
         </div>
@@ -5338,7 +5568,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
           <div style={{paddingTop:"4px"}}>
             <div style={{...body("14px",C.muted),lineHeight:"1.6",marginBottom:"20px",fontStyle:"italic"}}>The oldest practice — voice carried into stillness, available on any path.</div>
             {chantUnlocked ? (
-              <div style={{background:"rgba(255,255,255,0.02)",border:`0.5px solid ${C.sageB}44`,borderRadius:"6px",padding:"11px 14px"}}>
+              <div style={{background:INK(0.02),border:`0.5px solid ${C.sageB}44`,borderRadius:"6px",padding:"11px 14px"}}>
                 <div style={{...dsp("8px",C.sageB,400,"0.16em"),marginBottom:"3px"}}>COMPLETE</div>
                 <div style={{...body("15px",C.cream)}}>{CHANT_QUEST.title}</div>
                 <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>Chant is yours. Find it under Activities in any practice.</div>
@@ -5878,7 +6108,7 @@ function WorldView({ zones=[], userPos, onSelectCluster, onReturnToLocal, onClos
 
   const me = userPos ? (()=>{ const w=toWorld(userPos.lat,userPos.lng); return toScreen(w.x,w.y); })() : null;
   const onScreen = (sx,sy,m=40) => sx>-m && sx<cw+m && sy>-m && sy<ch+m;
-  const ctrlBtn={width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"};
+  const ctrlBtn={width:"36px",height:"36px",borderRadius:"50%",background:PANEL(0.75),border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"};
 
   return (
     <div style={{position:"absolute",inset:0,background:C.bg,display:"flex",flexDirection:"column"}}>
@@ -6343,9 +6573,9 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
                     ? <polygon points="5,1.5 9,1.5 13,11 1,11" fill={fill} stroke={stroke} strokeWidth="0.9" strokeLinejoin="round"/>
                     : <polygon points="7,1 13,11 1,11" fill={fill} stroke={stroke} strokeWidth="0.9" strokeLinejoin="round"/>}
                 </svg>
-                {pk.name&&labeledPeakIds.has(pk.id)&&!isOpen&&<div style={{...body("8px",C.muted),whiteSpace:"nowrap",textShadow:"0 0 4px rgba(13,20,15,0.9)"}}>{pk.name}</div>}
+                {pk.name&&labeledPeakIds.has(pk.id)&&!isOpen&&<div style={{...body("8px",C.muted),whiteSpace:"nowrap",textShadow:`0 0 4px ${PANEL(0.9)}`}}>{pk.name}</div>}
                 {isOpen&&(
-                  <div style={{position:"absolute",bottom:"calc(100% + 6px)",left:"50%",transform:"translateX(-50%)",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.cream}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
+                  <div style={{position:"absolute",bottom:"calc(100% + 6px)",left:"50%",transform:"translateX(-50%)",background:PANEL(0.95),border:`0.5px solid ${C.cream}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
                     <div style={{...body("11px",climbed?C.goldB:C.cream),marginBottom:"2px"}}>{pk.name||"Unnamed summit"}</div>
                     {(climbed||ascentDays[pk.id])&&<div style={{...dsp("8px",C.gold,400,"0.16em"),marginBottom:"3px"}}>SUMMITED{ascentDays[pk.id]?` · ${ascentDays[pk.id]}×`:""}</div>}
                     <div style={{...body("10px",C.muted)}}>{[pk.ele!=null?fmtEle(pk.ele):null, `${fmtDist(pk.dist)} away`].filter(Boolean).join(" · ")}</div>
@@ -6369,7 +6599,7 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
                     <line x1="1" y1="4.5" x2="8" y2="4.5" stroke={isOpen?C.sageB:"rgba(163,192,137,0.55)"} strokeWidth="1" strokeLinecap="round"/>
                   </svg>
                   {isOpen&&(
-                    <div style={{position:"absolute",bottom:"calc(100% + 7px)",left:"50%",transform:`translateX(-50%) scale(${1/zoom})`,transformOrigin:"center bottom",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
+                    <div style={{position:"absolute",bottom:"calc(100% + 7px)",left:"50%",transform:`translateX(-50%) scale(${1/zoom})`,transformOrigin:"center bottom",background:PANEL(0.95),border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
                       <div style={{...body("11px",C.cream),marginBottom:"2px"}}>{p.tag||"Anchored"}</div>
                       <div style={{...body("10px",C.muted)}}>{p.date?p.date.match(/^\d{4}-\d{2}-\d{2}$/)?new Date(p.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):p.date:""}{p.duration?` · ${p.duration} min`:""}{p.ele!=null?` · ${fmtEle(p.ele)}`:""}</div>
                     </div>
@@ -6382,12 +6612,12 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
                 style={{position:"absolute",left:`${p.rx}%`,top:`${p.ry}%`,transform:"translate(-50%,-50%)",display:"flex",flexDirection:"column",alignItems:"center",gap:"3px",cursor:"pointer",zIndex:isOpen?5:1}}>
                 <svg width="13" height="13" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill={isOpen?"rgba(163,192,137,0.22)":"rgba(163,192,137,0.12)"} stroke={C.sageB} strokeWidth="0.6"/><line x1="7" y1="5" x2="7" y2="9" stroke={C.sageB} strokeWidth="0.7"/><line x1="5" y1="7" x2="9" y2="7" stroke={C.sageB} strokeWidth="0.7"/></svg>
                 {isOpen&&(
-                  <div style={{position:"absolute",bottom:"calc(100% + 7px)",left:"50%",transform:`translateX(-50%) scale(${1/zoom})`,transformOrigin:"center bottom",background:"rgba(13,20,15,0.95)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
+                  <div style={{position:"absolute",bottom:"calc(100% + 7px)",left:"50%",transform:`translateX(-50%) scale(${1/zoom})`,transformOrigin:"center bottom",background:PANEL(0.95),border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
                     <div style={{...body("11px",C.cream),marginBottom:"2px"}}>{p.tag||"Anchored"}</div>
                     <div style={{...body("10px",C.muted)}}>{p.date?p.date.match(/^\d{4}-\d{2}-\d{2}$/)?new Date(p.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):p.date:""}{p.duration?` · ${p.duration} min`:""}{p.ele!=null?` · ${fmtEle(p.ele)}`:""}</div>
                   </div>
                 )}
-                {p.tag&&!isOpen&&<div style={{background:"rgba(13,20,15,0.85)",border:`0.5px solid ${C.bord}`,borderRadius:"3px",padding:"1px 5px",...body("8px",C.sage),whiteSpace:"nowrap"}}>{p.tag}</div>}
+                {p.tag&&!isOpen&&<div style={{background:PANEL(0.85),border:`0.5px solid ${C.bord}`,borderRadius:"3px",padding:"1px 5px",...body("8px",C.sage),whiteSpace:"nowrap"}}>{p.tag}</div>}
               </div>
             );
           })}
@@ -6396,7 +6626,7 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
         {/* Horizon — off-frame named peaks pinned to the edge, pointing their way */}
         {horizonPeaks.map(pk=>(
           <div key={`hz-${pk.id}`} onClick={e=>{e.stopPropagation();centerOnPeak(pk);}}
-            style={{position:"absolute",left:`${pk.px}px`,top:`${pk.py}px`,transform:"translate(-50%,-50%)",zIndex:4,display:"flex",alignItems:"center",gap:"5px",maxWidth:`${PILL_HALF*2-4}px`,padding:"3px 8px 3px 6px",borderRadius:"10px",background:"rgba(13,20,15,0.78)",border:`0.5px solid ${C.bord}`,backdropFilter:"blur(4px)",cursor:"pointer"}}>
+            style={{position:"absolute",left:`${pk.px}px`,top:`${pk.py}px`,transform:"translate(-50%,-50%)",zIndex:4,display:"flex",alignItems:"center",gap:"5px",maxWidth:`${PILL_HALF*2-4}px`,padding:"3px 8px 3px 6px",borderRadius:"10px",background:PANEL(0.78),border:`0.5px solid ${C.bord}`,backdropFilter:"blur(4px)",cursor:"pointer"}}>
             <svg width="9" height="9" viewBox="0 0 10 10" style={{flexShrink:0,transform:`rotate(${pk.angle}deg)`}}><path d="M2 2 L8 5 L2 8" fill="none" stroke={C.cream} strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>
             <span style={{...body("9px",C.cream),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pk.name}</span>
             <span style={{...body("8px",C.dim),flexShrink:0}}>{fmtDist(pk.dist)}</span>
@@ -6405,24 +6635,24 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
 
         {/* Fixed controls (not part of pannable canvas) */}
         <div style={{position:"absolute",bottom:"80px",right:"14px",display:"flex",flexDirection:"column",gap:"6px",zIndex:4}}>
-          <button onClick={()=>setMode("world")} title="World view" style={{width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+          <button onClick={()=>setMode("world")} title="World view" style={{width:"36px",height:"36px",borderRadius:"50%",background:PANEL(0.75),border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
             <svg width="17" height="17" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke={C.sageB} strokeWidth="1"/><ellipse cx="10" cy="10" rx="3.4" ry="8" stroke={C.sageB} strokeWidth="0.8"/><line x1="2" y1="10" x2="18" y2="10" stroke={C.sageB} strokeWidth="0.8"/><path d="M3.3 6 H16.7 M3.3 14 H16.7" stroke={C.sageB} strokeWidth="0.6"/></svg>
           </button>
-          <button onClick={handleLocate} style={{width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+          <button onClick={handleLocate} style={{width:"36px",height:"36px",borderRadius:"50%",background:PANEL(0.75),border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
             {locating?<div style={{width:"12px",height:"12px",borderRadius:"50%",border:`1.5px solid ${C.sageB}`,borderTopColor:"transparent",animation:"spin 0.8s linear infinite"}}/>
             :<svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" fill={C.sageB}/><circle cx="10" cy="10" r="7" stroke={C.sageB} strokeWidth="1" fill="none"/><line x1="10" y1="1" x2="10" y2="4" stroke={C.sageB} strokeWidth="1.2"/><line x1="10" y1="16" x2="10" y2="19" stroke={C.sageB} strokeWidth="1.2"/><line x1="1" y1="10" x2="4" y2="10" stroke={C.sageB} strokeWidth="1.2"/><line x1="16" y1="10" x2="19" y2="10" stroke={C.sageB} strokeWidth="1.2"/></svg>}
           </button>
           {(zoom!==1||pan.x!==0||pan.y!==0)&&(
-            <button onClick={resetView} title="Reset view" style={{width:"36px",height:"36px",borderRadius:"50%",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",...body("11px",C.muted)}}>
+            <button onClick={resetView} title="Reset view" style={{width:"36px",height:"36px",borderRadius:"50%",background:PANEL(0.75),border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",...body("11px",C.muted)}}>
               ⌂
             </button>
           )}
-          <div style={{width:"36px",padding:"4px 0",borderRadius:"8px",background:"rgba(13,20,15,0.75)",border:`0.5px solid ${C.bord}`,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",...body("8px",C.dim),whiteSpace:"nowrap",letterSpacing:"0"}}>
+          <div style={{width:"36px",padding:"4px 0",borderRadius:"8px",background:PANEL(0.75),border:`0.5px solid ${C.bord}`,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",...body("8px",C.dim),whiteSpace:"nowrap",letterSpacing:"0"}}>
             {Math.round(zoom*100)}%
           </div>
         </div>
         {viewingCluster && (
-          <div style={{position:"absolute",top:"14px",left:"50%",transform:"translateX(-50%)",zIndex:5,background:"rgba(13,20,15,0.85)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"6px 14px",...body("11px",C.sageB),fontStyle:"italic",backdropFilter:"blur(4px)"}}>
+          <div style={{position:"absolute",top:"14px",left:"50%",transform:"translateX(-50%)",zIndex:5,background:PANEL(0.85),border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"6px 14px",...body("11px",C.sageB),fontStyle:"italic",backdropFilter:"blur(4px)"}}>
             Viewing a distant place — not where you are now
           </div>
         )}
@@ -6716,7 +6946,7 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, pen
   return (
     <Overlay title={mode==="reflect"?"Reflection":"Journal"} onBack={onBack}>
       {mode==="reflect" && pendingReflection && (
-        <div style={{background:"rgba(255,255,255,0.03)",border:`0.5px solid ${C.bord}`,borderLeft:`2px solid ${C.gold}66`,borderRadius:"6px",padding:"12px 14px",marginBottom:"16px"}}>
+        <div style={{background:INK(0.03),border:`0.5px solid ${C.bord}`,borderLeft:`2px solid ${C.gold}66`,borderRadius:"6px",padding:"12px 14px",marginBottom:"16px"}}>
           <div style={{...dsp("8px",C.gold,400,"0.2em"),marginBottom:"6px"}}>{(pendingReflection.label||"GUIDED REFLECTION").toUpperCase()}</div>
           <div style={{...body("13px",C.cream),fontStyle:"italic",lineHeight:"1.75"}}>{pendingReflection.prompt}</div>
         </div>
@@ -6822,7 +7052,7 @@ function LogsScreen({ onBack, sessions, jEntries }){
                             {s.activities.filter(a=>s.loggedCounts?.[a.id]!=null).map((a,j)=>{
                               const v=s.loggedCounts[a.id];
                               const display = a.unit==="minutes" ? `${v.toFixed(1)} min` : `${v}${a.unit?" "+a.unit:""}`;
-                              return <span key={j} style={{fontSize:"10px",color:C.cream,background:"rgba(255,255,255,0.04)",border:`0.5px solid ${C.bord}`,padding:"1px 7px",borderRadius:"10px"}}>{a.name}: {display}</span>;
+                              return <span key={j} style={{fontSize:"10px",color:C.cream,background:INK(0.04),border:`0.5px solid ${C.bord}`,padding:"1px 7px",borderRadius:"10px"}}>{a.name}: {display}</span>;
                             })}
                           </div>
                         )}
@@ -7045,10 +7275,12 @@ function SettingsScreen({ onBack, name, setName, theme, setTheme,
       <div style={{padding:"16px 0 4px"}}>
         <div style={{...body("14px",C.cream),marginBottom:"10px"}}>Theme</div>
         <div style={{display:"flex",gap:"8px"}}>
-          {Object.entries(THEMES).map(([key,t])=>{
+          {THEME_CHOICES.map(key=>{
             const on=theme===key;
+            const isSys=key==="system";
+            const t = isSys ? {label:"System", bg:THEMES.light.bg, surf2:THEMES.charcoal.bg, bord:THEMES.light.bord} : THEMES[key];
             return (
-              <button key={key} onClick={()=>setTheme(key)} style={{flex:1,padding:"7px 4px",borderRadius:"6px",cursor:"pointer",background:on?"rgba(163,192,137,0.08)":"transparent",border:"none",display:"flex",flexDirection:"column",alignItems:"center",gap:"5px",transition:"all .2s"}}>
+              <button key={key} onClick={()=>setTheme(key)} style={{flex:1,padding:"7px 4px",borderRadius:"6px",cursor:"pointer",background:on?`rgba(${C.sageRGB},0.1)`:"transparent",border:"none",display:"flex",flexDirection:"column",alignItems:"center",gap:"5px",transition:"all .2s"}}>
                 <div style={{width:"24px",height:"24px",borderRadius:"50%",background:t.bg,border:`1px solid ${on?C.sageB:t.bord}`,overflow:"hidden",position:"relative"}}>
                   <div style={{position:"absolute",bottom:0,left:0,right:0,height:"50%",background:t.surf2}}/>
                   <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:"8px",height:"8px",borderRadius:"50%",background:ACCENTS.gold,opacity:0.9,zIndex:1}}/>
@@ -7342,7 +7574,12 @@ export default function AscendApp(){
   /* hydrate once on mount */
   const P = useMemo(loadPersisted, []);
 
-  const [tab,setTab]=useState(P.tab ?? "quest");
+  const [tab,setTab]=useState("cultivate"); // the app always opens on Cultivate
+  /* What the Cultivate map has selected ("center" or a path id). A per-device
+     convenience, kept outside the save blob. */
+  const [cultSel,setCultSelState]=useState(()=>{ try{ return localStorage.getItem("ascend_cultivate_sel")||"center"; }catch(e){ return "center"; } });
+  const setCultSel=v=>{ setCultSelState(v); try{ localStorage.setItem("ascend_cultivate_sel", v); }catch(e){} };
+  const [anchStartType,setAnchStartType]=useState(null);
   const [scr,setScr]=useState(null);
   const [journalDraft,setJournalDraft]=useState("");
   const [savePending,setSavePending]=useState(null);
@@ -7419,7 +7656,8 @@ export default function AscendApp(){
   const [pendingInquiry,setPendingInquiry]=useState(null);
   const [hasAnchored,setHasAnchored]=useState(P.hasAnchored ?? false);
   const [devMode,setDevMode]=useState(false);
-  const [theme,setTheme]=useState(P.theme ?? "navy");
+  const [theme,setTheme]=useState(P.theme ?? "system");
+  const [,setSysThemeTick]=useState(0);
   const [fontScale,setFontScale]=useState(P.fontScale ?? 1.0);
   const [guidedSession,setGuidedSession]=useState(()=>{
     /* One-time migration, computed once at load — not a recurring check.
@@ -7438,6 +7676,15 @@ export default function AscendApp(){
   const [autoCloudSync,setAutoCloudSync]=useState(P.autoCloudSync ?? true);
   const [splashImgLoaded,setSplashImgLoaded]=useState(false);
   applyTheme(theme);
+  useEffect(()=>{ try{ document.title="Ascend: Infinite Potential"; }catch(e){} },[]);
+  /* System theme follows the device live: re-render when it flips light/dark. */
+  useEffect(()=>{
+    if(theme!=="system" || !window.matchMedia) return;
+    const mq=window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange=()=>{ applyTheme("system"); setSysThemeTick(n=>n+1); };
+    try{ mq.addEventListener("change", onChange); }catch(e){ try{ mq.addListener(onChange); }catch(_){} }
+    return ()=>{ try{ mq.removeEventListener("change", onChange); }catch(e){ try{ mq.removeListener(onChange); }catch(_){} } };
+  },[theme]);
   // Fade out the HTML loading splash when React mounts
   useEffect(()=>{
     const s=document.getElementById("splash");
@@ -7721,7 +7968,7 @@ export default function AscendApp(){
     setSessions([]); setJEnt([]); setPins([]); setRevealZones([]); setZonesMigrated(true);
     setTypes(TYPES); setLibrary(Object.fromEntries(TYPES.map(t=>[t.id,[]])));
     setCompletedChapters([]); setHasAnchored(false); setClassState(freshClassState()); setChantUnlocked(false); setWay(freshWay());
-    setTheme("forest"); applyTheme("forest");
+    setTheme("system"); applyTheme("system");
     setOnboarding("brand"); setTab("quest"); setScr(null); setAnch(false);
   };
 
@@ -8418,7 +8665,7 @@ export default function AscendApp(){
           </button>
           <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"40px 30px",textAlign:"center"}}>
             <SplashLogo size={270} onLoad={()=>setSplashImgLoaded(true)}/>
-            {!splashImgLoaded && <div style={{...dsp("30px",C.gold,500,"0.28em"),marginTop:"22px"}}>ASCEND</div>}
+            {!splashImgLoaded && <div style={{textAlign:"center",marginTop:"22px"}}><div style={{...dsp("30px",C.gold,500,"0.28em")}}>ASCEND</div><div style={{...dsp("10px",C.muted,400,"0.32em"),marginTop:"8px"}}>INFINITE POTENTIAL</div></div>}
             <div style={{...body("15px",C.muted),marginTop:"16px",lineHeight:"1.7",fontStyle:"italic"}}>Presence. Embodiment.<br/>Participation.</div>
             <button onClick={()=>setOnboarding("intro")} style={{marginTop:"48px",padding:"13px 44px",background:"linear-gradient(rgba(163,192,137,0.16),rgba(163,192,137,0.06))",border:`0.5px solid ${C.sageB}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.sageB,400,"0.22em")}}>BEGIN THE CLIMB</button>
           </div>
@@ -8530,7 +8777,7 @@ export default function AscendApp(){
                     Array.from({length:Math.ceil((sc.body?.length||1)/2)},(_,pi)=>{
                       const active = si===ob1Scene && pi===ob1ParaPage;
                       const past   = si<ob1Scene || (si===ob1Scene && pi<ob1ParaPage);
-                      return <div key={`${si}-${pi}`} style={{width:active?"16px":"5px",height:"5px",borderRadius:"3px",background:active?"rgba(201,168,76,0.9)":past?"rgba(122,160,96,0.6)":"rgba(255,255,255,0.2)",transition:"all .3s"}}/>;
+                      return <div key={`${si}-${pi}`} style={{width:active?"16px":"5px",height:"5px",borderRadius:"3px",background:active?"rgba(201,168,76,0.9)":past?"rgba(122,160,96,0.6)":INK(0.2),transition:"all .3s"}}/>;
                     })
                   )}
                 </div>
@@ -8609,13 +8856,24 @@ export default function AscendApp(){
           <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities} classState={classState} classGateOpen={classGateOpen} onOpenPath={cid=>{setPathView(cid);setScr("path");}}/></div>
           <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
             classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}/></div>
+          <div style={{display:tab==="cultivate"?"block":"none"}}><CultivateTab classState={classState} sessions={sessions} jEnt={jEnt} gateOpen={classGateOpen}
+            sel={cultSel} onSelect={setCultSel} onOpenPath={cid=>{setPathView(cid);setScr("path");}}
+            onChoosePath={cid=>{chooseClass(cid);setTab("quest");}}/></div>
           <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones} savedPos={lastKnownPos} onLocationConfirmed={setLastKnownPos} active={tab==="map"}
             onZoneSeen={(id,r)=>setRevealZones(zs=>zs.map(z=>z.id===id&&!((z.seenR??0)>=r)?{...z,seenR:r}:z))}/></div>
           <div style={{display:tab==="library"?"block":"none"}}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)} collapsed={libCollapsed} setCollapsed={setLibCollapsed} classState={classState} chantUnlocked={chantUnlocked}/></div>
         </div>
 
         {/* floating anchor button */}
-        <button onClick={()=>{setScr(null);setAnch(true);}} aria-label="Anchor" style={{position:"absolute",bottom:"calc(-7px + env(safe-area-inset-bottom))",left:"50%",transform:"translateX(-50%)",zIndex:showActComplete?0:261,opacity:showActComplete?0:1,transition:"opacity .8s ease",pointerEvents:showActComplete?"none":"auto",border:"none",background:"none",cursor:"pointer",padding:0,filter:anch?`drop-shadow(0 0 16px rgba(201,168,76,0.85)) drop-shadow(0 -2px 8px ${C.glow})`:`drop-shadow(0 -2px 10px ${C.glow})`}}>
+        <button onClick={()=>{
+            /* Away from Cultivate, the button brings you home to the map.
+               On the map, it starts the practice the map has selected. */
+            if(tab!=="cultivate" || scr){ setScr(null); setAnch(false); setTab("cultivate"); return; }
+            const cid=cultSel;
+            const ready = cid!=="center" && (classState?.chosenClasses||[]).includes(cid) && trialComplete(cid) && CLASS_MODE[cid];
+            setAnchStartType(ready ? CLASS_MODE[cid] : null);
+            setAnch(true);
+          }} aria-label="Cultivate" style={{position:"absolute",bottom:"calc(-7px + env(safe-area-inset-bottom))",left:"50%",transform:"translateX(-50%)",zIndex:showActComplete?0:261,opacity:showActComplete?0:1,transition:"opacity .8s ease",pointerEvents:showActComplete?"none":"auto",border:"none",background:"none",cursor:"pointer",padding:0,filter:anch?`drop-shadow(0 0 16px rgba(201,168,76,0.85)) drop-shadow(0 -2px 8px ${C.glow})`:`drop-shadow(0 -2px 10px ${C.glow})`}}>
           <svg width="82" height="103" viewBox="0 0 70 88" style={{display:"block"}}>
             {/* ── Anchor_1.svg glyph (active) ── */}
             <circle cx="35" cy="30" r="28" fill={C.surf}/>
@@ -8630,7 +8888,7 @@ export default function AscendApp(){
             <rect x="27"   y="45" width="16" height="2.6" rx="1" fill={C.gold}/>
             <rect x="33.5" y="52" width="3"  height="2.6" rx="0.5" fill={C.gold}/>
             ── */}
-            <text x="35" y="75" textAnchor="middle" fontSize="8" fill={anch?C.gold:C.muted} fontFamily="Cinzel,serif" letterSpacing="1.5">ANCHOR</text>
+            <text x="35" y="75" textAnchor="middle" fontSize="7.4" fill={(anch||tab==="cultivate")?C.gold:C.muted} fontFamily="Cinzel,serif" letterSpacing="1.1">CULTIVATE</text>
           </svg>
         </button>
 
@@ -8738,7 +8996,7 @@ export default function AscendApp(){
               </div>
               <div style={{...dsp("18px",C.cream,500,"0.04em"),marginBottom:"18px"}}>{justCompletedQuest.title}</div>
               <button onClick={()=>setJustCompletedQuest(null)}
-                style={{padding:"9px 22px",background:"rgba(255,255,255,0.04)",border:`0.5px solid ${justCompletedQuest.accent}`,
+                style={{padding:"9px 22px",background:INK(0.04),border:`0.5px solid ${justCompletedQuest.accent}`,
                   color:justCompletedQuest.accent,...dsp("9px",undefined,400,"0.14em"),cursor:"pointer",borderRadius:"6px"}}>
                 CONTINUE
               </button>
@@ -8754,7 +9012,7 @@ export default function AscendApp(){
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
         {scr==="path"&&pathView&&<PathPortal classId={pathView} classState={classState} sessions={sessions} jEnt={jEnt} activities={activities} onBack={()=>setScr(null)}/>}
         {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} timerVisibility={timerVisibility} setTimerVisibility={setTimerVisibility} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onDeleteCloud={handleDeleteCloud} onSignOut={handleSignOut} onVerified={handleVerified} autoCloudSync={autoCloudSync} setAutoCloudSync={setAutoCloudSync}/>}
-        {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchInitType} reflectUnlocked={!!classState?.questProgress?.s_reflect || (classState?.activeClass==="sage" && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={classState?.activeClass||null} unlocks={anchorUnlocks(completedChapters)} guideCues={!anchorUnlocks(completedChapters).modifiers ? [
+        {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchStartType || (["sitting","standing","walking"].includes(anchInitType) ? anchInitType : "sitting")} reflectUnlocked={!!classState?.questProgress?.s_reflect || (classState?.activeClass==="sage" && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={classState?.activeClass||null} unlocks={anchorUnlocks(completedChapters)} guideCues={!anchorUnlocks(completedChapters).modifiers ? [
           {s:0,  e:5,  text:"Sit comfortably."},
           {s:5,  e:10, text:"Let your eyes soften or close."},
           {s:10, e:50, text:"This is your time to simply be here, breathing, for as long as feels right."},
