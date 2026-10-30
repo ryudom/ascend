@@ -12,8 +12,8 @@ const THEMES = {
   forest:   { label:"Forest",   bg:"#0d140f", bg2:"#101a13", surf:"#16211a", surf2:"#1d2a20", bord:"#27362b", txt:"#e6e1d2", cream:"#d9d1bb", muted:"#8b9684", dim:"#46523f", slate:"#6f8088" },
   navy:     { label:"Navy",     bg:"#0c1018", bg2:"#0e1622", surf:"#141d2b", surf2:"#1b2638", bord:"#283446", txt:"#e2e5ee", cream:"#cfd5e2", muted:"#838ea2", dim:"#3c465a", slate:"#6f8094" },
   charcoal: { label:"Charcoal", bg:"#101011", bg2:"#141416", surf:"#1a1b1d", surf2:"#222426", bord:"#313234", txt:"#e6e3df", cream:"#d6d2ca", muted:"#8d8c88", dim:"#4a4a48", slate:"#76787c" },
-  light:    { label:"Light",    bg:"#f3efe6", bg2:"#ebe6da", surf:"#fbf9f4", surf2:"#efe9dd", bord:"#d6cdbb", txt:"#2b2a25", cream:"#35322b", muted:"#6c675b", dim:"#9e9787", slate:"#56636b",
-              light:true, inkRGB:"40,36,28", gold:"#9c7a22", goldB:"#8a6a16", sage:"#5a7a48", sageB:"#4f7340", goldRGB:"156,122,34", sageRGB:"79,115,64", glowRGB:"90,122,72" },
+  light:    { label:"Light",    bg:"#f3efe6", bg2:"#ebe6da", surf:"#fbf9f4", surf2:"#efe9dd", bord:"#d6cdbb", txt:"#2b2a25", cream:"#35322b", muted:"#655f53", dim:"#7d7668", slate:"#56636b",
+              light:true, inkRGB:"40,36,28", gold:"#8a6a16", goldB:"#77590e", sage:"#5a7a48", sageB:"#4f7340", goldRGB:"156,122,34", sageRGB:"79,115,64", glowRGB:"90,122,72" },
 };
 const THEME_CHOICES = ["system","forest","navy","charcoal","light"];
 const systemPrefersDark = () => { try { return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches); } catch(e){ return true; } };
@@ -36,6 +36,28 @@ const W = a => `rgba(230,225,210,${a})`;
 /* Glow art (the silhouette) was painted for dark grounds: on Light it is
    luminance-inverted with its hue kept, so pale light becomes deep colour. */
 const LIGHT_GLOW_FILTER = "invert(1) hue-rotate(180deg) saturate(1.3)";
+/* Scene palette: the cinematic screens (chapter readers, the Act finale, the
+   onboarding scenes, the Quest header) sit on fixed dark art, so their text
+   uses this fixed dark-ground palette in every theme rather than C. */
+const SC = Object.freeze({ ...THEMES.forest, ...ACCENTS, light:false, inkRGB:"255,255,255",
+  goldDim:`rgba(${ACCENTS.goldRGB},0.28)`, goldFt:`rgba(${ACCENTS.goldRGB},0.08)`, glow:`rgba(${ACCENTS.glowRGB},0.45)` });
+/* AC(hex): a class/stat accent as it should be drawn on the current ground.
+   Accents were chosen for dark grounds; on Light they are deepened just enough
+   (mixed toward black) to keep at least 4:1 contrast with the page. Cached. */
+const _acCache = {};
+function _lum(h){ const n=parseInt(h.slice(1,7),16), c=[n>>16&255,n>>8&255,n&255].map(v=>{v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);}); return 0.2126*c[0]+0.7152*c[1]+0.0722*c[2]; }
+function AC(hex){
+  if(!C.light || typeof hex!=="string" || !/^#[0-9a-fA-F]{6}/.test(hex)) return hex;
+  const key=hex+C.bg; if(_acCache[key]) return _acCache[key];
+  const base=hex.slice(0,7), Lb=_lum(C.bg);
+  let out=base;
+  for(let t=0;t<=0.8;t+=0.05){
+    const n=parseInt(base.slice(1),16), mix=v=>Math.round(v*(1-t)).toString(16).padStart(2,"0");
+    out="#"+mix(n>>16&255)+mix(n>>8&255)+mix(n&255);
+    if((Lb+0.05)/(_lum(out)+0.05)>=4) break;
+  }
+  return (_acCache[key]=out+hex.slice(7));
+}
 const INK = a => `rgba(${C.inkRGB||"255,255,255"},${a})`;   // ink-on-surface tint, theme-aware
 const PANEL = a => `${C.bg}${Math.round(Math.max(0,Math.min(1,a))*255).toString(16).padStart(2,"0")}`; // translucent page-colour panel
 let FONT_SCALE = 1.0;
@@ -130,7 +152,50 @@ const freshWay = () => ({
   strikes:[],              // [{id,name,date:"YYYY-MM-DD",done}]
   gates:{},                // {boardDone,qualitySessionDone} — honor-marked between-fires practices
   renewals:[],
+  story:freshStory(),
 });
+
+/* ── The Story — what the player forges first: up to five values, the one name
+   they all point to, and an ideal self or world. Practices hang from values
+   (optionally training a capacity). Stored inside `way` so it rides the
+   existing save, sync and import paths with no new top-level state. */
+const VALUE_CHOICES = ["Love","Truth","Freedom","Courage","Peace","Wisdom","Beauty","Strength","Compassion","Joy","Presence","Integrity",
+  "Creativity","Family","Health","Growth","Service","Harmony","Adventure","Faith","Justice","Simplicity","Connection","Mastery"];
+const STORY_MAX_VALUES = 5;
+const freshStory = () => ({ values:[], name:"", ideal:"", forgedAt:null, reforged:[], practices:[] });
+const migrateStory = (s) => {
+  if(!s || typeof s!=="object") return freshStory();
+  const values=(Array.isArray(s.values)?s.values:[]).filter(v=>typeof v==="string"&&v.trim()).slice(0,STORY_MAX_VALUES);
+  return { ...freshStory(), ...s, values,
+    name: typeof s.name==="string" ? s.name : "",
+    ideal: typeof s.ideal==="string" ? s.ideal : "",
+    reforged: Array.isArray(s.reforged) ? s.reforged : [],
+    practices: (Array.isArray(s.practices)?s.practices:[]).filter(p=>p&&p.id&&p.name) };
+};
+const storyForged = w => !!(w?.story?.forgedAt && w.story.name);
+/* A practice, as the session screen sees it — an activity that shows in every
+   practice type, carries its value, and adds a capacity only when one is set. */
+const PRACTICE_MODES = [{id:"sitting",label:"Sit"},{id:"standing",label:"Stand"},{id:"walking",label:"Walk"},{id:"train",label:"Train"},{id:"restore",label:"Restore"}];
+const practiceActId = p => `pr_${p.id}`;
+const practiceActivity = p => ({ id:practiceActId(p), name:p.name, stat:p.stat||null, practiceType:"any",
+  unit:p.unit||"minutes", practice:true, value:p.value });
+function practiceHistory(p, sessions=[]){
+  const id=practiceActId(p), timeBased=(p.unit||"minutes")==="minutes";
+  const rows=[]; const days=new Set(); let total=0, best=0;
+  (sessions||[]).forEach(s=>{
+    if(!(s.activities||[]).some(a=>a.id===id)) return;
+    const amt = Number(s.loggedCounts?.[id]) || (timeBased ? (s.elapsed||0)/60 : 0);
+    rows.push({date:s.date, amt, type:s.type});
+    if(s.date) days.add(s.date);
+    total+=amt; best=Math.max(best,amt);
+  });
+  return { rows, days:days.size, sessions:rows.length, total, best, unit: timeBased ? "min" : (p.unit||"times") };
+}
+const fmtAmt = (n, unit) => unit==="min" ? `${Math.round(n)} min` : `${Math.round(n*10)/10} ${unit}`;
+/* Reforge glow — a week-long window around each new moon, brightest on the day. */
+const REFORGE_HALF_WINDOW = 3.5;
+const daysFromNewMoon = (d=new Date()) => { const a=moonAgeDays(d); return Math.min(a, SYNODIC_DAYS-a); };
+const reforgeGlow = (d=new Date()) => { const x=daysFromNewMoon(d); return x>=REFORGE_HALF_WINDOW ? 0 : 0.5+0.5*Math.cos(Math.PI*x/REFORGE_HALF_WINDOW); };
 const migrateWay = (w) => {
   if(!w || typeof w!=="object") return freshWay();
   const f=freshWay();
@@ -143,6 +208,7 @@ const migrateWay = (w) => {
     partsDone:Array.isArray(w.partsDone)?w.partsDone:[],
     gates:w.gates&&typeof w.gates==="object"?w.gates:{},
     renewals:Array.isArray(w.renewals)?w.renewals:[],
+    story:migrateStory(w.story),
   };
 };
 const localDateStr = (d=new Date()) => {
@@ -1255,6 +1321,7 @@ function applyAwarenessSiphon(sg, awarenessLanding){
 }
 
 function rewards(typeId, sessionXP, activeActivities=[]){
+  activeActivities = (activeActivities||[]).filter(a=>a && a.stat);
   const baseStats = STAT_MAP[typeId]||STAT_MAP.sitting;
   const baseCount = Math.max(Object.keys(baseStats).length, 1);
   const denom = baseCount + activeActivities.length;
@@ -1520,8 +1587,8 @@ function Radar({ stats, size=210, circular=false, showLabels=true, totalXP=0 }){
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} overflow="visible" style={{overflow:"visible"}}>
       <defs>
         <radialGradient id={uid} cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="rgba(163,192,137,0.32)"/>
-          <stop offset="100%" stopColor="rgba(201,168,76,0.06)"/>
+          <stop offset="0%" stopColor={`rgba(${C.sageRGB},0.32)`}/>
+          <stop offset="100%" stopColor={`rgba(${C.goldRGB},0.06)`}/>
         </radialGradient>
       </defs>
       {ang.map((a,i)=><line key={i} x1={cx} y1={cy} x2={cx+Math.cos(a)*r} y2={cy+Math.sin(a)*r} stroke={C.bord} strokeWidth="0.6"/>)}
@@ -1530,8 +1597,8 @@ function Radar({ stats, size=210, circular=false, showLabels=true, totalXP=0 }){
         : [.25,.5,.75,1].map((rt,i)=><polygon key={i} points={ring(rt)} fill="none" stroke={i===3?C.goldDim:`rgba(${C.sageRGB},${C.light?0.3:0.12})`} strokeWidth={i===3?0.8:0.5}/>)
       }
       <polygon points={shape} fill={`url(#${uid})`} stroke={C.sageB} strokeWidth="1.4" strokeLinejoin="round"/>
-      {pts.map(([x,y],i)=><circle key={i} cx={x} cy={y} r={size*.022} fill={STAT_COLORS[STATS[i].k]||C.sageB}/>)}
-      {showLabels && STATS.map(({s,k},i)=>{const d=r+size*.12;return <text key={i} x={cx+Math.cos(ang[i])*d} y={cy+Math.sin(ang[i])*d} textAnchor="middle" dominantBaseline="middle" fontSize={size*.065} fill={STAT_COLORS[k]||"rgba(163,192,137,0.75)"} fontFamily="Cinzel,serif" letterSpacing="0.3">{s}</text>;})}
+      {pts.map(([x,y],i)=><circle key={i} cx={x} cy={y} r={size*.022} fill={AC(STAT_COLORS[STATS[i].k])||C.sageB}/>)}
+      {showLabels && STATS.map(({s,k},i)=>{const d=r+size*.12;return <text key={i} x={cx+Math.cos(ang[i])*d} y={cy+Math.sin(ang[i])*d} textAnchor="middle" dominantBaseline="middle" fontSize={size*.065} fill={AC(STAT_COLORS[k])||`rgba(${C.sageRGB},0.75)`} fontFamily="Cinzel,serif" letterSpacing="0.3">{s}</text>;})}
     </svg>
   );
 }
@@ -1693,7 +1760,7 @@ function Pill({ children, on, onClick, glow }){
     <button onClick={onClick} style={{
       padding:"5px 13px",fontSize:"12px",borderRadius:"20px",cursor:"pointer",
       fontFamily:"'Crimson Pro',Georgia,serif",transition:"all .18s",
-      background:on?"rgba(163,192,137,0.12)":"transparent",
+      background:on?`rgba(${C.sageRGB},0.12)`:"transparent",
       border:`0.5px solid ${on?C.sageB:C.bord}`,
       color:on?C.sageB:C.muted,
       boxShadow:on&&glow?`0 0 10px rgba(120,160,96,0.25)`:"none",
@@ -1763,7 +1830,7 @@ function playGong(ctx){
   }catch(e){}
 }
 
-function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting", reflectUnlocked=false, unlockedPracticeTypes=[], unlocks={modifiers:true,pause:true,pin:true,practiceType:true,activities:true,centers:true}, guideCues=null, activeClassId=null, timerVisibility="reveal" }){
+function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting", reflectUnlocked=false, unlockedPracticeTypes=[], unlocks={modifiers:true,pause:true,pin:true,practiceType:true,activities:true,centers:true}, guideCues=null, activeClassId=null, timerVisibility="reveal", initialActIds=[] }){
   const [phase,setPhase]       = useState("active");
   const [running,setRunning]   = useState(startImmediately);
   const [t,setT]               = useState(0);
@@ -1794,7 +1861,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
   const [newType,setNewType]   = useState("");
   const [awarenessLanding,setAwarenessLanding] = useState([]); // array of region ids
   const [feelOpen,setFeelOpen] = useState(false);
-  const [activeActIds,setActiveActIds] = useState([]);
+  const [activeActIds,setActiveActIds] = useState(()=>initialActIds.filter(id=>activities.some(a=>a.id===id)));
   /* Time-segmented multiplier tracking: every time an activity is toggled on
      or off, log the session's own elapsed-seconds value (t) — NOT Date.now().
      This must stay in the same unit as totalElapsed in weightedElapsedSeconds,
@@ -1804,7 +1871,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
      lets XP be weighted by which multiplier was actually active during which
      seconds — toggling Horse Stance on for 3 of a 9-minute Stand only
      multiplies those 3 minutes, not the whole session. */
-  const multEventsRef = useRef([]); // [{ts, id, on}]
+  const multEventsRef = useRef(initialActIds.map(id=>({ts:0, id, on:true}))); // [{ts, id, on}]
   const toggleActivity = (id) => {
     setActiveActIds(p=>{
       const turningOn = !p.includes(id);
@@ -1954,7 +2021,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
         {/* Scrollable content */}
         <div style={{flex:1,overflowY:"auto",paddingBottom:"110px"}}>
           <div style={{padding:"18px 22px 0",flexShrink:0}}>
-            <span style={{...dsp("11px",C.sage,400,"0.22em")}}>ANCHOR</span>
+            <span style={{...dsp("11px",C.sage,400,"0.22em")}}>{sessionTitle}</span>
           </div>
           {unlocks.modifiers && (
             <div style={{textAlign:"center",padding:"20px 0 4px"}}>
@@ -2015,7 +2082,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
 
             {/* Alarm fired banner */}
             {alarmFired&&(
-              <div style={{margin:"6px auto 0",display:"inline-flex",alignItems:"center",gap:"6px",padding:"4px 12px",background:"rgba(201,168,76,0.12)",border:`0.5px solid ${C.goldDim}`,borderRadius:"4px"}}>
+              <div style={{margin:"6px auto 0",display:"inline-flex",alignItems:"center",gap:"6px",padding:"4px 12px",background:`rgba(${C.goldRGB},0.12)`,border:`0.5px solid ${C.goldDim}`,borderRadius:"4px"}}>
                 <span style={{...body("10px",C.gold),fontStyle:"italic"}}>Timer reached — gong sounded</span>
               </div>
             )}
@@ -2030,7 +2097,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                     const active=alarmSecs===m*60;
                     return (
                       <button key={m} onClick={()=>{setAlarmSecs(m*60);setAlarmFired(false);setAlarmOpen(false);}}
-                        style={{padding:"5px 10px",background:active?"rgba(163,192,137,0.18)":"rgba(163,192,137,0.06)",border:`0.5px solid ${active?C.sageB:C.bord}`,borderRadius:"4px",cursor:"pointer",...body("12px",active?C.sageB:C.muted)}}>
+                        style={{padding:"5px 10px",background:active?`rgba(${C.sageRGB},0.18)`:`rgba(${C.sageRGB},0.06)`,border:`0.5px solid ${active?C.sageB:C.bord}`,borderRadius:"4px",cursor:"pointer",...body("12px",active?C.sageB:C.muted)}}>
                         {m}m
                       </button>
                     );
@@ -2043,7 +2110,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                     onKeyDown={e=>{if(e.key==="Enter"){const m=parseInt(alarmInput);if(m>0){setAlarmSecs(m*60);setAlarmFired(false);setAlarmInput("");setAlarmOpen(false);}}}}
                     style={{width:"64px",padding:"5px 8px",background:C.bg,border:`0.5px solid ${C.bord}`,borderRadius:"4px",color:C.cream,fontSize:"13px",textAlign:"center",outline:"none"}}/>
                   <button onClick={()=>{const m=parseInt(alarmInput);if(m>0){setAlarmSecs(m*60);setAlarmFired(false);setAlarmInput("");setAlarmOpen(false);}}}
-                    style={{padding:"5px 10px",background:"rgba(163,192,137,0.1)",border:`0.5px solid ${C.sageB}`,borderRadius:"4px",cursor:"pointer",...body("11px",C.sageB)}}>
+                    style={{padding:"5px 10px",background:`rgba(${C.sageRGB},0.1)`,border:`0.5px solid ${C.sageB}`,borderRadius:"4px",cursor:"pointer",...body("11px",C.sageB)}}>
                     Set
                   </button>
                   {alarmSecs&&(
@@ -2067,14 +2134,14 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
           <div style={{padding:"26px 22px 0"}}>
             <SL title="Practice" right={
               <div style={{position:"relative"}}>
-                <button onClick={()=>setDropdown(d=>!d)} style={{display:"flex",alignItems:"center",gap:"7px",padding:"3px 10px",background:dropdown?"rgba(163,192,137,0.1)":"transparent",border:`0.5px solid ${dropdown?C.sageB:C.bord}`,borderRadius:"4px",cursor:"pointer",transition:"all .18s"}}>
+                <button onClick={()=>setDropdown(d=>!d)} style={{display:"flex",alignItems:"center",gap:"7px",padding:"3px 10px",background:dropdown?`rgba(${C.sageRGB},0.1)`:"transparent",border:`0.5px solid ${dropdown?C.sageB:C.bord}`,borderRadius:"4px",cursor:"pointer",transition:"all .18s"}}>
                   <span style={{...body("12px",C.cream)}}>{typeLabel}</span>
                   <span style={{color:C.muted,fontSize:"9px"}}>{dropdown?"▲":"▼"}</span>
                 </button>
                 {dropdown && (
                   <div style={{position:"absolute",top:"100%",right:0,minWidth:"160px",background:C.surf2,border:`0.5px solid ${C.sageB}`,borderRadius:"8px",zIndex:10,padding:"6px 0",boxShadow:`0 8px 24px rgba(0,0,0,0.5)`,marginTop:"6px"}}>
                     {[...CORE,...dropdownTypes].map(tp=>(
-                      <button key={tp.id} onClick={()=>{setPType(tp.id);setDropdown(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:"10px",padding:"10px 14px",background:pType===tp.id?"rgba(163,192,137,0.1)":"transparent",border:"none",cursor:"pointer",textAlign:"left"}}>
+                      <button key={tp.id} onClick={()=>{setPType(tp.id);setDropdown(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:"10px",padding:"10px 14px",background:pType===tp.id?`rgba(${C.sageRGB},0.1)`:"transparent",border:"none",cursor:"pointer",textAlign:"left"}}>
                         <span style={{...body("13px",pType===tp.id?C.cream:C.txt)}}>{tp.label}</span>
                       </button>
                     ))}
@@ -2103,22 +2170,23 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
           <div style={{padding:"20px 22px 0"}}>
             <SL title="Activities" right={
               <div style={{position:"relative"}}>
-                <button onClick={()=>{setActDrop(d=>!d);setCreatingAct(false);}} style={{display:"flex",alignItems:"center",padding:"3px 10px",background:actDrop?"rgba(163,192,137,0.1)":"transparent",border:`0.5px solid ${actDrop?C.sageB:C.bord}`,borderRadius:"4px",cursor:"pointer",transition:"all .18s"}}>
+                <button onClick={()=>{setActDrop(d=>!d);setCreatingAct(false);}} style={{display:"flex",alignItems:"center",padding:"3px 10px",background:actDrop?`rgba(${C.sageRGB},0.1)`:"transparent",border:`0.5px solid ${actDrop?C.sageB:C.bord}`,borderRadius:"4px",cursor:"pointer",transition:"all .18s"}}>
                   <span style={{color:C.muted,fontSize:"9px"}}>{actDrop?"▲":"▼"}</span>
                 </button>
                 {actDrop && (
                   <div style={{position:"absolute",bottom:"100%",right:0,minWidth:"200px",background:C.surf2,border:`0.5px solid ${C.sageB}`,borderRadius:"8px",zIndex:50,padding:"6px 0",boxShadow:`0 8px 24px rgba(0,0,0,0.5)`,marginBottom:"6px",maxHeight:"240px",overflowY:"auto"}}>
                     {visibleActivities.length===0 && !creatingAct && <div style={{...body("12px",C.dim),padding:"10px 14px",fontStyle:"italic"}}>No activities for this practice</div>}
                     {visibleActivities.map(act=>{
-                      const sc=STAT_COLORS[act.stat]||C.sageB;
+                      const sc=AC(STAT_COLORS[act.stat])||C.sageB;
                       const isActive=activeActIds.includes(act.id);
                       return (
-                        <div key={act.id} style={{display:"flex",alignItems:"center",padding:"8px 14px",gap:"8px",background:isActive?"rgba(163,192,137,0.08)":"transparent"}}>
+                        <div key={act.id} style={{display:"flex",alignItems:"center",padding:"8px 14px",gap:"8px",background:isActive?`rgba(${C.sageRGB},0.08)`:"transparent"}}>
                           <button onClick={()=>toggleActivity(act.id)} style={{flex:1,display:"flex",alignItems:"center",gap:"8px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
                             <span style={{...body("13px",isActive?C.cream:C.txt)}}>{act.name}</span>
-                            <span style={{fontSize:"9px",color:sc,background:sc+"22",border:`0.5px solid ${sc}55`,padding:"1px 5px",borderRadius:"4px",fontFamily:"Cinzel,serif",letterSpacing:"0.06em"}}>{act.stat.toUpperCase()}</span>
+                            {act.stat ? <span style={{fontSize:"9px",color:sc,background:sc+"22",border:`0.5px solid ${sc}55`,padding:"1px 5px",borderRadius:"4px",fontFamily:"Cinzel,serif",letterSpacing:"0.06em"}}>{act.stat.toUpperCase()}</span>
+                              : act.practice ? <span style={{...body("11px",C.dim),fontStyle:"italic"}}>{act.value}</span> : null}
                           </button>
-                          <button onClick={()=>deleteActivity(act.id)} style={{background:"none",border:"none",color:C.dim,cursor:"pointer",fontSize:"15px",lineHeight:1,padding:"0 2px"}}>×</button>
+                          {!act.practice && <button onClick={()=>deleteActivity(act.id)} style={{background:"none",border:"none",color:C.dim,cursor:"pointer",fontSize:"15px",lineHeight:1,padding:"0 2px"}}>×</button>}
                         </div>
                       );
                     })}
@@ -2128,12 +2196,12 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                         <input autoFocus value={newActName} onChange={e=>setNewActName(e.target.value)} onKeyDown={e=>{if(e.key==="Escape"){setCreatingAct(false);setNewActName("");}}} placeholder="Activity name…" style={{width:"100%",background:"transparent",border:"none",borderBottom:`0.5px solid ${C.sageB}`,color:C.txt,...body("13px"),outline:"none",caretColor:C.sageB,marginBottom:"8px",boxSizing:"border-box"}}/>
                         <div style={{...body("10px",C.muted),marginBottom:"5px"}}>Stat:</div>
                         <div style={{display:"flex",flexWrap:"wrap",gap:"4px",marginBottom:"8px"}}>
-                          {STATS.map(({k,s})=>{const sc=STAT_COLORS[k]||C.sageB;const on=newActStat===k;return(
+                          {STATS.map(({k,s})=>{const sc=AC(STAT_COLORS[k])||C.sageB;const on=newActStat===k;return(
                             <button key={k} onClick={()=>setNewActStat(k)} style={{fontSize:"9px",fontFamily:"Cinzel,serif",letterSpacing:"0.06em",color:on?sc:C.muted,background:on?sc+"22":"transparent",border:`0.5px solid ${on?sc:C.bord}`,padding:"2px 7px",borderRadius:"4px",cursor:"pointer"}}>{s}</button>
                           );})}
                         </div>
                         <div style={{display:"flex",gap:"6px"}}>
-                          <button onClick={()=>{if(newActName.trim()){addActivity(newActName.trim(),newActStat,pType);}setCreatingAct(false);setNewActName("");setNewActStat("str");}} style={{flex:1,padding:"5px",background:"rgba(163,192,137,0.1)",border:`0.5px solid ${C.sageB}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.sageB,400,"0.1em")}}>SAVE</button>
+                          <button onClick={()=>{if(newActName.trim()){addActivity(newActName.trim(),newActStat,pType);}setCreatingAct(false);setNewActName("");setNewActStat("str");}} style={{flex:1,padding:"5px",background:`rgba(${C.sageRGB},0.1)`,border:`0.5px solid ${C.sageB}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.sageB,400,"0.1em")}}>SAVE</button>
                           <button onClick={()=>{setCreatingAct(false);setNewActName("");setNewActStat("str");}} style={{padding:"5px 10px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.muted,400,"0.1em")}}>✕</button>
                         </div>
                       </div>
@@ -2153,7 +2221,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 {activeActIds.map(id=>{
                   const act=activities.find(a=>a.id===id);
                   if(!act) return null;
-                  const sc=STAT_COLORS[act.stat]||C.sageB;
+                  const sc=AC(STAT_COLORS[act.stat])||C.sageB;
                   return (<span key={id} onClick={()=>toggleActivity(id)} style={{fontSize:"11px",color:sc,background:sc+"18",border:`0.5px solid ${sc}55`,padding:"2px 9px",borderRadius:"8px",cursor:"pointer"}}>{act.name} ×</span>);
                 })}
               </div>
@@ -2165,8 +2233,8 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 need real-time +/-10 interaction here, during the session) */}
             {activeActIds.map(id=>{
               const act=activities.find(a=>a.id===id);
-              if(!act || (!act.target && !act.fundamental)) return null;
-              const sc=STAT_COLORS[act.stat]||C.sageB;
+              if(!act || (!act.target && !act.fundamental && !act.practice)) return null;
+              const sc=AC(STAT_COLORS[act.stat])||C.sageB;
               if(act.unit==="minutes") return null;
               const entered = actCounts[id]??0;
               const bump=(n)=>setActCounts(p=>({...p,[id]:Math.max(0,(parseInt(p[id])||0)+n)}));
@@ -2209,7 +2277,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
               <span style={{fontSize:"11px",color:"#7fb3e8",background:"rgba(100,160,220,0.12)",border:"0.5px solid rgba(100,160,220,0.4)",padding:"2px 9px",borderRadius:"10px"}}>LEVEL UP! → {lvAfter}</span>
             ):null;})()}
             {Object.entries(applyAwarenessSiphon(sg, awarenessLanding)).map(([k,v])=>{
-              const sc=STAT_COLORS[k]||C.sageB;
+              const sc=AC(STAT_COLORS[k])||C.sageB;
               const gain=levelFromTotalXP((chStats[k]||0)+v)-levelFromTotalXP(chStats[k]||0);
               if(gain<=0) return null;
               return (<span key={k} style={{fontSize:"11px",color:sc,background:sc+"22",border:`0.5px solid ${sc}88`,padding:"2px 9px",borderRadius:"10px",textTransform:"capitalize"}}>{k.toUpperCase()} +{gain}</span>);
@@ -2232,7 +2300,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
           {activeActivities.filter(a=>a.target).length>0 && (
             <div style={{textAlign:"left",marginBottom:"22px"}}>
               {activeActivities.filter(a=>a.target).map(act=>{
-                const sc=STAT_COLORS[act.stat]||C.sageB;
+                const sc=AC(STAT_COLORS[act.stat])||C.sageB;
                 let current, suffix="";
                 if(act.unit==="minutes"){
                   current = act.singleSession ? elapsed/60 : (act.count||0)+elapsed/60;
@@ -2268,7 +2336,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 {k:"chest",  label:"Chest",  stat:"hrt"},
                 {k:"head",   label:"Head",   stat:"wis"},
               ].map(({k,label,stat})=>{
-                const sc=STAT_COLORS[stat]||C.sageB;
+                const sc=AC(STAT_COLORS[stat])||C.sageB;
                 const on=awarenessLanding.includes(k);
                 return (
                   <button key={k} onClick={()=>setAwarenessLanding(p=>p.includes(k)?p.filter(x=>x!==k):[...p,k])}
@@ -2286,7 +2354,7 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
                 {k:"throat",       label:"Throat", stat:"voi"},
                 {k:"top",          label:"Crown",  stat:"ali"},
               ].map(({k,label,stat})=>{
-                const sc=STAT_COLORS[stat]||C.sageB;
+                const sc=AC(STAT_COLORS[stat])||C.sageB;
                 const on=awarenessLanding.includes(k);
                 return (
                   <button key={k} onClick={()=>setAwarenessLanding(p=>p.includes(k)?p.filter(x=>x!==k):[...p,k])}
@@ -2310,9 +2378,9 @@ function AnchorPortal({ onClose, onDone, types, library, setLibrary, addType, st
           {unlocks.pin && elapsed>=10 && (<>
           <button
             onClick={()=>setPinSession(p=>!p)}
-            style={{width:"100%",display:"flex",alignItems:"center",gap:"12px",padding:"11px 14px",background:pinSession?"rgba(163,192,137,0.08)":"transparent",border:`0.5px solid ${pinSession?C.sageB:C.bord}`,borderRadius:"6px",cursor:"pointer",marginBottom:pinSession?"10px":"0",transition:"all .2s",textAlign:"left"}}
+            style={{width:"100%",display:"flex",alignItems:"center",gap:"12px",padding:"11px 14px",background:pinSession?`rgba(${C.sageRGB},0.08)`:"transparent",border:`0.5px solid ${pinSession?C.sageB:C.bord}`,borderRadius:"6px",cursor:"pointer",marginBottom:pinSession?"10px":"0",transition:"all .2s",textAlign:"left"}}
           >
-            <div style={{width:"16px",height:"16px",borderRadius:"3px",border:`1px solid ${pinSession?C.sageB:C.dim}`,background:pinSession?"rgba(163,192,137,0.2)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all .2s"}}>
+            <div style={{width:"16px",height:"16px",borderRadius:"3px",border:`1px solid ${pinSession?C.sageB:C.dim}`,background:pinSession?`rgba(${C.sageRGB},0.2)`:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all .2s"}}>
               {pinSession && <span style={{color:C.sageB,fontSize:"11px",lineHeight:1}}>✓</span>}
             </div>
             <div style={{textAlign:"left"}}>
@@ -2400,7 +2468,7 @@ function EmbodimentSilhouette({ stats, totalXP=0 }){
   const FP = "m 94.989277,185.31803 c -0.116007,-0.11601 -0.235647,-0.16276 -0.270829,-0.10583 -0.08311,0.13448 -0.654796,0.13149 -0.738448,-0.004 -0.03598,-0.0582 -0.183155,-0.10583 -0.327068,-0.10583 -0.143912,0 -0.289072,-0.0714 -0.322577,-0.15875 -0.0335,-0.0873 -0.151072,-0.15875 -0.261261,-0.15875 -0.110189,0 -0.200344,-0.0714 -0.200344,-0.15875 0,-0.0873 -0.04754,-0.15875 -0.105636,-0.15875 -0.0581,0 -0.09077,-0.18796 -0.07259,-0.41769 l 0.03304,-0.4177 0.971504,-0.91453 0.971504,-0.91453 0.52984,-0.90022 0.529841,-0.90022 v -0.44407 c 0,-0.24424 0.07144,-0.71833 0.15875,-1.05355 0.241699,-0.92795 0.25548,-0.74594 -0.538182,-7.10791 -0.232896,-1.86688 -0.144184,-2.74001 0.532271,-5.23875 l 0.358137,-1.32291 0.06337,-1.421 0.06337,-1.42099 -0.208691,-1.17192 c -0.899377,-5.05054 -0.173055,-13.33118 1.62915,-18.57359 0.159473,-0.46388 0.270148,-1.02032 0.270148,-1.3582 0,-0.3148 0.09261,-0.93749 0.205808,-1.38375 0.442253,-1.74356 0.377948,-2.76723 -0.309908,-4.93343 -0.223478,-0.70377 -0.439654,-1.45726 -0.48039,-1.6744 -0.08335,-0.44429 -0.211234,-0.51332 -0.290277,-0.15668 -0.170705,0.77023 -0.868962,3.20706 -1.099306,3.83646 l -0.271129,0.74083 -0.08948,1.70747 -0.08948,1.70748 -0.265403,0.75964 c -0.145972,0.4178 -0.718923,1.63094 -1.273225,2.69585 -1.046456,2.01044 -1.69708,3.54257 -1.813479,4.27049 l -0.06772,0.42352 0.302625,0.51486 0.302624,0.51486 0.01757,1.32291 c 0.0097,0.72761 0.05127,1.63652 0.09246,2.0198 0.08812,0.81989 -0.03706,1.1552 -0.431248,1.1552 -0.51634,0 -0.705,-0.37753 -0.815661,-1.63225 -0.06122,-0.69416 -0.313267,-0.44502 -0.485649,0.48006 l -0.09098,0.48822 0.129468,-0.012 c 0.132585,-0.0123 0.896125,1.03413 0.896125,1.22809 0,0.0592 -0.09532,0.0826 -0.211813,0.0522 -0.116497,-0.0305 -0.185124,-0.0122 -0.152504,0.0406 0.03262,0.0528 0.14883,0.096 0.258245,0.096 h 0.198936 l 0.06985,0.4658 c 0.03842,0.25618 0.03999,0.55988 0.0035,0.67486 l -0.06636,0.20908 -0.438554,0.0701 -0.438553,0.0701 -0.45804,-0.44953 c -0.251921,-0.24724 -0.458039,-0.48058 -0.458039,-0.51853 0,-0.0379 -0.162001,-0.24076 -0.360003,-0.45071 l -0.360003,-0.38171 -0.07596,-0.55913 c -0.04178,-0.30752 -0.168362,-0.85977 -0.281299,-1.22723 l -0.20534,-0.66809 0.160301,-0.49607 c 0.251775,-0.77916 0.592981,-2.72159 0.594676,-3.38541 8.47e-4,-0.33174 0.07281,-0.80778 0.159923,-1.05787 0.203618,-0.58458 0.53639,-2.68314 0.683093,-4.3078 0.323631,-3.58402 0.490011,-4.3194 1.375909,-6.08137 0.478484,-0.95165 0.666241,-1.71968 0.847852,-3.46816 0.06791,-0.65379 0.256645,-1.75285 0.419417,-2.44236 l 0.29595,-1.25366 -0.102396,-0.62681 c -0.513099,-3.14089 0.844919,-5.87994 3.250795,-6.55669 0.34925,-0.0982 0.992187,-0.40331 1.42875,-0.67793 0.436562,-0.27463 1.222375,-0.74304 1.74625,-1.04092 1.17878,-0.67026 1.62033,-0.99425 1.86902,-1.37139 l 0.19334,-0.29321 6.9e-4,-0.94555 c 4.1e-4,-0.55456 -0.0707,-1.20007 -0.172,-1.56104 l -0.17269,-0.61549 -0.18132,0 c -0.2665,0 -0.47545,-0.29652 -0.67122,-0.9525 -0.367,-1.22977 -0.35898,-2.01083 0.0207,-2.01083 l 0.19452,0 0.0587,-0.82021 c 0.15307,-2.13912 1.37557,-3.42364 3.42308,-3.59675 l 0.64695,-0.0547 0.57013,0.18437 c 1.65616,0.53558 2.47863,1.62943 2.60689,3.46707 l 0.0573,0.82021 h 0.14161 c 0.20932,0 0.28872,0.46311 0.20576,1.20006 -0.0404,0.35861 -0.0709,0.75918 -0.0679,0.89015 0.003,0.13097 -0.0336,0.23812 -0.0813,0.23812 -0.0477,0 -0.14964,0.1175 -0.2265,0.26111 -0.0769,0.1436 -0.25659,0.30005 -0.39941,0.34766 -0.7694,0.25646 -0.8804,3.04422 -0.15288,3.83948 0.36005,0.39358 3.99895,2.48406 4.67183,2.68388 2.51399,0.74658 3.80893,3.35715 3.27673,6.60582 l -0.11603,0.7083 0.32006,1.37583 c 0.17604,0.75671 0.35171,1.85209 0.39039,2.43417 0.0959,1.44261 0.32144,2.39254 0.79168,3.33375 0.84882,1.69899 1.03593,2.4678 1.3265,5.45042 0.2002,2.05494 0.52012,4.11572 0.73447,4.73112 0.0871,0.25009 0.15908,0.72614 0.15993,1.05788 0.002,0.66382 0.3429,2.60625 0.59467,3.3854 l 0.1603,0.49608 -0.20534,0.66809 c -0.11293,0.36745 -0.23952,0.9197 -0.2813,1.22723 l -0.0759,0.55913 -0.36001,0.38171 c -0.198,0.20994 -0.36,0.41276 -0.36,0.45071 0,0.0379 -0.20612,0.27128 -0.45804,0.51853 l -0.45804,0.44953 -0.43855,-0.0701 -0.43856,-0.0701 -0.0663,-0.20907 c -0.0365,-0.11499 -0.0349,-0.41868 0.003,-0.67487 l 0.0698,-0.4658 h 0.19894 c 0.10941,0 0.22562,-0.0432 0.25824,-0.096 0.0326,-0.0528 -0.036,-0.071 -0.1525,-0.0406 -0.1165,0.0305 -0.21181,0.007 -0.21181,-0.0522 0,-0.19396 0.76354,-1.24035 0.89612,-1.22809 l 0.12947,0.012 -0.091,-0.48822 c -0.17238,-0.92508 -0.42442,-1.17423 -0.48565,-0.48006 -0.11066,1.25472 -0.29932,1.63225 -0.81566,1.63225 -0.39419,0 -0.51936,-0.33531 -0.43125,-1.1552 0.0412,-0.38328 0.0828,-1.29219 0.0925,-2.0198 l 0.0176,-1.32292 0.30262,-0.51486 0.30263,-0.51486 -0.0688,-0.43009 c -0.11476,-0.71762 -0.85798,-2.47493 -1.73889,-4.11149 -1.34544,-2.49957 -1.53108,-3.1151 -1.65476,-5.48675 -0.0464,-0.89046 -0.13643,-1.51172 -0.27594,-1.905 -0.11386,-0.32099 -0.39542,-1.29799 -0.6257,-2.17111 -0.23027,-0.87313 -0.45993,-1.73038 -0.51035,-1.905 l -0.0917,-0.3175 -0.23735,0.79375 c -0.13054,0.43656 -0.37154,1.20414 -0.53554,1.70573 -0.164,0.50158 -0.35546,1.35883 -0.42545,1.905 l -0.12726,0.99302 0.27676,1.21637 c 0.15221,0.669 0.27675,1.52922 0.27675,1.9116 v 0.69524 l 0.30131,0.89298 c 1.73863,5.15282 2.38776,13.10087 1.48616,18.19672 l -0.21533,1.21709 0.0686,1.53458 0.0686,1.53458 0.30652,1.11125 c 0.16858,0.61119 0.38487,1.56369 0.48063,2.11667 l 0.1741,1.00542 -0.0644,1.08734 c -0.0354,0.59804 -0.15849,1.71723 -0.27346,2.48709 -0.11497,0.76985 -0.30916,2.15971 -0.43154,3.08856 l -0.2225,1.68883 0.1661,0.66126 c 0.0914,0.36369 0.16611,0.87026 0.16611,1.12571 v 0.46445 l 0.49387,0.90383 c 0.4559,0.83434 1.23134,1.74386 2.252,2.64139 l 0.32329,0.28429 0,0.38849 v 0.38849 l -0.14677,-0.0563 -0.14677,-0.0563 0.0533,0.20375 0.0533,0.20375 h -0.21268 c -0.11698,0 -0.2401,0.0714 -0.27361,0.15875 -0.11141,0.29034 -0.35936,0.17017 -0.43042,-0.20861 -0.0382,-0.20341 -0.23234,-0.54063 -0.43511,-0.75563 -0.3923,-0.41596 -0.45232,-0.57034 -0.22172,-0.57034 0.25211,0 0.67076,0.40452 0.90189,0.87146 0.15123,0.30552 0.22349,0.38064 0.22355,0.23238 5e-5,-0.12049 -0.1666,-0.41381 -0.37033,-0.65182 -0.20373,-0.23802 -0.37042,-0.48615 -0.37042,-0.55141 0,-0.0653 -0.2546,-0.41877 -0.56577,-0.78558 -0.31117,-0.36681 -0.7856,-1.05784 -1.05429,-1.53562 l -0.48852,-0.86869 0.005,-0.5514 c 0.003,-0.30327 -0.0466,-0.68547 -0.10988,-0.84934 -0.1754,-0.45451 -0.13651,-1.85907 0.10018,-3.6179 0.1175,-0.87312 0.22074,-1.80181 0.22943,-2.06375 0.009,-0.26194 0.0498,-0.52387 0.0915,-0.58208 0.41093,-0.57476 0.33917,-3.56035 -0.12719,-5.29167 -0.47863,-1.7769 -0.50513,-1.93497 -0.51008,-3.04271 l -0.005,-1.03187 h -0.15875 c -0.20477,0 -0.19789,-0.17267 0.0519,-1.30253 0.52191,-2.36048 0.79949,-6.10016 0.63201,-8.51475 -0.11954,-1.7235 -0.42266,-4.04689 -0.52797,-4.04689 -0.0446,0 -0.0848,-0.25003 -0.0892,-0.55562 -0.0164,-1.1345 -0.77347,-4.63618 -1.34456,-6.2194 l -0.27259,-0.75567 0.0684,-0.4052 c 0.0465,-0.27536 -0.0188,-0.76714 -0.20376,-1.53479 l -0.27221,-1.1296 1.2e-4,-0.97048 c 1.3e-4,-0.97671 0.19085,-2.27559 0.39138,-2.66541 0.37994,-0.73859 1.16307,-3.94201 1.04128,-4.2594 l -0.0625,-0.1628 -0.26323,0.24728 -0.26322,0.24729 -0.11192,-0.11193 -0.11193,-0.11192 0.48374,-0.72129 c 0.26606,-0.39671 0.48375,-0.76005 0.48375,-0.80742 0,-0.0474 0.0766,-0.0861 0.17022,-0.0861 h 0.17022 l -0.0793,0.29104 c -0.0436,0.16008 -0.0703,0.67204 -0.0593,1.13771 l 0.0199,0.84667 0.52695,2.03884 c 0.28982,1.12137 0.64677,2.37102 0.79322,2.77701 l 0.26627,0.73817 0.0976,1.66799 c 0.14141,2.41586 0.19061,2.56073 2.16598,6.37757 1.29833,2.50867 1.481,3.38388 0.94067,4.50699 l -0.385,0.80026 0.0622,0.86534 c 0.0342,0.47593 0.0101,1.15593 -0.0537,1.51112 -0.11703,0.65168 -0.0596,1.20629 0.1248,1.20629 0.18345,0 0.32372,-0.41163 0.40123,-1.17738 l 0.0767,-0.75808 0.18612,-0.11706 0.18612,-0.11706 0.28326,0.15895 0.28327,0.15896 0.13711,0.52896 c 0.23104,0.89129 0.14889,1.76325 -0.12445,1.32099 -0.0366,-0.0592 -0.11159,-0.0797 -0.16672,-0.0456 -0.0551,0.0341 -0.0724,0.10707 -0.0383,0.1622 0.0341,0.0551 0.10629,0.0728 0.16047,0.0394 0.16253,-0.10045 0.11042,0.0851 -0.15352,0.54663 l -0.24949,0.43627 0.19785,-0.0517 c 0.26108,-0.0683 0.25395,0.14421 -0.0199,0.59342 -0.29719,0.48748 -0.22646,0.49275 0.27132,0.0202 0.45329,-0.43028 0.56651,-0.58065 0.89841,-1.19325 l 0.21334,-0.39377 -0.15932,0.0611 -0.15931,0.0611 v -0.40889 c 0,-0.2249 0.0508,-0.57527 0.11285,-0.77862 0.17488,-0.57294 0.19022,-1.97982 0.0312,-2.8568 -0.0792,-0.43656 -0.14399,-1.05834 -0.144,-1.38174 -1e-5,-0.3234 -0.0938,-0.87108 -0.2084,-1.21708 -0.29141,-0.87971 -0.60821,-2.89174 -0.7406,-4.70368 -0.1913,-2.61824 -0.45857,-3.77848 -1.21756,-5.28564 -0.54149,-1.07526 -0.80359,-2.10952 -0.89997,-3.55144 -0.0467,-0.6985 -0.19493,-1.71053 -0.32941,-2.24896 L 115.47497,130.81 h -0.20446 -0.20446 l 0.0654,-0.34396 c 0.036,-0.18917 0.13989,-0.60589 0.23091,-0.92604 0.87408,-3.07446 -0.79627,-6.04079 -3.7032,-6.57641 l -0.69293,-0.12768 v -0.19829 c 0,-0.11269 -0.1421,-0.27613 -0.32916,-0.37858 -1.49409,-0.81835 -2.97518,-1.76662 -3.2524,-2.08235 l -0.33427,-0.38072 v -1.01814 l 0,-1.01813 -0.19355,0.17515 c -0.48262,0.43677 -0.57719,0.11241 -0.13135,-0.45051 0.20122,-0.25406 0.40567,-0.74252 0.58224,-1.39107 0.14968,-0.54973 0.3216,-1.17811 0.38206,-1.39639 0.0684,-0.24689 0.17375,-0.39688 0.27881,-0.39688 h 0.16889 l -0.0653,0.47625 c -0.0375,0.27363 -0.0228,0.47625 0.0344,0.47625 0.11219,0 0.42541,-0.97469 0.42541,-1.32379 v -0.22705 l -0.3175,0.0466 -0.3175,0.0466 -0.0151,-0.51472 c -0.0416,-1.41926 -0.13463,-1.83276 -0.48753,-2.16584 -0.16016,-0.15116 -0.35623,-0.413 -0.43573,-0.58186 -0.0795,-0.16886 -0.17977,-0.37823 -0.22285,-0.46526 -0.0431,-0.087 -0.30803,-0.27645 -0.58878,-0.42093 l -0.51046,-0.26269 -0.85416,0.004 -0.85417,0.004 -0.52916,0.27327 c -0.65828,0.33994 -0.77364,0.47349 -1.26142,1.46031 l -0.39234,0.79375 0.16544,0.0342 0.16543,0.0342 -0.0794,0.75952 c -0.10625,1.01653 -0.0853,1.92692 0.0576,2.50578 0.0647,0.26194 0.17052,0.74863 0.23526,1.08153 l 0.1177,0.60528 0.41651,0.50403 c 0.57541,0.69632 0.51607,1.10178 -0.0794,0.54238 l -0.24495,-0.23012 -9.2e-4,0.73283 c -0.001,1.11795 -0.11102,1.84407 -0.2784,1.84407 -0.0792,0 -0.14401,-0.0526 -0.14401,-0.1168 0,-0.0642 -0.16134,0.0249 -0.35854,0.19801 -0.19719,0.17313 -1.00681,0.70488 -1.799162,1.18164 l -1.440631,0.86685 v 0.19317 0.19316 l -0.714375,0.13113 c -2.950457,0.54158 -4.406814,3.13355 -3.686077,6.56034 0.207377,0.98599 0.208657,1.16417 0.0084,1.16417 -0.08731,0 -0.15875,0.0251 -0.15875,0.0557 0,0.0306 -0.09548,0.42407 -0.21218,0.87428 -0.116699,0.4502 -0.28133,1.46097 -0.365848,2.24615 -0.174153,1.61791 -0.361407,2.41708 -0.742603,3.16934 -0.880632,1.73784 -1.159383,2.83596 -1.376771,5.42371 -0.188904,2.24867 -0.524341,4.43008 -0.807994,5.25453 -0.109324,0.31776 -0.198778,0.84413 -0.198788,1.16971 -1e-5,0.32559 -0.06481,0.94916 -0.143991,1.38572 -0.159069,0.87698 -0.143724,2.28387 0.03116,2.85681 0.06207,0.20334 0.112851,0.55372 0.112851,0.77861 v 0.4089 l -0.159318,-0.0611 -0.159317,-0.0611 0.213342,0.39377 c 0.331903,0.6126 0.445117,0.76297 0.898409,1.19324 0.497779,0.47251 0.568508,0.46723 0.271316,-0.0202 -0.273868,-0.44922 -0.280999,-0.6617 -0.01992,-0.59343 l 0.19785,0.0517 -0.249492,-0.43627 c -0.263942,-0.46154 -0.31605,-0.64707 -0.153522,-0.54662 0.05419,0.0335 0.126401,0.0158 0.160477,-0.0394 0.03408,-0.0551 0.01685,-0.12813 -0.03829,-0.16221 -0.05514,-0.0341 -0.130161,-0.0135 -0.166722,0.0456 -0.273337,0.44227 -0.355487,-0.4297 -0.124454,-1.32099 l 0.137113,-0.52896 0.283265,-0.15895 0.283266,-0.15896 0.186121,0.11706 0.186122,0.11707 0.07673,0.75807 c 0.07751,0.76576 0.217781,1.17738 0.401229,1.17738 0.184454,0 0.241831,-0.55461 0.124796,-1.20629 -0.06379,-0.35518 -0.08797,-1.03519 -0.05373,-1.51112 l 0.06224,-0.86533 -0.385005,-0.80026 c -0.626891,-1.30304 -0.492799,-1.7434 2.016952,-6.62366 0.871877,-1.69538 1.051668,-2.35063 1.147057,-4.18042 0.09811,-1.88198 0.09694,-1.87498 0.513591,-3.06917 0.203089,-0.58208 0.471871,-1.43933 0.597292,-1.905 0.125422,-0.46566 0.342691,-1.27277 0.482821,-1.79357 0.14013,-0.5208 0.254782,-1.03277 0.254782,-1.13771 0,-0.10494 0.07144,-0.1908 0.15875,-0.1908 0.0955,0 0.15875,0.0978 0.15875,0.24559 0,0.43868 0.416247,2.21441 0.785911,3.35274 0.539825,1.66232 0.638854,2.17729 0.630908,3.28084 l -0.0072,1.00541 -0.244227,0.89959 c -0.134325,0.49477 -0.278534,1.28058 -0.320465,1.74625 -0.04193,0.46566 -0.19774,1.18004 -0.346243,1.5875 -0.496543,1.3624 -1.49631,6.63745 -1.772624,9.35286 -0.27995,2.75114 -0.06718,6.84551 0.481835,9.27187 0.30749,1.35896 0.304405,1.32485 0.1198,1.32485 h -0.143177 l -0.05963,1.24354 -0.05962,1.24354 -0.374314,1.37584 c -0.205873,0.75671 -0.429905,1.81247 -0.49785,2.34613 l -0.123534,0.9703 0.330541,2.57512 c 0.524082,4.08291 0.541874,4.24025 0.541731,4.79085 -7.4e-5,0.28733 -0.078,0.83287 -0.17316,1.21233 l -0.173025,0.68992 0.120108,0.04 c 0.331952,0.11065 -0.712817,2.15929 -1.605918,3.14897 -0.593397,0.65757 -0.669996,0.94268 -0.223131,0.83053 0.384424,-0.0965 0.314879,0.10578 -0.220425,0.64108 -0.44715,0.44715 -0.610351,0.79932 -0.370417,0.79932 0.05821,0 0.105833,-0.0544 0.105833,-0.12088 0,-0.18879 0.951028,-1.25495 1.119434,-1.25495 0.188619,0 0.198474,0.38339 0.01279,0.49745 -0.231538,0.14222 -0.854477,0.97974 -0.782363,1.05185 0.109709,0.10971 0.813714,-0.48393 1.165111,-0.98246 0.178719,-0.25356 0.387215,-0.46101 0.463322,-0.46101 0.161727,0 0.187717,0.38035 0.03254,0.47625 -0.05821,0.036 -0.105834,0.17817 -0.105834,0.31599 0,0.14965 -0.0746,0.27007 -0.185208,0.29897 l -0.185208,0.0484 0.241535,0.0123 c 0.142802,0.007 0.275718,0.10468 0.325159,0.23833 l 0.08362,0.22606 0.134986,-0.32589 c 0.08079,-0.19503 0.225375,-0.33891 0.360108,-0.35834 0.283744,-0.0409 0.491424,-0.44433 0.493445,-0.95851 8.58e-4,-0.21828 0.04614,-0.39687 0.100622,-0.39687 0.05448,0 0.206128,-0.1905 0.336988,-0.42334 0.265974,-0.47323 0.57115,-0.58039 0.493313,-0.17321 l -0.04781,0.25011 0.183768,-0.0481 c 0.108932,-0.0285 0.205081,-0.18421 0.236106,-0.3824 0.02879,-0.18389 0.08583,-0.43828 0.126759,-0.56531 l 0.07442,-0.23095 -0.222135,0.0581 -0.222135,0.0581 v -0.61735 c 0,-0.33954 0.07709,-0.8192 0.171309,-1.06591 l 0.171308,-0.44857 -0.171308,-0.75858 c -0.195318,-0.86489 -0.219606,-1.4311 -0.06548,-1.52636 0.05821,-0.036 0.105833,-0.17729 0.105833,-0.31404 0,-0.50326 0.866448,-4.04345 1.127594,-4.60721 0.1483,-0.32015 0.367748,-0.84402 0.487662,-1.16417 l 0.218031,-0.58208 0.0464,-2.24896 0.0464,-2.24896 h -0.16928 c -0.237739,0 -0.226258,-0.041 0.31029,-1.10911 l 0.47956,-0.95464 0.0936,-1.00542 0.0936,-1.00541 0.44537,-1.16417 c 0.81789,-2.13791 1.54966,-4.37558 1.84229,-5.63354 0.15937,-0.6851 0.37928,-1.53138 0.48869,-1.88063 0.10941,-0.34925 0.22937,-0.83251 0.26657,-1.07392 l 0.0676,-0.43892 0.28998,-0.058 c 0.3899,-0.078 0.74478,0.0256 0.74478,0.21747 0,0.17727 0.32891,0.80575 0.44979,0.85948 0.10719,0.0476 0.10152,0.33513 -0.007,0.33513 -0.0873,0 0.32221,2.10871 0.70912,3.65125 0.23113,0.92149 0.86908,2.75404 1.43285,4.11598 0.24073,0.58154 0.39567,1.18349 0.47718,1.8539 0.13706,1.1272 0.43091,2.10207 0.80775,2.67973 0.29693,0.45518 0.32207,0.61081 0.0987,0.61081 h -0.15875 l -0.0165,1.24354 c -0.0369,2.78041 0.0743,3.64853 0.60002,4.68598 0.38045,0.75079 1.12182,3.94777 1.27553,5.50048 l 0.0681,0.68792 -0.16206,0.61726 -0.16206,0.61726 0.15098,0.42792 c 0.083,0.23536 0.15098,0.68387 0.15098,0.9967 v 0.56877 h -0.14743 c -0.1772,0 -0.2759,0.22769 -0.2759,0.63645 v 0.30164 l 0.30764,0.21906 0.30764,0.21906 -0.0554,-0.21185 -0.0554,-0.21186 h 0.20452 c 0.24895,0 0.61743,0.61888 0.72465,1.21709 0.10229,0.57072 0.23027,0.79375 0.45547,0.79375 0.11015,0 0.25988,0.15003 0.36067,0.36137 0.19597,0.41096 0.46252,0.53563 0.83049,0.38843 l 0.25347,-0.10138 -0.29105,-0.007 c -0.3018,-0.007 -0.43438,-0.32421 -0.13548,-0.32421 h 0.15556 l -0.26139,-0.38519 c -0.14377,-0.21185 -0.26139,-0.47379 -0.26139,-0.58208 0,-0.25128 0.28393,-0.25773 0.36311,-0.008 0.0329,0.10375 0.32151,0.44703 0.64129,0.76284 l 0.58141,0.57419 0.12099,-0.121 0.121,-0.12099 -0.33182,-0.41895 c -0.35649,-0.45011 -0.41578,-0.65308 -0.19078,-0.65308 0.17087,0 0.75151,0.70271 0.85808,1.03849 0.11217,0.35341 -0.1147,0.56769 -0.56789,0.53637 -0.20807,-0.0144 -0.48234,0.0302 -0.60948,0.0991 -0.54461,0.29501 -1.34239,0.13818 -1.57384,-0.3094 -0.0862,-0.16673 -0.27089,-0.33179 -0.41039,-0.3668 -0.26877,-0.0675 -0.42405,-0.36605 -0.53329,-1.02543 l -0.0659,-0.3981 -0.6829,-0.30963 -0.68289,-0.30964 v -0.63475 c 0,-0.34911 0.0537,-0.76881 0.11926,-0.93268 0.11298,-0.28227 0.21928,-2.02336 0.21527,-3.52585 -0.003,-1.0243 -0.70238,-4.1972 -1.19485,-5.41867 -0.58898,-1.46085 -0.65652,-1.94359 -0.58823,-4.20476 l 0.0589,-1.95052 -0.35417,-1.06573 c -0.2035,-0.61233 -0.38689,-1.42593 -0.43108,-1.9124 l -0.0769,-0.84667 -0.52526,-1.37583 c -1.06237,-2.78273 -1.47945,-4.20321 -2.03122,-6.91776 -0.45376,-2.23238 -0.64505,-2.27567 -1.11568,-0.25245 -0.55036,2.366 -1.24997,4.70056 -1.90993,6.37337 -0.7374,1.86906 -0.82376,2.17144 -0.95826,3.35506 -0.0665,0.58484 -0.22123,1.1924 -0.43391,1.70329 l -0.33061,0.79416 0.0704,1.71758 c 0.0995,2.42885 0.0255,2.8583 -0.9235,5.35766 -0.216878,0.57117 -0.830502,3.2426 -1.051223,4.57653 -0.0276,0.1668 0.01934,0.63917 0.104307,1.0497 l 0.154488,0.74642 -0.115795,0.45987 -0.115796,0.45987 0.213553,0.8364 c 0.392224,1.53619 0.252451,1.86086 -0.87848,2.04056 -0.22547,0.0358 -0.42711,0.37885 -0.597773,1.01691 l -0.12228,0.45718 -0.363957,0.21474 c -0.200177,0.1181 -0.363957,0.27979 -0.363957,0.35931 0,0.21914 -0.354764,0.36368 -0.892626,0.36368 h -0.483208 z";
   const FP_T = "translate(-698.30,-907.29) scale(8.5363)";
   const charLevel       = levelFromTotalXP(totalXP);
-  const outlineBright   = Math.min(charLevel / 10, 1.0);          // 0.1→1.0 over levels 1→10
+  const outlineBright   = Math.min(0.3 + 0.7*(charLevel-1)/9, 1.0); // 0.3 at level 1 → 1.0 at level 10
   const glowStrength    = Math.max(0, (charLevel - 10) / 90);     // 0→1.0 over levels 10→100
 
   // Full-body swirling particles — clipped to figure shape
@@ -2433,16 +2501,24 @@ function EmbodimentSilhouette({ stats, totalXP=0 }){
     return ()=>clearInterval(iv);
   },[clarity]);
 
-  // Centers: Wisdom=head (~y50), Heart=chest (~y270), Presence=hips (~y430)
-  // visibility: 0 at combined stat-level 3 (all at 1), 1.0 at combined 30
-  const presVis  = clamp((presRaw *300-3)/27, 0, 1);
-  const heartVis = clamp((heartRaw*300-3)/27, 0, 1);
-  const wisVis   = clamp((wisRaw  *300-3)/27, 0, 1);
+  /* Centers: Wisdom=head, Heart=chest, Vitality=belly. Each is driven by the
+     average level L of its three stats (1-100), in two stages:
+       G  growth, levels 1->10: rings and glow reach full size by level 10, so a
+          new player sees the centers come alive within their first weeks
+       hi depth, levels 10->100: brightness keeps rising, and a new effect
+          appears at each threshold below, so there is always a next thing
+     Thresholds: 10 slow-turning outer ring · 25 breathing aura ·
+                 50 radiant rays · 75 orbiting motes · 100 crown halo        */
+  const centerState = R => {
+    const L = R*100;
+    return { L, G:clamp((L-1)/9,0,1), hi:clamp((L-10)/90,0,1), vis:0.35+0.65*clamp(L-1,0,1) };
+  };
   const CENTERS = [
-    {label:"Wisdom",   cx:197, cy:60,  B:wisB,   R:wisRaw,   color:"167,199,231", vis:wisVis},
-    {label:"Heart",    cx:197, cy:195, B:heartB, R:heartRaw, color:"111,168,122", vis:heartVis},
-    {label:"Vitality", cx:197, cy:355, B:presB,  R:presRaw,  color:"212,185,106", vis:presVis},
+    {label:"Wisdom",   cx:197, cy:60,  B:wisB,   R:wisRaw,   color:"167,199,231", ...centerState(wisRaw)},
+    {label:"Heart",    cx:197, cy:195, B:heartB, R:heartRaw, color:"111,168,122", ...centerState(heartRaw)},
+    {label:"Vitality", cx:197, cy:355, B:presB,  R:presRaw,  color:"212,185,106", ...centerState(presRaw)},
   ];
+  const presG = centerState(presRaw).G, presHi = centerState(presRaw).hi;
 
   return (
     <svg width="100%" height="100%" viewBox="-115 0 530 728" preserveAspectRatio="xMidYMid meet" style={{display:"block",overflow:"visible"}}>
@@ -2467,9 +2543,11 @@ function EmbodimentSilhouette({ stats, totalXP=0 }){
       </defs>
 
       {/* Center ambient glows */}
-      {CENTERS.map(({cx,cy,B,R,color,vis})=>(
-        <ellipse key={cy} cx={cx} cy={cy} rx={40+R*48} ry={35+R*42}
-          fill={`rgba(${color},${B*0.22*vis})`} filter="url(#ctr-glow-lg)"/>
+      {CENTERS.map(({cx,cy,color,vis,G,hi,L})=>(
+        <ellipse key={cy} cx={cx} cy={cy} rx={34+G*40+hi*30} ry={30+G*36+hi*26}
+          fill={`rgba(${color},${(0.06+G*0.14+hi*0.14)*vis})`} filter="url(#ctr-glow-lg)">
+          {L>=25 && <animate attributeName="opacity" values="0.65;1;0.65" dur="7s" repeatCount="indefinite"/>}
+        </ellipse>
       ))}
 
       {/* Figure */}
@@ -2503,33 +2581,53 @@ function EmbodimentSilhouette({ stats, totalXP=0 }){
           stroke="rgba(201,168,76,0.13)" strokeWidth="1.5"
           strokeLinecap="round" strokeDasharray="3,7"/>
         {/* Ground presence glow */}
-        <ellipse cx="197" cy="678" rx={20+presRaw*70} ry={6+presRaw*16}
-          fill={`rgba(201,168,76,${presRaw*0.18})`} filter="url(#ctr-glow-lg)"/>
-        <ellipse cx="197" cy="678" rx={10+presRaw*35} ry={3+presRaw*8}
-          fill="none" stroke={`rgba(201,168,76,${presRaw*0.45})`}
+        <ellipse cx="197" cy="678" rx={20+presG*40+presHi*30} ry={6+presG*9+presHi*7}
+          fill={`rgba(201,168,76,${0.05+presG*0.1+presHi*0.08})`} filter="url(#ctr-glow-lg)"/>
+        <ellipse cx="197" cy="678" rx={10+presG*20+presHi*15} ry={3+presG*5+presHi*3}
+          fill="none" stroke={`rgba(201,168,76,${0.12+presG*0.25+presHi*0.15})`}
           strokeWidth="0.6" filter="url(#ctr-glow-sm)"/>
-        <ellipse cx="197" cy="678" rx={4+presRaw*16} ry={2+presRaw*4}
-          fill={`rgba(201,168,76,${presRaw*0.55})`} filter="url(#ctr-glow-sm)"/>
+        <ellipse cx="197" cy="678" rx={4+presG*9+presHi*7} ry={2+presG*2+presHi*2}
+          fill={`rgba(201,168,76,${0.15+presG*0.3+presHi*0.15})`} filter="url(#ctr-glow-sm)"/>
       </g>
 
       {/* Energy centers — scale from a point (r=3) at zero stats to full rings at max */}
-      {CENTERS.map(({cx,cy,B,R,color,vis})=>(
+      {CENTERS.map(({cx,cy,color,vis,G,hi,L})=>{
+        const ring1=10+G*36, ring2=6+G*19;
+        return (
         <g key={cy} opacity={vis}>
-          {R>0.01 && <circle cx={cx} cy={cy} r={R*46} fill="none"
-            stroke={`rgba(${color},${R*(0.18+B*0.25)})`} strokeWidth="1.2"/>}
-          {R>0.01 && <circle cx={cx} cy={cy} r={R*25} fill="none"
-            stroke={`rgba(${color},${R*(0.32+B*0.36)})`} strokeWidth="1.5"/>}
-          {R>0.01 && <circle cx={cx} cy={cy} r={R*12}
-            fill={`rgba(${color},${R*(0.14+B*0.20)})`} filter="url(#ctr-glow-sm)"/>}
-          <circle cx={cx} cy={cy} r={3+R*2.5}
+          {/* growth rings — full size by level 10 */}
+          <circle cx={cx} cy={cy} r={ring1} fill="none" stroke={`rgba(${color},${0.12+G*0.3+hi*0.25})`} strokeWidth={1.1+hi*0.6}/>
+          <circle cx={cx} cy={cy} r={ring2} fill="none" stroke={`rgba(${color},${0.2+G*0.4+hi*0.3})`} strokeWidth={1.3+hi*0.7}/>
+          <circle cx={cx} cy={cy} r={4+G*8+hi*4} fill={`rgba(${color},${0.1+G*0.2+hi*0.2})`} filter="url(#ctr-glow-sm)"/>
+          {/* L10 — a third ring, dashed, turning slowly */}
+          {L>=10 && <circle cx={cx} cy={cy} r={ring1+12+hi*8} fill="none" stroke={`rgba(${color},${0.25+hi*0.35})`} strokeWidth="1" strokeDasharray="2 7">
+            <animateTransform attributeName="transform" type="rotate" from={`0 ${cx} ${cy}`} to={`360 ${cx} ${cy}`} dur="60s" repeatCount="indefinite"/>
+          </circle>}
+          {/* L50 — radiant rays */}
+          {L>=50 && <g stroke={`rgba(${color},${0.2+hi*0.3})`} strokeWidth="1" strokeLinecap="round">
+            {Array.from({length:12},(_,i)=>{ const a=i*Math.PI/6, r0=ring1+22, r1=ring1+30+hi*10;
+              return <line key={i} x1={cx+Math.cos(a)*r0} y1={cy+Math.sin(a)*r0} x2={cx+Math.cos(a)*r1} y2={cy+Math.sin(a)*r1}/>; })}
+            <animate attributeName="opacity" values="0.5;1;0.5" dur="9s" repeatCount="indefinite"/>
+          </g>}
+          {/* L75 — motes in orbit */}
+          {L>=75 && <g>
+            {[0,1,2].map(i=>{ const a=i*2*Math.PI/3, r=ring2+8;
+              return <circle key={i} cx={cx+Math.cos(a)*r} cy={cy+Math.sin(a)*r} r="2" fill={`rgba(${color},0.9)`}/>; })}
+            <animateTransform attributeName="transform" type="rotate" from={`0 ${cx} ${cy}`} to={`-360 ${cx} ${cy}`} dur="24s" repeatCount="indefinite"/>
+          </g>}
+          {/* L100 — crown halo */}
+          {L>=100 && <circle cx={cx} cy={cy} r={ring1+44} fill="none" stroke={`rgba(${color},0.5)`} strokeWidth="1.6" filter="url(#ctr-glow-sm)"/>}
+          {/* the core */}
+          <circle cx={cx} cy={cy} r={3+G*2.5+hi*2.5}
             fill={`rgba(${color},0.9)`}
-            style={{filter:`drop-shadow(0 0 ${4+R*14}px rgba(${color},0.8))`}}/>
+            style={{filter:`drop-shadow(0 0 ${5+G*10+hi*10}px rgba(${color},0.85))`}}/>
         </g>
-      ))}
+        );
+      })}
 
       {/* Labels — to the left of the figure */}
       {CENTERS.map(({cx,cy,B,R,color,label,vis})=>{
-        const ringEdge = cx - Math.max(R*46, 3) - 5;
+        const ringEdge = cx - (10+centerState(R).G*36) - 5;
         return (
           <g key={label} opacity={vis}>
             <line x1={ringEdge} y1={cy} x2={ringEdge-110} y2={cy}
@@ -2562,7 +2660,7 @@ function CapacitiesList({ stats, devMode, setCh }){
     <div style={{padding:"0 10%"}}>
       {STATS.map(({k,l,s})=>{
         const val=levelFromTotalXP(stats[k]||0);
-        const sc=STAT_COLORS[k]||C.sageB;
+        const sc=AC(STAT_COLORS[k])||C.sageB;
         const open=expanded===k;
         const sources=STAT_SOURCES[k]||[];
         const desc=STAT_DESCRIPTIONS[k]||"";
@@ -2592,7 +2690,7 @@ function CapacitiesList({ stats, devMode, setCh }){
                 <div style={{...body("10px",C.muted),marginBottom:"5px"}}>Cultivated by:</div>
                 <div style={{display:"flex",flexWrap:"wrap",gap:"5px",marginBottom:devMode?"8px":"0"}}>
                   {sources.length>0
-                    ? sources.map(src2=>(<span key={src2} style={{fontSize:"10px",color:C.muted,background:"rgba(163,192,137,0.07)",border:`0.5px solid ${C.bord}`,padding:"2px 9px",borderRadius:"8px"}}>{src2}</span>))
+                    ? sources.map(src2=>(<span key={src2} style={{fontSize:"10px",color:C.muted,background:`rgba(${C.sageRGB},0.07)`,border:`0.5px solid ${C.bord}`,padding:"2px 9px",borderRadius:"8px"}}>{src2}</span>))
                     : <span style={{...body("10px",C.dim)}}>No practice types assigned yet</span>}
                 </div>
                 {devMode && (
@@ -2702,7 +2800,7 @@ function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacit
                 <div key={k} style={{padding:"1.5px 0 1.5px",borderBottom:`0.5px solid rgba(39,54,43,0.5)`}}>
                   {/* abbrev | label | value */}
                   <div style={{display:"flex",alignItems:"center",gap:"3px"}}>
-                    <span style={{...dsp("7.5px",STAT_COLORS[k],400,"0.08em"),minWidth:"22px"}}>{s}</span>
+                    <span style={{...dsp("7.5px",AC(STAT_COLORS[k]),400,"0.08em"),minWidth:"22px"}}>{s}</span>
                     <span style={{...body("9.5px",C.muted),lineHeight:1.2}}>{l}</span>
                     <span style={{...body("9.5px",C.sage),marginLeft:"auto",textAlign:"right"}}>{val}</span>
                   </div>
@@ -3206,7 +3304,7 @@ function levelToTitle(lvl){
 
 const CHAPTER_MOODS = {
   1: { bg1:"#08090f", bg2:"#0d1220", accent:"#6b8fa8", wisp:"rgba(90,120,170,0.07)" },  // drift — cool blue-grey fog
-  2: { bg1:"#110e06", bg2:"#1c1608", accent:"#c9a84c", wisp:"rgba(201,168,76,0.07)" },  // doorway — amber threshold
+  2: { bg1:"#110e06", bg2:"#1c1608", accent:"#c9a84c", wisp:`rgba(${C.goldRGB},0.07)` },  // doorway — amber threshold
   3: { bg1:"#07100a", bg2:"#0a1a0c", accent:"#7aa060", wisp:"rgba(90,150,80,0.07)"  },  // mastery — deep forest
   4: { bg1:"#0f0c08", bg2:"#1a1408", accent:"#a08a60", wisp:"rgba(160,128,80,0.07)" },  // placed — earth
   5: { bg1:"#081208", bg2:"#0b1e0c", accent:"#98c870", wisp:"rgba(120,200,80,0.09)"  }, // living world — vivid green
@@ -3650,9 +3748,9 @@ function classBadgeState(cid, classState){
 }
 function PathSigil({ cls, size=44, faint=false }){
   return (
-    <div style={{width:`${size}px`,height:`${size}px`,borderRadius:"50%",border:`1px solid ${cls.accent}${faint?"55":""}`,
-      background:faint?"transparent":`${cls.accent}1f`,display:"flex",alignItems:"center",justifyContent:"center",
-      boxShadow:faint?"none":`0 0 10px ${cls.accent}33`}}>
+    <div style={{width:`${size}px`,height:`${size}px`,borderRadius:"50%",border:`1px solid ${AC(cls.accent)}${faint?"55":""}`,
+      background:faint?"transparent":`${AC(cls.accent)}1f`,display:"flex",alignItems:"center",justifyContent:"center",
+      boxShadow:faint?"none":`0 0 10px ${AC(cls.accent)}33`}}>
       <span style={{...dsp(`${Math.round(size*0.4)}px`,faint?C.dim:C.cream,500,"0")}}>{cls.name[0]}</span>
     </div>
   );
@@ -3726,7 +3824,7 @@ const MODE_LABEL = { train:"Train", restore:"Restore", sitting:"Sit", standing:"
 
 function cmNodes(){
   const all=[
-    ...CLASSES.map(c=>({ id:c.id, name:c.name, accent:c.accent, blurb:c.blurb, parents:ADVANCED_CLASS_REQS[c.id]||null, real:true })),
+    ...CLASSES.map(c=>({ id:c.id, name:c.name, accent:AC(c.accent), blurb:c.blurb, parents:ADVANCED_CLASS_REQS[c.id]||null, real:true })),
     ...CM_COMING.map(c=>({ ...c, real:false })),
   ];
   const by=Object.fromEntries(all.map(n=>[n.id,n]));
@@ -3755,26 +3853,245 @@ function cmVisible(n, classState, gateOpen){
   return n.parents.every(p=>chainComplete(p, qp));
 }
 
-function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel="center", onSelect=()=>{}, onOpenPath=()=>{}, onChoosePath=()=>{} }){
-  const nodes=useMemo(cmNodes,[]);
-  const visible=nodes.filter(n=>cmVisible(n, classState, gateOpen));
+/* XP and activity breakdown for a Fundamental, from history.
+   A session's XP is shared out between the activities it used (time XP split
+   evenly, rep/km bonus to the activity that earned it); a Fundamental gets the
+   shares of its own activities. Tend entries earn their logged XP (as when
+   saved); an Inquire entry earns its 3. Approximate by design: sessions never
+   recorded XP per activity. */
+const TEND_XP_MULT = { "Deep Listening": 1.5, "Service": 1 };
+function fundamentalDetail(f, sessions=[], jEnt=[]){
+  const own=f.activity===false ? [] : [f.name];
+  const names=[...own, ...(f.sources||[])];
+  const per=Object.fromEntries(names.map(n=>[n,{name:n, own:n===f.name, days:new Set(), total:0, unit:null}]));
+  let xp=0;
+  (sessions||[]).forEach(s=>{
+    const acts=s.activities||[];
+    const reflectHit = !!(f.reflectSit && s.typeId==="sitting" && s.reflection && String(s.reflection).trim());
+    const mine=acts.filter(a=>per[a.name]);
+    if(!mine.length && !reflectHit) return;
+    const bonusOf=a=> (a.unit && a.unit!=="minutes") ? (Number(s.loggedCounts?.[a.id])||0)*COUNT_BONUS_PER_UNIT : 0;
+    const totalBonus=acts.reduce((t,a)=>t+bonusOf(a),0);
+    const members=Math.max(1, acts.length + (f.reflectSit?1:0));
+    const timeShare=Math.max(0,(s.xp||0)-totalBonus)/members;
+    xp += timeShare*(mine.length + (reflectHit?1:0)) + mine.reduce((t,a)=>t+bonusOf(a),0);
+    mine.forEach(a=>{
+      const r=per[a.name]; if(s.date) r.days.add(s.date);
+      if(!a.unit || a.unit==="minutes"){ r.total+=(s.elapsed||0)/60; r.unit=r.unit||"min"; }
+      else { r.total+=Number(s.loggedCounts?.[a.id])||0; r.unit=a.unit; }
+    });
+  });
+  const journalRows=[];
+  (f.journal||[]).forEach(j=>{
+    const label = j.tag==="tend" ? `Tend · ${j.tendKind}` : j.tag==="release" ? "Release entries" : j.tag==="inquire" ? "Inquiries" : j.tag;
+    const row={name:label, journal:true, days:new Set(), total:0, unit:j.tag==="tend"?"min":"entries"};
+    (jEnt||[]).forEach(e=>{
+      if(!(e.tag===j.tag && (!j.tendKind||e.tendKind===j.tendKind) && (!j.releaseKind||e.releaseKind===j.releaseKind))) return;
+      if(e.date) row.days.add(e.date);
+      if(j.tag==="tend"){ const m=Number(e.tendMinutes)||0; row.total+=m; xp+=Math.round(m*6*(TEND_XP_MULT[e.tendKind]??1)); }
+      else { row.total+=1; if(j.tag==="inquire") xp+=3; }
+    });
+    journalRows.push(row);
+  });
+  if(f.reflectSit){
+    const row={name:"Sits with a reflection", journal:true, days:new Set(), total:0, unit:"sits"};
+    (sessions||[]).forEach(s=>{ if(s.typeId==="sitting" && s.reflection && String(s.reflection).trim()){ row.total+=1; if(s.date) row.days.add(s.date); } });
+    journalRows.push(row);
+  }
+  const rows=[...Object.values(per), ...journalRows].map(r=>({...r, days:r.days.size}));
+  return { xp:Math.round(xp), rows };
+}
+const fmtTotal = r => !r.total ? "—" : r.unit==="min" ? `${Math.round(r.total)} min` : `${Math.round(r.total*10)/10} ${r.unit||""}`.trim();
+
+
+/* ── My Path — the player's own map. Center: the name their values point to.
+   First orbit: the values. Outer orbit: practices, each hanging from the
+   value it serves. Laid out fresh from the story every render. */
+const MP_R1 = 170, MP_R2 = 310, MP_R2B = 400;
+function myPathNodes(story){
+  if(!story || !story.values?.length) return [];
+  const vals=story.values, nV=vals.length, out=[];
+  const rad=d=>d*Math.PI/180;
+  vals.forEach((v,i)=>{
+    const ang=i*360/nV;
+    out.push({ id:`v:${v}`, kind:"value", name:v, value:v, ang, pos:{x:MP_R1*Math.sin(rad(ang)), y:-MP_R1*Math.cos(rad(ang)), r:MP_R1} });
+    const ps=story.practices.filter(p=>p.value===v), n=ps.length;
+    const step=Math.min(26, n>1 ? (360/nV)*0.8/(n-1) : 26);
+    ps.forEach((p,j)=>{
+      const a=ang+(j-(n-1)/2)*step, r=n>3 && j%2 ? MP_R2B : MP_R2;
+      out.push({ id:`p:${p.id}`, kind:"practice", name:p.name, practice:p, value:v, parents:[`v:${v}`], pos:{x:r*Math.sin(rad(a)), y:-r*Math.cos(rad(a)), r} });
+    });
+  });
+  return out;
+}
+const practiceAccent = p => p?.stat ? AC(STAT_COLORS[p.stat]) : C.sageB;
+const statLabel = k => STATS.find(s=>s.k===k)?.l || "";
+const modeLabel = id => PRACTICE_MODES.find(m=>m.id===id)?.label || "Sit";
+
+/* Add or edit one practice. A practice serves a value; a capacity is optional. */
+function PracticeForm({ initial=null, values=[], value, modes=["sitting","standing","walking"], onSave, onCancel, onRemove=null }){
+  const [name,setName]=useState(initial?.name||"");
+  const [val,setVal]=useState(initial?.value||value||values[0]);
+  const [mode,setMode]=useState(initial?.mode||"sitting");
+  const [track,setTrack]=useState(initial && initial.unit && initial.unit!=="minutes" ? "count" : "time");
+  const [unit,setUnit]=useState(initial && initial.unit && initial.unit!=="minutes" ? initial.unit : "");
+  const [stat,setStat]=useState(initial?.stat||null);
+  const [confirmRm,setConfirmRm]=useState(false);
+  const ok=!!name.trim();
+  const lab={...dsp("8px",C.muted,400,"0.2em"),margin:"14px 0 7px"};
+  const pill=on=>({padding:"6px 11px",borderRadius:"14px",cursor:"pointer",border:`0.5px solid ${on?C.sageB:C.bord}`,background:on?`rgba(${C.sageRGB},0.14)`:"transparent",...body("13px",on?C.cream:C.muted)});
+  const save=()=>{ if(!ok) return; onSave({ ...(initial||{}), id:initial?.id||`${Date.now().toString(36)}${Math.random().toString(36).slice(2,5)}`,
+    name:name.trim().slice(0,40), value:val, mode, unit: track==="time" ? "minutes" : (unit.trim().toLowerCase().slice(0,12)||"times"), stat:stat||null,
+    createdAt: initial?.createdAt || new Date().toISOString() }); };
+  const modeOpts=PRACTICE_MODES.filter(m=>modes.includes(m.id) || m.id===initial?.mode);
+  return (
+    <div style={{padding:"4px 0 8px"}}>
+      <input autoFocus value={name} onChange={e=>setName(e.target.value)} placeholder="Practice name" maxLength={40}
+        style={{width:"100%",boxSizing:"border-box",background:"transparent",border:"none",borderBottom:`1px solid ${ok?C.sageB:C.bord}`,color:C.cream,...body("17px",C.cream),padding:"8px 2px",outline:"none"}}/>
+      {values.length>1 && <>
+        <div style={lab}>SERVES</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:"6px"}}>{values.map(v=><button key={v} onClick={()=>setVal(v)} style={pill(val===v)}>{v}</button>)}</div>
+      </>}
+      <div style={lab}>PRACTICED AS</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:"6px"}}>{modeOpts.map(m=><button key={m.id} onClick={()=>setMode(m.id)} style={pill(mode===m.id)}>{m.label}</button>)}</div>
+      <div style={lab}>TRACK</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:"6px",alignItems:"center"}}>
+        <button onClick={()=>setTrack("time")} style={pill(track==="time")}>Time</button>
+        <button onClick={()=>setTrack("count")} style={pill(track==="count")}>Count</button>
+        {track==="count" && <input value={unit} onChange={e=>setUnit(e.target.value)} placeholder="reps, km, pages…" maxLength={12}
+          style={{flex:1,minWidth:"90px",background:"transparent",border:"none",borderBottom:`0.5px solid ${C.bord}`,color:C.cream,...body("14px",C.cream),padding:"5px 2px",outline:"none"}}/>}
+      </div>
+      <div style={lab}>CAPACITY <span style={{color:C.dim,letterSpacing:"0.08em"}}>· OPTIONAL</span></div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:"6px"}}>
+        <button onClick={()=>setStat(null)} style={pill(!stat)}>None</button>
+        {STATS.map(s=>{ const on=stat===s.k, sc=AC(STAT_COLORS[s.k]); return (
+          <button key={s.k} onClick={()=>setStat(s.k)} style={{...pill(on),border:`0.5px solid ${on?sc:C.bord}`,background:on?sc+"22":"transparent",color:on?C.cream:C.muted}}>{s.l}</button>); })}
+      </div>
+      <div style={{display:"flex",gap:"8px",marginTop:"18px"}}>
+        <button onClick={onCancel} style={{padding:"10px 16px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"6px",cursor:"pointer",...dsp("9px",C.muted,400,"0.16em")}}>CANCEL</button>
+        <button onClick={save} disabled={!ok} style={{flex:1,padding:"10px",background:ok?`rgba(${C.sageRGB},0.12)`:"transparent",border:`0.5px solid ${ok?C.sageB:C.bord}`,borderRadius:"6px",cursor:ok?"pointer":"default",...dsp("9px",ok?C.sageB:C.dim,400,"0.18em")}}>{initial?"SAVE":"ADD PRACTICE"}</button>
+      </div>
+      {onRemove && (
+        <button onClick={()=>{ if(confirmRm) onRemove(); else setConfirmRm(true); }} style={{marginTop:"14px",background:"none",border:"none",cursor:"pointer",...body("13px",confirmRm?"#c07060":C.dim)}}>
+          {confirmRm ? "Tap again to remove. Its history stays in your logs." : "Remove practice"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* Sheet body for My Path — what the selected node holds. */
+function MyPathSheetBody({ story, node, sessions=[], modes, onPick=()=>{}, onStoryChange=()=>{}, onOpenForge=()=>{} }){
+  const [form,setForm]=useState(null); // null | "add" | "edit"
+  useEffect(()=>{ setForm(null); },[node?.id]);
+  const setPractices=fn=>onStoryChange(s=>({...s, practices:fn(s.practices||[])}));
+  const rowBtn={width:"100%",display:"flex",alignItems:"baseline",gap:"8px",padding:"11px 0",background:"none",border:"none",borderBottom:`0.5px solid ${C.bord}`,cursor:"pointer",textAlign:"left"};
+  if(!node){
+    return (
+      <div>
+        <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"6px 0 2px"}}>VALUES</div>
+        {story.values.map(v=>{ const n=story.practices.filter(p=>p.value===v).length; return (
+          <button key={v} onClick={()=>onPick(`v:${v}`)} style={rowBtn}>
+            <span style={{...body("15px",C.cream),flex:1}}>{v}</span>
+            <span style={{...body("12px",C.muted)}}>{n ? `${n} practice${n===1?"":"s"}` : "no practices yet"}</span>
+            <span style={{...body("12px",C.dim)}}>›</span>
+          </button>); })}
+        <button onClick={onOpenForge} style={{marginTop:"16px",padding:"8px 16px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"6px",cursor:"pointer",...dsp("8.5px",C.muted,400,"0.16em")}}>THE FORGE ›</button>
+      </div>
+    );
+  }
+  if(node.kind==="value"){
+    const ps=story.practices.filter(p=>p.value===node.value);
+    if(form==="add") return <PracticeForm values={story.values} value={node.value} modes={modes} onCancel={()=>setForm(null)}
+      onSave={p=>{ setPractices(list=>[...list,p]); setForm(null); onPick(`p:${p.id}`); }}/>;
+    return (
+      <div>
+        {ps.length>0 && <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"6px 0 2px"}}>PRACTICES</div>}
+        {ps.map(p=>{ const h=practiceHistory(p, sessions); return (
+          <button key={p.id} onClick={()=>onPick(`p:${p.id}`)} style={rowBtn}>
+            <span style={{width:"7px",height:"7px",borderRadius:"50%",background:practiceAccent(p),flexShrink:0,alignSelf:"center"}}/>
+            <span style={{...body("15px",C.cream),flex:1}}>{p.name}</span>
+            <span style={{...body("12px",C.muted)}}>{h.days} {h.days===1?"day":"days"}</span>
+            <span style={{...body("12px",C.dim)}}>›</span>
+          </button>); })}
+        <button onClick={()=>setForm("add")} style={{marginTop:"14px",padding:"9px 18px",background:"transparent",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",cursor:"pointer",...dsp("9px",C.sageB,400,"0.16em")}}>+ ADD PRACTICE</button>
+      </div>
+    );
+  }
+  const p=node.practice, h=practiceHistory(p, sessions);
+  if(form==="edit") return <PracticeForm initial={p} values={story.values} modes={modes} onCancel={()=>setForm(null)}
+    onSave={np=>{ setPractices(list=>list.map(x=>x.id===np.id?np:x)); setForm(null); }}
+    onRemove={()=>{ setPractices(list=>list.filter(x=>x.id!==p.id)); onPick(`v:${p.value}`); }}/>;
+  const cell=(k,v)=>(
+    <div style={{flex:1,minWidth:0,padding:"10px 0",borderRight:`0.5px solid ${C.bord}`,textAlign:"center"}}>
+      <div style={{...body("17px",C.cream)}}>{v}</div>
+      <div style={{...dsp("7.5px",C.muted,400,"0.18em"),marginTop:"3px"}}>{k}</div>
+    </div>);
+  return (
+    <div>
+      <div style={{display:"flex",border:`0.5px solid ${C.bord}`,borderRadius:"8px",margin:"6px 0 14px",overflow:"hidden"}}>
+        {cell("DAYS", h.days)}{cell("SESSIONS", h.sessions)}{cell("TOTAL", h.total?fmtAmt(h.total,h.unit):"—")}
+        <div style={{flex:1,minWidth:0,padding:"10px 0",textAlign:"center"}}>
+          <div style={{...body("17px",C.cream)}}>{h.best?fmtAmt(h.best,h.unit):"—"}</div>
+          <div style={{...dsp("7.5px",C.muted,400,"0.18em"),marginTop:"3px"}}>BEST</div>
+        </div>
+      </div>
+      <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"0 0 2px"}}>HISTORY</div>
+      {h.rows.length===0 && <div style={{...body("13px",C.dim),fontStyle:"italic",padding:"8px 0"}}>Nothing yet. Press Cultivate to begin.</div>}
+      {h.rows.slice(0,30).map((r,i)=>(
+        <div key={i} style={{display:"flex",gap:"8px",padding:"7px 0",borderBottom:`0.5px solid ${C.bord}`}}>
+          <span style={{...body("13.5px",C.cream),flex:1}}>{r.date ? new Date(r.date+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}) : "—"}</span>
+          <span style={{...body("12px",C.dim)}}>{r.type}</span>
+          <span style={{...body("13px",C.muted),minWidth:"64px",textAlign:"right"}}>{r.amt?fmtAmt(r.amt,h.unit):"—"}</span>
+        </div>
+      ))}
+      <button onClick={()=>setForm("edit")} style={{marginTop:"16px",padding:"8px 16px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"6px",cursor:"pointer",...dsp("8.5px",C.muted,400,"0.16em")}}>EDIT PRACTICE</button>
+    </div>
+  );
+}
+
+function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pathSel="center", onSelect:onPathSelect=()=>{}, onOpenPath=()=>{}, onChoosePath=()=>{},
+  story=null, mode="paths", onMode=()=>{}, mySel="center", onMySel=()=>{}, onStoryChange=()=>{}, practiceModes=["sitting","standing","walking"], onOpenForge=()=>{} }){
+  const hasStory=!!(story && story.name && story.values?.length);
+  const mine = mode==="mine" && hasStory;
+  const pathNodes=useMemo(cmNodes,[]);
+  const myNodes=useMemo(()=>myPathNodes(story),[story]);
+  const nodes = mine ? myNodes : pathNodes;
+  const sel = mine ? (mySel==="center"||myNodes.some(n=>n.id===mySel) ? mySel : "center") : pathSel;
+  const onSelect = mine ? onMySel : onPathSelect;
+  const visible = mine ? myNodes : pathNodes.filter(n=>cmVisible(n, classState, gateOpen));
   const visIds=new Set(visible.map(n=>n.id));
   const wrapRef=useRef(null);
-  const [vw,setVw]=useState(390);
-  const VH=420;
+  const [box,setBox]=useState({w:390,h:560});
   useEffect(()=>{
     const el=wrapRef.current; if(!el) return;
-    const m=()=>{ if(el.clientWidth) setVw(el.clientWidth); };
+    const m=()=>{ if(el.clientWidth&&el.clientHeight) setBox({w:el.clientWidth,h:el.clientHeight}); };
     m();
     if(typeof ResizeObserver==="undefined") return;
     const ro=new ResizeObserver(m); ro.observe(el); return ()=>ro.disconnect();
   },[]);
+  const vw=box.w, VH=box.h;
+
+  /* ── Info sheet: a peek at the bottom; tap to open to 75%, drag down to close. ── */
+  const PEEK=132, OPEN=Math.round(VH*0.75), SHEET_TUCK=54;
+  const [sheetOpen,setSheetOpen]=useState(false);
+  const [dragH,setDragH]=useState(null);           // live height while dragging
+  const sheetH = dragH ?? (sheetOpen ? OPEN : PEEK);
+  const drag=useRef(null);
+  const onSheetDown=e=>{ drag.current={y:e.clientY, h:sheetH, moved:false}; try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){} };
+  const onSheetMove=e=>{ const d=drag.current; if(!d) return; const dy=e.clientY-d.y; if(Math.abs(dy)>5) d.moved=true; if(d.moved) setDragH(Math.max(PEEK-30, Math.min(OPEN+20, d.h-dy))); };
+  const onSheetUp=()=>{ const d=drag.current; drag.current=null; if(!d) return;
+    if(!d.moved){ setSheetOpen(o=>!o); setDragH(null); return; }
+    const h=dragH ?? d.h; setSheetOpen(h > (PEEK+OPEN)/2); setDragH(null); };
+
+  /* ── Map view: pinch / drag only. The map centres in the space above the peek. ── */
+  const mapH=VH-PEEK;
   const maxR=Math.max(0,...visible.map(n=>n.pos.r));
-  const fitK=maxR ? Math.min(0.85, (Math.min(vw,VH)/2-40)/maxR) : 0.85;
+  const fitK=maxR ? Math.min(0.85, (Math.min(vw,mapH)/2-40)/maxR) : 0.85;
   const [view,setView]=useState(null);
-  const v=view||{k:fitK, ox:0, oy:0};          // ox/oy: pan offset from the centre of the frame
-  const tx=vw/2+v.ox, ty=VH/2+v.oy, k=v.k;
-  useEffect(()=>{ setView(null); },[visible.length]); // refit when a path opens
+  const v=view||{k:fitK, ox:0, oy:0};
+  const tx=vw/2+v.ox, ty=mapH/2+v.oy, k=v.k;
+  useEffect(()=>{ setView(null); },[visible.length, mine]);
   const raf=useRef(0);
   const stop=()=>{ if(raf.current){ cancelAnimationFrame(raf.current); raf.current=0; } };
   useEffect(()=>stop,[]);
@@ -3789,7 +4106,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel="c
     raf.current=requestAnimationFrame(step);
   };
   const zoomAt=(px,py,f)=>{ stop(); setView(s0=>{ const s=s0||v; const nk=Math.max(0.35,Math.min(2.5,s.k*f)), r=nk/s.k;
-    const cx=vw/2+s.ox, cy=VH/2+s.oy; const ncx=px-(px-cx)*r, ncy=py-(py-cy)*r; return {k:nk, ox:ncx-vw/2, oy:ncy-VH/2}; }); };
+    const cx=vw/2+s.ox, cy=mapH/2+s.oy; const ncx=px-(px-cx)*r, ncy=py-(py-cy)*r; return {k:nk, ox:ncx-vw/2, oy:ncy-mapH/2}; }); };
   const ptrs=useRef({}), lastD=useRef(0);
   const onDown=e=>{ stop(); ptrs.current[e.pointerId]={x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,cap:false};
     const ids=Object.keys(ptrs.current);
@@ -3807,97 +4124,167 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel="c
   const X=x=>tx+x*k, Y=y=>ty+y*k;
   const trim=(x1,y1,x2,y2,t1,t2)=>{ const d=Math.hypot(x2-x1,y2-y1)||1, ux=(x2-x1)/d, uy=(y2-y1)/d; return `M ${x1+ux*t1} ${y1+uy*t1} L ${x2-ux*t2} ${y2-uy*t2} `; };
   let solid="", dashed="", rings="";
-  const tiers=new Set();
+  const radii=new Set();
   visible.forEach(n=>{
-    tiers.add(n.pos.tier);
-    if(!n.parents) solid+=trim(tx,ty,X(n.pos.x),Y(n.pos.y),36,28);
-    else n.parents.filter(p=>visIds.has(p)).forEach(p=>{ const pp=nodes.find(m=>m.id===p).pos; dashed+=trim(X(pp.x),Y(pp.y),X(n.pos.x),Y(n.pos.y),28,28); });
+    radii.add(Math.round(n.pos.r));
+    if(!n.parents) solid+=trim(tx,ty,X(n.pos.x),Y(n.pos.y),mine?42:36,mine?26:28);
+    else n.parents.filter(p=>visIds.has(p)).forEach(p=>{ const pp=nodes.find(m=>m.id===p).pos; const seg=trim(X(pp.x),Y(pp.y),X(n.pos.x),Y(n.pos.y),28,mine?22:28); if(mine) solid+=seg; else dashed+=seg; });
   });
-  tiers.forEach(t=>{ const rr=(CM_ORBITS[t]??0)*k; rings+=`M ${tx-rr} ${ty} a ${rr} ${rr} 0 1 0 ${2*rr} 0 a ${rr} ${rr} 0 1 0 ${-2*rr} 0 `; });
+  radii.forEach(r0=>{ const rr=r0*k; if(rr>0) rings+=`M ${tx-rr} ${ty} a ${rr} ${rr} 0 1 0 ${2*rr} 0 a ${rr} ${rr} 0 1 0 ${-2*rr} 0 `; });
 
   const selNode = sel!=="center" && visIds.has(sel) ? nodes.find(n=>n.id===sel) : null;
   const centerOn = !selNode;
-  const st = selNode&&selNode.real ? classBadgeState(selNode.id, classState) : null;
-  const trialDone = selNode&&selNode.real ? classTrialDone(classState, selNode.id) : false;
-  const funds = selNode&&selNode.real&&st.chosen ? computeFundamentals(selNode.id, sessions, jEnt) : [];
-  const mode = selNode&&st?.chosen&&trialDone ? CLASS_MODE[selNode.id] : null;
-  const btn = {width:"36px",height:"36px",borderRadius:"50%",background:PANEL(0.8),border:`0.5px solid ${C.bord}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:C.muted,padding:0};
-  const hint = centerOn ? "Press Cultivate to practice: Sit, Stand or Walk."
+  const st = !mine&&selNode&&selNode.real ? classBadgeState(selNode.id, classState) : null;
+  const trialDone = st ? classTrialDone(classState, selNode.id) : false;
+  const funds = st ? (FUNDAMENTALS[selNode.id]||[]) : [];
+  const fundStats = st&&st.chosen ? Object.fromEntries(computeFundamentals(selNode.id, sessions, jEnt).map(f=>[f.id,f])) : {};
+  const cMode = st&&st.chosen&&trialDone ? CLASS_MODE[selNode.id] : null;
+  const [openFund,setOpenFund]=useState(null);
+  useEffect(()=>{ setOpenFund(null); },[sel]);
+  const myPr = mine && selNode?.kind==="practice" ? selNode.practice : null;
+  const hint = mine ? (centerOn ? "Press Cultivate to practice: Sit, Stand or Walk."
+      : myPr ? `Press Cultivate to practice ${myPr.name} · ${modeLabel(myPr.mode)}.`
+      : "Add the practices that serve this value.")
+    : centerOn ? "Press Cultivate to practice: Sit, Stand or Walk."
     : !selNode.real ? "This path is coming. Its practices are still being written."
     : !st.chosen ? "Open to you. Choose it to begin its trial."
     : !trialDone ? "Complete this path's trial in the Quest tab. Cultivate opens a plain session until then."
-    : `Press Cultivate to practice ${selNode.name} · ${MODE_LABEL[mode]||"Practice"}.`;
+    : `Press Cultivate to practice ${selNode.name} · ${MODE_LABEL[cMode]||"Practice"}.`;
+  const accent = mine ? (myPr ? practiceAccent(myPr) : C.gold) : selNode ? selNode.accent : C.gold;
+  const eyebrow = mine ? (centerOn ? "MY PATH" : myPr ? `SERVES ${myPr.value.toUpperCase()}${myPr.stat?` · ${statLabel(myPr.stat).toUpperCase()}`:""}` : "VALUE")
+    : centerOn ? "THE CENTER" : !selNode.real ? "COMING" : st.chosen ? (st.complete?`MASTERY ${st.level}`:`PATH ${st.done}/${st.total}`) : "OPEN";
+  const sheetTitle = mine ? (centerOn ? story.name : selNode.name) : (centerOn ? "Presence" : selNode.name);
+  const sheetBlurb = mine ? (centerOn ? (story.ideal || "The name your values point to.") : myPr ? `${modeLabel(myPr.mode)} · ${myPr.unit==="minutes"?"tracked by time":`counted in ${myPr.unit}`}` : `${story.practices.filter(p=>p.value===selNode.value).length||"No"} practice${story.practices.filter(p=>p.value===selNode.value).length===1?"":"s"} serve ${selNode.name}.`)
+    : centerOn ? "Every path draws on these four, practiced through Sit, Stand and Walk." : selNode.blurb;
 
   return (
-    <div style={{paddingBottom:"10px"}}>
-      <div style={{padding:"12px 20px 6px",display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
-        <div>
+    <div ref={wrapRef} style={{position:"relative",height:"100%",minHeight:"420px"}}>
+      {/* Map */}
+      <div onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onWheel={onWheel}
+        style={{position:"absolute",left:0,top:0,width:"100%",height:`${mapH}px`,overflow:"hidden",touchAction:"none",cursor:"grab"}}>
+        <div style={{position:"absolute",left:"20px",top:"12px",pointerEvents:"none",zIndex:1}}>
           <div style={{...dsp("8px",C.muted,400,"0.24em")}}>ASCEND: INFINITE POTENTIAL</div>
           <div style={{...dsp("15px",C.cream,400,"0.14em"),marginTop:"3px"}}>CULTIVATE</div>
         </div>
-        <div style={{...body("11px",C.dim),textAlign:"right",lineHeight:1.35}}>Tap to choose<br/>Drag · pinch to zoom</div>
-      </div>
-      <div ref={wrapRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onWheel={onWheel}
-        style={{position:"relative",width:"100%",height:`${VH}px`,overflow:"hidden",touchAction:"none",cursor:"grab"}}>
-        <svg aria-hidden="true" width={vw} height={VH} viewBox={`0 0 ${vw} ${VH}`} style={{position:"absolute",left:0,top:0,fill:"none",strokeLinecap:"round",pointerEvents:"none"}}>
+        {hasStory && (
+          <div role="group" aria-label="Map" onPointerDown={e=>e.stopPropagation()} style={{position:"absolute",right:"14px",top:"14px",zIndex:2,display:"flex",border:`0.5px solid ${C.bord}`,borderRadius:"16px",overflow:"hidden",background:C.surf}}>
+            {[["paths","Paths"],["mine","My Path"]].map(([id,l])=>{ const on=(id==="mine")===mine; return (
+              <button key={id} aria-pressed={on} onClick={()=>onMode(id)} style={{padding:"6px 12px",border:"none",cursor:"pointer",background:on?`rgba(${C.goldRGB},0.16)`:"transparent",...dsp("8.5px",on?C.gold:C.muted,400,"0.14em")}}>{l.toUpperCase()}</button>); })}
+          </div>
+        )}
+        <svg aria-hidden="true" width={vw} height={mapH} viewBox={`0 0 ${vw} ${mapH}`} style={{position:"absolute",left:0,top:0,fill:"none",strokeLinecap:"round",pointerEvents:"none"}}>
           <path d={rings} stroke={INK(0.14)} strokeWidth="1" strokeDasharray="2 6"/>
           <path d={solid} stroke={INK(0.3)} strokeWidth="1.4"/>
           <path d={dashed} stroke={INK(0.3)} strokeWidth="1.4" strokeDasharray="4 5"/>
         </svg>
-        <button type="button" aria-label="The Center" aria-pressed={centerOn} onClick={()=>{ onSelect("center"); glide(0,0); }}
-          style={{position:"absolute",left:tx-32,top:ty-32,width:64,height:64,borderRadius:"50%",padding:0,cursor:"pointer",border:`1.5px solid ${C.gold}`,
+        <button type="button" aria-label={mine?story.name:"The Center"} aria-pressed={centerOn} onClick={()=>{ onSelect("center"); glide(0,0); }}
+          style={{position:"absolute",left:tx-(mine?38:32),top:ty-(mine?38:32),width:mine?76:64,height:mine?76:64,borderRadius:"50%",padding:0,cursor:"pointer",border:`1.5px solid ${C.gold}`,
             background:centerOn?`rgba(${C.goldRGB},0.16)`:`rgba(${C.goldRGB},0.06)`,boxShadow:centerOn?`0 0 0 5px rgba(${C.goldRGB},0.18)`:"none",display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <span style={{...dsp("8px",C.gold,400,"0.2em")}}>CENTER</span>
+          {mine ? (()=>{ const longest=Math.max(...story.name.split(/\s+/).map(w=>w.length)); const fs=Math.max(6.5,Math.min(11,62/(Math.max(1,longest)*0.8)));
+            return <span style={{...dsp(`${fs}px`,C.gold,400,"0.06em"),textAlign:"center",lineHeight:1.2,padding:"0 5px",overflow:"hidden",maxHeight:"44px"}}>{story.name.toUpperCase()}</span>; })()
+            : <span style={{...dsp("8px",C.gold,400,"0.2em")}}>CENTER</span>}
         </button>
-        {visible.map(n=>{
+        {mine && visible.map(n=>{
+          const on=sel===n.id, val=n.kind==="value";
+          const ac = val ? C.gold : practiceAccent(n.practice);
+          const D = val ? 46 : 34;
+          return (
+            <button key={n.id} type="button" aria-pressed={on} onClick={()=>{ onSelect(n.id); glide(n.pos.x,n.pos.y); }}
+              style={{position:"absolute",left:X(n.pos.x)-44,top:Y(n.pos.y)-D/2,width:88,padding:0,background:"none",border:0,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+              <div style={{width:D,height:D,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",
+                border:`${val?1.5:1.2}px solid ${ac}`,background:on?`${ac}2e`:C.surf,boxShadow:on?`0 0 0 5px ${ac}33`:"none"}}>
+                <span style={{...dsp(val?"17px":"13px",ac)}}>{n.name[0].toUpperCase()}</span>
+              </div>
+              <span style={{...body(val?"12.5px":"11.5px",on?C.cream:C.muted),lineHeight:"13px",textShadow:`0 0 6px ${C.bg}`,maxWidth:88,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.name}</span>
+            </button>
+          );
+        })}
+        {!mine && visible.map(n=>{
           const on=sel===n.id;
           const chosen=(classState?.chosenClasses||[]).includes(n.id);
           return (
             <button key={n.id} type="button" aria-pressed={on} onClick={()=>{ onSelect(n.id); glide(n.pos.x,n.pos.y); }}
               style={{position:"absolute",left:X(n.pos.x)-44,top:Y(n.pos.y)-24,width:88,padding:0,background:"none",border:0,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
-              <div style={{width:48,height:48,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",color:n.accent,
-                border:`${chosen?2:1.5}px ${n.parents&&!chosen?"dashed":"solid"} ${n.accent}`,background:on?`${n.accent}2e`:C.surf,boxShadow:on?`0 0 0 5px ${n.accent}33`:"none",opacity:n.real?1:0.75}}>
+              <div style={{width:48,height:48,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",color:AC(n.accent),
+                border:`${chosen?2:1.5}px ${n.parents&&!chosen?"dashed":"solid"} ${AC(n.accent)}`,background:on?`${AC(n.accent)}2e`:C.surf,boxShadow:on?`0 0 0 5px ${AC(n.accent)}33`:"none",opacity:n.real?1:0.75}}>
                 {CM_ICONS[n.id] ? <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={CM_ICONS[n.id]}/></svg>
-                  : <span style={{...dsp("19px",n.accent)}}>{n.name[0]}</span>}
+                  : <span style={{...dsp("19px",AC(n.accent))}}>{n.name[0]}</span>}
               </div>
               <span style={{...body("12.5px",on?C.cream:C.muted),lineHeight:"14px",textShadow:`0 0 6px ${C.bg}`}}>{n.name}</span>
             </button>
           );
         })}
-        <div style={{position:"absolute",right:12,bottom:12,display:"flex",flexDirection:"column",gap:6}}>
-          <button type="button" aria-label="Zoom in" onClick={()=>zoomAt(vw/2,VH/2,1.35)} style={btn}><svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M9 3v12M3 9h12"/></svg></button>
-          <button type="button" aria-label="Zoom out" onClick={()=>zoomAt(vw/2,VH/2,1/1.35)} style={btn}><svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 9h12"/></svg></button>
-          <button type="button" aria-label="Fit whole map" onClick={()=>{ stop(); setView(null); }} style={btn}><svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V3h4M11 3h4v4M15 11v4h-4M7 15H3v-4"/></svg></button>
-        </div>
       </div>
 
-      <div style={{padding:"16px 20px 8px",borderTop:`0.5px solid ${C.bord}`}}>
-        {centerOn ? (<>
-          <div style={{...dsp("8px",C.gold,400,"0.22em")}}>THE CENTER</div>
-          <div style={{...dsp("19px",C.cream,400,"0.06em"),margin:"4px 0 6px"}}>Presence</div>
-          <div style={{...body("14px",C.muted),lineHeight:1.5,marginBottom:"10px"}}>Every path draws on these four, practiced through Sit, Stand and Walk.</div>
-          <div style={{...body("14px",C.cream),lineHeight:1.9}}>Align · Relax · Breath · Attention</div>
-        </>) : (<>
-          <div style={{...dsp("8px",selNode.accent,400,"0.22em")}}>
-            {!selNode.real ? "COMING" : st.chosen ? (st.complete?`MASTERY ${st.level}`:`PATH ${st.done}/${st.total}`) : "OPEN"}
+      {/* Info sheet */}
+      {/* The tab area keeps 118px clear for the nav; the nav itself is 64px, so the
+          sheet runs SHEET_TUCK px further down to meet it with no gap. */}
+      <div style={{position:"absolute",left:0,right:0,bottom:`-${SHEET_TUCK}px`,height:`${sheetH+SHEET_TUCK}px`,paddingBottom:`${SHEET_TUCK}px`,boxSizing:"border-box",zIndex:3,background:C.surf,borderTop:`0.5px solid ${C.bord}`,
+        borderRadius:"14px 14px 0 0",boxShadow:`0 -6px 20px ${PANEL(0.35)}`,display:"flex",flexDirection:"column",
+        transition:dragH==null?"height .28s cubic-bezier(.22,1,.36,1)":"none"}}>
+        <div onPointerDown={onSheetDown} onPointerMove={onSheetMove} onPointerUp={onSheetUp} onPointerCancel={onSheetUp}
+          role="button" aria-label={sheetOpen?"Collapse details":"Expand details"} aria-expanded={sheetOpen}
+          style={{padding:"8px 20px 10px",cursor:"pointer",touchAction:"none",flexShrink:0,userSelect:"none",WebkitUserSelect:"none"}}>
+          <div style={{width:"38px",height:"4px",borderRadius:"2px",background:C.bord,margin:"0 auto 10px"}}/>
+          <div style={{...dsp("8px",accent,400,"0.22em")}}>{eyebrow}</div>
+          <div style={{display:"flex",alignItems:"baseline",gap:"10px",marginTop:"4px"}}>
+            <div style={{...dsp("19px",C.cream,400,"0.06em"),flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sheetTitle}</div>
+            <span style={{...body("12px",C.dim)}}>{sheetOpen?"▾":"▴"}</span>
           </div>
-          <div style={{...dsp("19px",C.cream,400,"0.06em"),margin:"4px 0 6px"}}>{selNode.name}</div>
-          <div style={{...body("14px",C.muted),lineHeight:1.5,marginBottom:"10px"}}>{selNode.blurb}</div>
-          {funds.length>0 && funds.map(f=>(
-            <div key={f.id} style={{display:"flex",alignItems:"baseline",gap:"8px",padding:"6px 0",borderBottom:`0.5px solid ${C.bord}`}}>
-              <span style={{...body("14px",C.cream),flex:1}}>{f.name}</span>
-              <span style={{...body("12px",C.muted)}}>{f.days} {f.days===1?"day":"days"}</span>
-              {f.unit&&<span style={{...body("11px",C.dim),minWidth:"62px",textAlign:"right"}}>best {fmtFundBest(f)}</span>}
+          <div style={{...body("13.5px",C.muted),lineHeight:1.45,marginTop:"4px",display:"-webkit-box",WebkitLineClamp:sheetOpen?99:1,WebkitBoxOrient:"vertical",overflow:"hidden"}}>
+            {sheetBlurb}
+          </div>
+          <div style={{...body("12px",C.dim),fontStyle:"italic",marginTop:"6px",whiteSpace:sheetOpen?"normal":"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{hint}</div>
+        </div>
+        <div style={{flex:1,overflowY:sheetOpen?"auto":"hidden",padding:"0 20px 18px",opacity:(sheetOpen||dragH!=null)?1:0,transition:"opacity .2s"}}>
+          {mine ? (
+            <MyPathSheetBody story={story} node={selNode} sessions={sessions} modes={practiceModes}
+              onPick={id=>{ onSelect(id); const nd=myNodes.find(m=>m.id===id); if(nd) glide(nd.pos.x,nd.pos.y); }}
+              onStoryChange={onStoryChange} onOpenForge={onOpenForge}/>
+          ) : centerOn ? (
+            <div>
+              {["Align","Relax","Breath","Attention"].map(x=>(
+                <div key={x} style={{...body("15px",C.cream),padding:"9px 0",borderBottom:`0.5px solid ${C.bord}`}}>{x}</div>
+              ))}
             </div>
-          ))}
-          {selNode.real && !st.chosen && (
-            <button onClick={()=>onChoosePath(selNode.id)} style={{marginTop:"12px",padding:"9px 18px",background:"transparent",border:`0.5px solid ${selNode.accent}`,borderRadius:"6px",cursor:"pointer",...dsp("9px",selNode.accent,400,"0.16em")}}>CHOOSE THIS PATH</button>
-          )}
-          {selNode.real && st.chosen && (
-            <button onClick={()=>onOpenPath(selNode.id)} style={{marginTop:"12px",padding:"8px 16px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"6px",cursor:"pointer",...dsp("8.5px",C.muted,400,"0.16em")}}>OPEN PATH ›</button>
-          )}
-        </>)}
-        <div style={{...body("12px",C.dim),fontStyle:"italic",marginTop:"14px"}}>{hint}</div>
+          ) : !selNode.real ? null : (<>
+            <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"6px 0 4px"}}>FUNDAMENTALS</div>
+            {funds.map(f=>{
+              const d=st.chosen ? fundamentalDetail(f, sessions, jEnt) : null;
+              const fs=fundStats[f.id];
+              const open=openFund===f.id;
+              return (
+                <div key={f.id} style={{borderBottom:`0.5px solid ${C.bord}`}}>
+                  <button onClick={()=>setOpenFund(o=>o===f.id?null:f.id)} aria-expanded={open}
+                    style={{width:"100%",display:"flex",alignItems:"baseline",gap:"8px",padding:"10px 0",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
+                    <span style={{...body("15px",C.cream),flex:1}}>{f.name}</span>
+                    {d && <span style={{...body("12px",C.muted)}}>{fs?.days||0} {fs?.days===1?"day":"days"}</span>}
+                    {d && <span style={{...dsp("9px",accent,400,"0.08em"),minWidth:"58px",textAlign:"right"}}>{d.xp} XP</span>}
+                    <span style={{...body("12px",C.dim),width:"12px",textAlign:"right"}}>{open?"−":"+"}</span>
+                  </button>
+                  {open && (
+                    <div style={{padding:"0 0 10px 10px"}}>
+                      <div style={{...body("12px",C.dim),fontStyle:"italic",marginBottom:"6px"}}>{f.variations}{fs&&fs.best?` · best ${fmtFundBest(fs)}`:""}</div>
+                      {(d ? d.rows : [...(f.activity===false?[]:[{name:f.name,own:true}]), ...(f.sources||[]).map(n=>({name:n}))]).map(r=>(
+                        <div key={r.name} style={{display:"flex",alignItems:"baseline",gap:"8px",padding:"5px 0"}}>
+                          <span style={{...body("13.5px",C.cream),flex:1}}>{r.own?`${r.name}`:r.name}{r.own&&<span style={{...body("11px",C.dim)}}> · any variation</span>}</span>
+                          {d && <span style={{...body("12px",C.muted)}}>{fmtTotal(r)}</span>}
+                          {d && <span style={{...body("11px",C.dim),minWidth:"48px",textAlign:"right"}}>{r.days} {r.days===1?"day":"days"}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {!st.chosen && (
+              <button onClick={()=>onChoosePath(selNode.id)} style={{marginTop:"14px",padding:"9px 18px",background:"transparent",border:`0.5px solid ${accent}`,borderRadius:"6px",cursor:"pointer",...dsp("9px",accent,400,"0.16em")}}>CHOOSE THIS PATH</button>
+            )}
+            {st.chosen && (
+              <button onClick={()=>onOpenPath(selNode.id)} style={{marginTop:"14px",padding:"8px 16px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"6px",cursor:"pointer",...dsp("8.5px",C.muted,400,"0.16em")}}>OPEN PATH ›</button>
+            )}
+          </>)}
+        </div>
       </div>
     </div>
   );
@@ -3929,9 +4316,9 @@ function PathPortal({ classId, classState, sessions=[], jEnt=[], activities=[], 
       <div style={{display:"flex",alignItems:"center",gap:"16px",marginBottom:"22px"}}>
         <PathSigil cls={cls} size={58}/>
         <div style={{flex:1}}>
-          <div style={{...dsp("12px",cls.accent,400,"0.16em"),marginBottom:"3px"}}>{st.complete?`MASTERY ${st.level}`:`PATH ${st.done}/${st.total}`}</div>
+          <div style={{...dsp("12px",AC(cls.accent),400,"0.16em"),marginBottom:"3px"}}>{st.complete?`MASTERY ${st.level}`:`PATH ${st.done}/${st.total}`}</div>
           <div style={{...body("13px",C.muted),fontStyle:"italic",lineHeight:1.4,marginBottom:"8px"}}>{cls.blurb}</div>
-          <div style={{height:"3px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}><div style={{height:"100%",width:`${lvlPct}%`,background:cls.accent}}/></div>
+          <div style={{height:"3px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}><div style={{height:"100%",width:`${lvlPct}%`,background:AC(cls.accent)}}/></div>
         </div>
       </div>
 
@@ -3950,7 +4337,7 @@ function PathPortal({ classId, classState, sessions=[], jEnt=[], activities=[], 
               </div>
               <div style={{...body("11px",C.dim),margin:"1px 0 6px"}}>{open||f.days ? f.variations : `Opens with ${unlockTitle(f)||"the trial"}`}</div>
               <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
-                <div style={{flex:1,height:"3px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:cls.accent,opacity:0.8}}/></div>
+                <div style={{flex:1,height:"3px",background:C.bord,borderRadius:"2px",overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:AC(cls.accent),opacity:0.8}}/></div>
                 <span style={{...dsp("7px",C.dim,400,"0.1em"),minWidth:"52px",textAlign:"right"}}>{f.next?`NEXT ${f.next}`:"BEYOND MARKS"}</span>
               </div>
             </div>
@@ -4014,11 +4401,11 @@ function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onRet
         return (
           <div key={c.id}
             onClick={()=>setSel(isOpen?null:c.id)}
-            style={{border:`0.5px solid ${isOpen?c.accent:isActive?c.accent+"88":C.bord}`,background:isOpen?INK(0.03):C.surf,
+            style={{border:`0.5px solid ${isOpen?c.accent:isActive?AC(c.accent)+"88":C.bord}`,background:isOpen?INK(0.03):C.surf,
               borderRadius:"7px",padding:"14px 16px",marginBottom:"10px",cursor:"pointer",transition:"all .2s"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
               <div style={{...dsp("17px",C.cream,500,"0.04em")}}>{c.name}</div>
-              <div style={{...dsp("10px",c.accent,400,"0.14em")}}>{c.verb.toUpperCase()}{isActive&&trialDone?" · ACTIVE":""}{progressLabel}</div>
+              <div style={{...dsp("10px",AC(c.accent),400,"0.14em")}}>{c.verb.toUpperCase()}{isActive&&trialDone?" · ACTIVE":""}{progressLabel}</div>
             </div>
             <div style={{...body("13px",C.muted),marginTop:"5px",lineHeight:"1.5"}}>{c.blurb}</div>
             {isOpen && (
@@ -4029,13 +4416,13 @@ function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onRet
                 <div style={{display:"flex",gap:"10px",marginTop:"10px",marginBottom:"4px"}}>
                   {c.trial.map(st=>{
                     const sm=STATS.find(s=>s.k===st.stat);
-                    return <span key={st.type} style={{...dsp("8px",c.accent,400,"0.1em")}}>{st.label.toUpperCase()} · {sm?.s}</span>;
+                    return <span key={st.type} style={{...dsp("8px",AC(c.accent),400,"0.1em")}}>{st.label.toUpperCase()} · {sm?.s}</span>;
                   })}
                 </div>
                 {!isActive && (
                   <button onClick={(e)=>{e.stopPropagation();onChoose(c.id);}}
                     style={{marginTop:"12px",width:"100%",padding:"11px",background:INK(0.04),
-                      border:`0.5px solid ${c.accent}`,color:c.accent,...dsp("10px",undefined,400,"0.14em"),
+                      border:`0.5px solid ${AC(c.accent)}`,...dsp("10px",AC(c.accent),400,"0.14em"),
                       cursor:"pointer",borderRadius:"6px"}}>
                     WALK THE PATH OF THE {c.name.toUpperCase()}
                   </button>
@@ -4043,7 +4430,7 @@ function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onRet
                 {isActive && (
                   <button onClick={(e)=>{e.stopPropagation();onReturn();}}
                     style={{marginTop:"12px",width:"100%",padding:"11px",background:INK(0.04),
-                      border:`0.5px solid ${c.accent}`,color:c.accent,...dsp("10px",undefined,400,"0.14em"),
+                      border:`0.5px solid ${AC(c.accent)}`,...dsp("10px",AC(c.accent),400,"0.14em"),
                       cursor:"pointer",borderRadius:"6px"}}>
                     RETURN TO YOUR PATH
                   </button>
@@ -4089,7 +4476,7 @@ function ActCompleteScreen({ onContinue, act=1 }){
     {s:15.5, fadeOutAt:null, e:null, text:"The fire is yours now."},
   ] : [
     {s:0,    fadeOutAt:null, e:3,    text:null},                                            // ~3s black, silence
-    {s:3,    fadeOutAt:6.5,  e:7.5,  text:"Act I Complete"},
+    {s:3,    fadeOutAt:6.5,  e:7.5,  text:"The Crucible Complete"},
     {s:7.5,  fadeOutAt:null, e:8.5,  text:null},                                             // ~1s black between lines
     {s:8.5,  fadeOutAt:12.5, e:13.5, text:"You have taken your first steps."},
     {s:13.5, fadeOutAt:null, e:14.5, text:null},
@@ -4101,14 +4488,14 @@ function ActCompleteScreen({ onContinue, act=1 }){
   return (
     <div style={{position:"fixed",inset:0,zIndex:500,background:"#000",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px"}}>
       {cue.text && (
-        <div key={cue.s} style={{...dsp("17px",C.cream,400,"0.06em"),textAlign:"center",lineHeight:"1.7",
+        <div key={cue.s} style={{...dsp("17px",SC.cream,400,"0.06em"),textAlign:"center",lineHeight:"1.7",
           animation: fadingOut ? "fadeOut 1s ease both" : "fadeRise 1.4s ease both"}}>
           {cue.text}
         </div>
       )}
       {showContinue && (
         <button onClick={onContinue} style={{marginTop:"34px",padding:"11px 26px",background:INK(0.03),
-          border:`0.5px solid ${C.gold}`,color:C.goldB,...dsp("9px",undefined,400,"0.16em"),cursor:"pointer",borderRadius:"6px",
+          border:`0.5px solid ${SC.gold}`,...dsp("9px",SC.goldB,400,"0.16em"),cursor:"pointer",borderRadius:"6px",
           animation:"fadeRise 1.2s ease 0.6s both"}}>
           CONTINUE
         </button>
@@ -4123,9 +4510,9 @@ function TrialCompleteScreen({ classId, onContinue }){
   if(!cls || !welcome) return null;
   return (
     <div style={{padding:"4px 4px 20px",textAlign:"center"}}>
-      <div style={{...dsp("10px",cls.accent,400,"0.2em"),marginBottom:"10px"}}>TRIAL COMPLETE</div>
+      <div style={{...dsp("10px",AC(cls.accent),400,"0.2em"),marginBottom:"10px"}}>TRIAL COMPLETE</div>
       <div style={{...dsp("19px",C.cream,500,"0.04em"),marginBottom:"4px"}}>{welcome.title}</div>
-      <div style={{...dsp("11px",cls.accent,400,"0.14em"),marginBottom:"22px"}}>WELCOME TO THE PATH OF THE {cls.name.toUpperCase()}</div>
+      <div style={{...dsp("11px",AC(cls.accent),400,"0.14em"),marginBottom:"22px"}}>WELCOME TO THE PATH OF THE {cls.name.toUpperCase()}</div>
       <div style={{textAlign:"left"}}>
         {welcome.body.split("\n\n").map((p,i)=>(
           <div key={i} style={{...body("15px",C.txt),lineHeight:"1.8",marginBottom:"16px"}}>{p}</div>
@@ -4133,7 +4520,7 @@ function TrialCompleteScreen({ classId, onContinue }){
       </div>
       <button onClick={onContinue}
         style={{marginTop:"8px",padding:"12px 28px",background:INK(0.04),
-          border:`0.5px solid ${cls.accent}`,color:cls.accent,...dsp("10px",undefined,400,"0.16em"),
+          border:`0.5px solid ${AC(cls.accent)}`,...dsp("10px",AC(cls.accent),400,"0.16em"),
           cursor:"pointer",borderRadius:"6px"}}>
         BEGIN THE PATH OF THE {cls.name.toUpperCase()}
       </button>
@@ -4150,7 +4537,7 @@ function FoundationTrial({ classId, trialProgress={}, onOpenTrial, devMode=false
   return (
     <div style={{padding:"4px 4px 12px"}}>
       <button onClick={onBackToChoice} style={{background:"none",border:"none",cursor:"pointer",...body("12px",C.dim),marginBottom:"12px",padding:0}}>← Choose a different path</button>
-      <div style={{...dsp("12px",cls.accent,400,"0.14em"),marginBottom:"10px"}}>{cls.name.toUpperCase()}'S TRIAL</div>
+      <div style={{...dsp("12px",AC(cls.accent),400,"0.14em"),marginBottom:"10px"}}>{cls.name.toUpperCase()}'S TRIAL</div>
       {paras.map((p,i)=>(
         <div key={i} style={{...body("14px",C.txt),lineHeight:"1.75",marginBottom:"12px",whiteSpace:"pre-line"}}>{p}</div>
       ))}
@@ -4162,7 +4549,7 @@ function FoundationTrial({ classId, trialProgress={}, onOpenTrial, devMode=false
             style={{display:"flex",alignItems:"center",gap:"12px",width:"100%",textAlign:"left",
               background:"none",border:"none",padding:"9px 0",cursor:done?"default":"pointer"}}>
             <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,
-              background:done?"rgba(163,192,137,0.12)":"transparent",
+              background:done?`rgba(${C.sageRGB},0.12)`:"transparent",
               border:`1px solid ${done?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
               {done?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<PresenceMark size={12} color={C.dim} sw={1}/>}
             </div>
@@ -4170,7 +4557,7 @@ function FoundationTrial({ classId, trialProgress={}, onOpenTrial, devMode=false
               <div style={{...body("14px",done?C.cream:C.muted)}}>{step.label} · 3 min</div>
               <div style={{...dsp("9px",done?cls.accent:C.dim,400,"0.1em")}}>{statMeta?.s}</div>
             </div>
-            {!done && <span style={{...body("11px",cls.accent)}}>Begin →</span>}
+            {!done && <span style={{...body("11px",AC(cls.accent))}}>Begin →</span>}
           </button>
         );
       })}
@@ -4236,13 +4623,13 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
   return (
     <div style={{padding:"8px 0 4px"}}>
       {fullyComplete && (
-        <div style={{marginBottom:"22px",padding:"14px 16px",borderRadius:"8px",border:`0.5px solid ${cls.accent}55`,background:INK(0.02)}}>
+        <div style={{marginBottom:"22px",padding:"14px 16px",borderRadius:"8px",border:`0.5px solid ${AC(cls.accent)}55`,background:INK(0.02)}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:"8px"}}>
-            <div style={{...dsp("13px",cls.accent,500,"0.08em")}}>{cls.name.toUpperCase()} MASTERY {masteryLvl}</div>
+            <div style={{...dsp("13px",AC(cls.accent),500,"0.08em")}}>{cls.name.toUpperCase()} MASTERY {masteryLvl}</div>
             {!isActivePath && <div style={{...body("10px",C.dim),fontStyle:"italic"}}>accruing · go active to use bonuses</div>}
           </div>
           <div style={{height:"5px",background:C.bord,borderRadius:"3px",overflow:"hidden",marginBottom:"6px"}}>
-            <div style={{height:"100%",width:`${pctToNext}%`,background:cls.accent,transition:"width .3s"}}/>
+            <div style={{height:"100%",width:`${pctToNext}%`,background:AC(cls.accent),transition:"width .3s"}}/>
           </div>
           <div style={{...body("11px",C.dim)}}>{Math.round(masteryXP-curThreshold)}/{Math.round(nextThreshold-curThreshold)} XP to Mastery {masteryLvl+1}</div>
           {bonuses.length>0 && (
@@ -4269,15 +4656,15 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",paddingTop:"14px"}}>
               <div style={{width:"12px",height:"12px",borderRadius:"50%",flexShrink:0,
                 border:`1.5px solid ${complete?cls.accent:active?C.sageB:C.dim}`,
-                boxShadow:active?`0 0 8px ${cls.accent}55`:"none",
+                boxShadow:active?`0 0 8px ${AC(cls.accent)}55`:"none",
                 display:"flex",alignItems:"center",justifyContent:"center"}}>
-                {complete&&<div style={{width:"5px",height:"5px",borderRadius:"50%",background:cls.accent}}/>}
+                {complete&&<div style={{width:"5px",height:"5px",borderRadius:"50%",background:AC(cls.accent)}}/>}
               </div>
-              {i<numbered.length-1 && <div style={{width:"1px",flex:1,minHeight:"22px",background:complete?`${cls.accent}55`:C.bord,marginTop:"4px"}}/>}
+              {i<numbered.length-1 && <div style={{width:"1px",flex:1,minHeight:"22px",background:complete?`${AC(cls.accent)}55`:C.bord,marginTop:"4px"}}/>}
             </div>
             <div onClick={()=>{ if(active||complete) onOpenQuest(q.id); }}
               style={{flex:1,background:complete?INK(0.02):active?C.surf:"transparent",
-                border:`0.5px solid ${complete?`${cls.accent}44`:active?C.sageB:C.bord}`,borderRadius:"6px",
+                border:`0.5px solid ${complete?`${AC(cls.accent)}44`:active?C.sageB:C.bord}`,borderRadius:"6px",
                 padding:"11px 14px",cursor:(active||complete)?"pointer":"default",opacity:active||complete?1:0.4,
                 marginBottom:"8px",transition:"all .2s"}}>
               <div style={{...dsp("8px",complete?cls.accent:active?C.sageB:C.muted,400,"0.16em"),marginBottom:"3px"}}>
@@ -4294,8 +4681,8 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
       {epilogue && fullyComplete && (
         <div style={{marginTop:"10px",borderTop:`0.5px solid ${C.bord}`,paddingTop:"14px"}}>
           <div onClick={()=>onOpenQuest(epilogue.id)}
-            style={{background:C.surf,border:`0.5px solid ${cls.accent}66`,borderRadius:"6px",padding:"11px 14px",cursor:"pointer"}}>
-            <div style={{...dsp("8px",cls.accent,400,"0.16em"),marginBottom:"3px"}}>EPILOGUE</div>
+            style={{background:C.surf,border:`0.5px solid ${AC(cls.accent)}66`,borderRadius:"6px",padding:"11px 14px",cursor:"pointer"}}>
+            <div style={{...dsp("8px",AC(cls.accent),400,"0.16em"),marginBottom:"3px"}}>EPILOGUE</div>
             <div style={{...body("15px",C.cream)}}>{epilogue.title}</div>
             <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{questProgressLine(epilogue,activities,jEnt)}</div>
           </div>
@@ -4312,7 +4699,7 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
   const cls = CLASS_BY_ID[classId];
   const q = (QUEST_CHAINS[classId]||[]).find(x=>x.id===questId);
   if(!cls || !q) return null;
-  const accent = cls.accent;
+  const accent = AC(cls.accent);
   const paras = (q.myth||"").split("\n\n");
   const isInquire = !!q.inquireQuestions;
   const allAnswered = isInquire && q.inquireQuestions.every(qq=>inquireAnswered[qq]);
@@ -4353,7 +4740,7 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
                 style={{display:"flex",alignItems:"center",gap:"12px",width:"100%",textAlign:"left",
                   background:"none",border:"none",padding:"9px 0",cursor:"pointer"}}>
                 <div style={{width:"24px",height:"24px",borderRadius:"50%",flexShrink:0,
-                  background:ans?"rgba(163,192,137,0.12)":"transparent",
+                  background:ans?`rgba(${C.sageRGB},0.12)`:"transparent",
                   border:`1px solid ${ans?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
                   {ans&&<span style={{color:C.sageB,fontSize:"12px"}}>✓</span>}
                 </div>
@@ -4426,7 +4813,7 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
             return (
               <div key={u.entryKind} style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"6px"}}>
                 <div style={{width:"20px",height:"20px",borderRadius:"50%",flexShrink:0,
-                  background:has?"rgba(163,192,137,0.12)":"transparent",
+                  background:has?`rgba(${C.sageRGB},0.12)`:"transparent",
                   border:`1px solid ${has?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
                   {has&&<span style={{color:C.sageB,fontSize:"11px"}}>✓</span>}
                 </div>
@@ -4482,8 +4869,8 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
         </div>
       ) : (
         <button onClick={onComplete}
-          style={{marginTop:"4px",padding:"11px 22px",background:"rgba(163,192,137,0.1)",
-            border:`0.5px solid ${C.sageB}`,color:C.sageB,...dsp("9px",undefined,400,"0.14em"),
+          style={{marginTop:"4px",padding:"11px 22px",background:`rgba(${C.sageRGB},0.1)`,
+            border:`0.5px solid ${C.sageB}`,...dsp("9px",C.sageB,400,"0.14em"),
             cursor:"pointer",borderRadius:"6px"}}>
           MARK COMPLETE
         </button>
@@ -4808,7 +5195,7 @@ function ForgeFlow({ way, onWayChange, jEnt, onOpenAnchor, onSeal }){
                 {!gMet && g.key!=="strikeOnce" && (
                   <div style={{display:"flex",gap:"8px"}}>
                     {g.key==="qualitySessionDone" && <button onClick={()=>onOpenAnchor("sitting")} style={{background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"4px",padding:"5px 10px",cursor:"pointer",...body("11px",C.muted)}}>Open Anchor</button>}
-                    <button onClick={()=>onWayChange(w=>({...w,gates:{...w.gates,[g.key]:true}}))} style={{background:"rgba(163,192,137,0.08)",border:`0.5px solid ${C.sageB}`,borderRadius:"4px",padding:"5px 10px",cursor:"pointer",...body("11px",C.sageB)}}>Mark it done</button>
+                    <button onClick={()=>onWayChange(w=>({...w,gates:{...w.gates,[g.key]:true}}))} style={{background:`rgba(${C.sageRGB},0.08)`,border:`0.5px solid ${C.sageB}`,borderRadius:"4px",padding:"5px 10px",cursor:"pointer",...body("11px",C.sageB)}}>Mark it done</button>
                   </div>
                 )}
                 {!gMet && g.key==="strikeOnce" && (
@@ -4959,7 +5346,183 @@ function ForgeSection({ way, onWayChange, onAwardWayXP }){
   );
 }
 
-/* Wrapper — cold forge / flow / living section. */
+
+/* ═══════════════ THE FORGE — the player's own story ═══════════════
+   Three questions, asked first and kept short: values, the name they point
+   to, the ideal. Reforged any time; the button glows in the week around each
+   new moon, brightest on the day itself.                                   */
+
+const forgeGlowCss = (g=0) => `@keyframes forgeGlow { 0%,100%{ opacity:.55; } 50%{ opacity:1; } }
+@keyframes forgeBtn { 0%,100%{ box-shadow:0 0 ${4+6*g}px rgba(${C.goldRGB},${0.15+0.25*g}); } 50%{ box-shadow:0 0 ${10+18*g}px rgba(${C.goldRGB},${0.3+0.5*g}); } }`;
+
+/* The moon as it actually is tonight (northern-hemisphere orientation). */
+function MoonPhaseIcon({ size=44, date=null, glow=0 }){
+  const d=date||new Date();
+  const f=moonPhaseFrac(d), r=size/2-3, cx=size/2, cy=size/2;
+  const waxing=f<0.5, k=Math.cos(2*Math.PI*f), rx=Math.abs(k)*r;
+  const outer=waxing?1:0, term=waxing?(k>0?0:1):(k>0?1:0);
+  const lit=`M ${cx} ${cy-r} A ${r} ${r} 0 0 ${outer} ${cx} ${cy+r} A ${rx} ${r} 0 0 ${term} ${cx} ${cy-r} Z`;
+  return (
+    <div style={{position:"relative",width:size,height:size,flexShrink:0}}>
+      {glow>0 && <div aria-hidden="true" style={{position:"absolute",inset:-size*0.35,borderRadius:"50%",
+        background:`radial-gradient(circle, rgba(${C.goldRGB},${0.18+0.42*glow}) 0%, rgba(${C.goldRGB},0) 68%)`,
+        animation:"forgeGlow 3.2s ease-in-out infinite"}}/>}
+      <svg role="img" aria-label={moonPhaseName(d)} width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{position:"relative",display:"block"}}>
+        <circle cx={cx} cy={cy} r={r} fill="#1f2622" stroke={glow>0?`rgba(${C.goldRGB},${0.5+0.5*glow})`:"rgba(160,160,150,0.55)"} strokeWidth={glow>0?1.4:1}/>
+        {f>0.02 && f<0.98 && <path d={lit} fill="#ece6d2"/>}
+      </svg>
+    </div>
+  );
+}
+
+/* Start page — one idea, then the Forge. */
+function PotentialStart({ onBegin }){
+  return (
+    <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",padding:"40px 32px",textAlign:"center"}}>
+      <div style={{...dsp("10px",C.muted,400,"0.32em")}}>ASCEND</div>
+      <div style={{...dsp("24px",C.gold,500,"0.16em"),marginTop:"8px"}}>INFINITE POTENTIAL</div>
+      <div style={{width:"40px",height:"1px",background:C.bord,margin:"26px auto"}}/>
+      <div style={{...body("19px",C.cream),lineHeight:1.6,fontStyle:"italic"}}>
+        Infinite Potential is about finding the potential inside you, and unleashing it into the world.
+      </div>
+      <div style={{...body("14px",C.muted),lineHeight:1.6,marginTop:"18px"}}>It starts with what you value.</div>
+      <button onClick={onBegin} style={{margin:"44px auto 0",padding:"13px 40px",background:`rgba(${C.goldRGB},0.10)`,border:`0.5px solid ${C.gold}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.goldB,400,"0.22em")}}>ENTER THE FORGE</button>
+    </div>
+  );
+}
+
+/* The three questions. Used at the very start and again to Reforge. */
+function ForgeStoryFlow({ initial=null, reforge=false, onDone, onCancel=null }){
+  const [step,setStep]=useState(0);
+  const [values,setValues]=useState(()=>initial?.values||[]);
+  const [name,setName]=useState(()=>initial?.name||"");
+  const [ideal,setIdeal]=useState(()=>initial?.ideal||"");
+  const [custom,setCustom]=useState("");
+  const full=values.length>=STORY_MAX_VALUES;
+  const toggle=v=>setValues(p=>p.includes(v)?p.filter(x=>x!==v):(p.length>=STORY_MAX_VALUES?p:[...p,v]));
+  const addCustom=()=>{ const v=custom.trim().replace(/\s+/g," ").slice(0,24); if(!v) return;
+    const cap=v[0].toUpperCase()+v.slice(1); if(!values.some(x=>x.toLowerCase()===cap.toLowerCase()) && !full) setValues(p=>[...p,cap]); setCustom(""); };
+  const choices=[...VALUE_CHOICES, ...values.filter(v=>!VALUE_CHOICES.includes(v))];
+  const canNext = step===0 ? values.length>0 : step===1 ? !!name.trim() : !!ideal.trim();
+  const next=()=>{ if(!canNext) return; if(step<2) setStep(step+1); else onDone({values, name:name.trim(), ideal:ideal.trim()}); };
+  const chip=(v,on)=>({padding:"8px 13px",borderRadius:"18px",cursor:"pointer",border:`0.5px solid ${on?C.gold:C.bord}`,
+    background:on?`rgba(${C.goldRGB},0.14)`:"transparent",...body("14px",on?C.cream:C.muted),opacity:!on&&full?0.45:1});
+  const Q = ["What do you value most?","Pick a name all of these values point to.","What is your ideal self or world?"];
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:"16px"}}>
+      <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+        <AnvilIcon size={16} color={C.gold} spark/>
+        <div style={{...dsp("9px",C.gold,400,"0.24em"),flex:1}}>{reforge?"REFORGE":"THE FORGE"} · {step+1} / 3</div>
+        {onCancel && <button onClick={onCancel} style={{background:"none",border:"none",cursor:"pointer",...body("13px",C.dim)}}>Cancel</button>}
+      </div>
+      <div style={{...dsp("20px",C.cream,400,"0.03em"),lineHeight:1.35}}>{Q[step]}</div>
+
+      {step===0 && <>
+        <div style={{...body("13px",C.muted)}}>Pick up to five. {values.length}/{STORY_MAX_VALUES}</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:"8px"}}>
+          {choices.map(v=>{ const on=values.includes(v); return <button key={v} aria-pressed={on} onClick={()=>toggle(v)} style={chip(v,on)}>{v}</button>; })}
+        </div>
+        {!full && (
+          <div style={{display:"flex",gap:"8px"}}>
+            <input value={custom} onChange={e=>setCustom(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") addCustom(); }} placeholder="Your own…" maxLength={24}
+              style={{flex:1,background:"transparent",border:"none",borderBottom:`0.5px solid ${C.bord}`,color:C.cream,...body("15px",C.cream),padding:"8px 2px",outline:"none"}}/>
+            <button onClick={addCustom} disabled={!custom.trim()} style={{padding:"0 14px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"6px",cursor:"pointer",...body("13px",custom.trim()?C.cream:C.dim)}}>add</button>
+          </div>
+        )}
+      </>}
+
+      {step===1 && <>
+        <div style={{display:"flex",flexWrap:"wrap",gap:"6px"}}>
+          {values.map(v=><span key={v} style={{...body("13px",C.muted),padding:"4px 10px",border:`0.5px solid ${C.bord}`,borderRadius:"14px"}}>{v}</span>)}
+        </div>
+        <input autoFocus value={name} onChange={e=>setName(e.target.value.slice(0,32))} onKeyDown={e=>{ if(e.key==="Enter") next(); }} placeholder="One word, or a few"
+          style={{background:"transparent",border:"none",borderBottom:`1px solid ${name.trim()?C.gold:C.bord}`,color:C.cream,...body("22px",C.cream),padding:"8px 2px",outline:"none"}}/>
+        <div style={{...body("13px",C.muted),lineHeight:1.5}}>It becomes the center of your path.</div>
+      </>}
+
+      {step===2 && <>
+        <textarea autoFocus value={ideal} onChange={e=>setIdeal(e.target.value.slice(0,600))} rows={5} placeholder="Write it as plainly as you can."
+          style={{background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"8px",color:C.cream,...body("15px",C.cream),lineHeight:1.6,padding:"12px",outline:"none",resize:"vertical"}}/>
+      </>}
+
+      <div style={{display:"flex",gap:"10px",marginTop:"6px"}}>
+        {step>0 && <button onClick={()=>setStep(step-1)} style={{padding:"12px 18px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"6px",cursor:"pointer",...dsp("10px",C.muted,400,"0.16em")}}>BACK</button>}
+        <button onClick={next} disabled={!canNext} style={{flex:1,padding:"12px",borderRadius:"6px",cursor:canNext?"pointer":"default",
+          background:canNext?`rgba(${C.goldRGB},0.12)`:"transparent",border:`0.5px solid ${canNext?C.gold:C.bord}`,...dsp("10px",canNext?C.goldB:C.dim,400,"0.2em")}}>
+          {step<2 ? "NEXT" : reforge ? "REFORGE" : "FORGE"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* Apply a (re)forged story: practices under a value that was let go move to
+   the first value that remains, so nothing practiced is lost. */
+const forgeStory = (w, ans, isReforge) => {
+  const s=migrateStory(w?.story);
+  const now=new Date().toISOString();
+  const practices=s.practices.map(p=>ans.values.includes(p.value)?p:{...p, value:ans.values[0]});
+  return { ...w, story:{ ...s, ...ans, practices, forgedAt:s.forgedAt||now, reforged:isReforge?[...s.reforged, now]:s.reforged } };
+};
+
+/* The Forge view in the Quest tab. */
+function ForgeStoryView({ way, onWayChange, onOpenMyPath=()=>{} }){
+  const story=migrateStory(way?.story);
+  const forged=storyForged(way);
+  const [editing,setEditing]=useState(false);
+  const now=new Date();
+  const glow=reforgeGlow(now);
+  const toNew=Math.round((nextNewMoon(now).getTime()-now.getTime())/86400000);
+  const sinceNew=Math.round(moonAgeDays(now));
+  const moonLine = glow>0 ? (sinceNew===0||toNew===0||toNew>=29 ? "New moon today. A time to reforge." : sinceNew<=4 ? `New moon ${sinceNew} day${sinceNew===1?"":"s"} ago. A time to reforge.` : `New moon in ${toNew} day${toNew===1?"":"s"}. A time to reforge.`)
+    : `Next new moon in ${toNew} days.`;
+  if(editing || !forged){
+    return (
+      <div style={{paddingTop:"10px"}}>
+        <style>{forgeGlowCss(glow)}</style>
+        {!forged && !editing ? (
+          <div style={{textAlign:"center",padding:"18px 6px"}}>
+            <div style={{...body("16px",C.cream),lineHeight:1.6,fontStyle:"italic",marginBottom:"8px"}}>Your own story. Three questions.</div>
+            <div style={{...body("13px",C.muted),lineHeight:1.6,marginBottom:"22px"}}>What you value, the name it points to, and who you would be.</div>
+            <button onClick={()=>setEditing(true)} style={{padding:"12px 30px",background:`rgba(${C.goldRGB},0.12)`,border:`0.5px solid ${C.gold}`,borderRadius:"6px",cursor:"pointer",...dsp("10px",C.goldB,400,"0.2em")}}>FORGE YOUR STORY</button>
+          </div>
+        ) : (
+          <ForgeStoryFlow initial={forged?story:null} reforge={forged} onCancel={()=>setEditing(false)}
+            onDone={ans=>{ onWayChange(w=>forgeStory(w, ans, forged)); setEditing(false); }}/>
+        )}
+      </div>
+    );
+  }
+  const byValue=v=>story.practices.filter(p=>p.value===v).length;
+  return (
+    <div style={{paddingTop:"10px"}}>
+      <style>{forgeGlowCss(glow)}</style>
+      <div style={{textAlign:"center",padding:"8px 0 20px"}}>
+        <div style={{...dsp("9px",C.muted,400,"0.26em")}}>MY PATH</div>
+        <div style={{...dsp("26px",C.gold,500,"0.08em"),marginTop:"6px"}}>{story.name}</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:"6px",justifyContent:"center",marginTop:"14px"}}>
+          {story.values.map(v=><span key={v} style={{...body("13px",C.cream),padding:"4px 11px",border:`0.5px solid ${C.bord}`,borderRadius:"14px"}}>{v}{byValue(v)?<span style={{color:C.dim}}> · {byValue(v)}</span>:null}</span>)}
+        </div>
+        {story.ideal && <div style={{...body("15px",C.muted),fontStyle:"italic",lineHeight:1.7,marginTop:"18px",whiteSpace:"pre-wrap"}}>{story.ideal}</div>}
+      </div>
+      <button onClick={onOpenMyPath} style={{width:"100%",padding:"11px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"6px",cursor:"pointer",...dsp("9.5px",C.muted,400,"0.18em")}}>
+        {story.practices.length ? `OPEN MY PATH · ${story.practices.length} PRACTICE${story.practices.length===1?"":"S"}` : "ADD PRACTICES ON MY PATH ›"}
+      </button>
+      <div style={{display:"flex",alignItems:"center",gap:"16px",marginTop:"22px",padding:"16px",border:`0.5px solid ${glow>0?`rgba(${C.goldRGB},${0.35+0.5*glow})`:C.bord}`,borderRadius:"10px",background:glow>0?`rgba(${C.goldRGB},${0.04+0.08*glow})`:"transparent"}}>
+        <MoonPhaseIcon size={46} date={now} glow={glow}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{...dsp("9px",glow>0?C.gold:C.muted,400,"0.2em")}}>{moonPhaseName(now).toUpperCase()}</div>
+          <div style={{...body("13px",C.muted),lineHeight:1.45,marginTop:"3px"}}>{moonLine}</div>
+        </div>
+        <button onClick={()=>setEditing(true)} style={{position:"relative",padding:"10px 14px",borderRadius:"6px",cursor:"pointer",flexShrink:0,
+          background:glow>0?`rgba(${C.goldRGB},${0.10+0.14*glow})`:"transparent",border:`0.5px solid ${glow>0?C.gold:C.bord}`,
+          animation:glow>0?"forgeBtn 3.2s ease-in-out infinite":"none",...dsp("9.5px",glow>0?C.goldB:C.muted,400,"0.18em")}}>REFORGE</button>
+      </div>
+    </div>
+  );
+}
+
+/* Wrapper — cold forge / flow / living section. (Retired: the old Act II Way.) */
 function ForgeQuestline({ way, onWayChange, jEnt, forgeOpen, onOpenAnchor, onSeal, onAwardWayXP }){
   if(!way || !forgeOpen){
     return (
@@ -4978,9 +5541,10 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   actCollapsed={}, setActCollapsed=()=>{}, classCollapsed=false, setClassCollapsed=()=>{},
   chantGateOpen=false, chantUnlocked=false, setOpenChantQuest=()=>{}, activities=[], jEnt=[], onAcknowledgeTrial=()=>{},
   showActComplete=false, setShowActComplete=()=>{},
-  way=null, onWayChange=()=>{}, onOpenReflection=()=>{}, onAwardWayXP=()=>{} }){
+  way=null, onWayChange=()=>{}, onOpenReflection=()=>{}, onAwardWayXP=()=>{}, onOpenMyPath=()=>{}, lineReq=null }){
   const [view,setView]               = useState("overview");
-  const [questLine,setQuestLine]     = useState("main"); // "main" | "chant" | "path"
+  const [questLine,setQuestLine]     = useState(()=>storyForged(way)?"main":"forge"); // "forge" | "main" (The Crucible) | "chant" | "path"
+  useEffect(()=>{ if(lineReq?.line){ setQuestLine(lineReq.line); setView("overview"); } },[lineReq]);
   const [autoSurfaced,setAutoSurfaced] = useState({}); // {chant:true, path:true} once auto-shown
   const [viewingChoice,setViewingChoice] = useState(false); // browsing path choice even with one active
   const lpTimerRef = useRef(null);
@@ -4990,12 +5554,9 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   const [emberPulse,setEmberPulse] = useState(0); // veiled-anvil tap feedback
 
   /* Auto-surface a newly-available questline in the switcher (once each).
-     The Forge is deliberately NOT included here — it should only ever be
-     reached by the explicit "complete the four fires" tap on Chapter 12's
-     quest screen, never forced open automatically just because Chapter 11
-     completed. The anvil pill still ignites visually on its own; it just
-     no longer yanks the player's view over to it. */
+     An unforged story outranks them: the Forge stays in front until done. */
   useEffect(()=>{
+    if(!storyForged(way)) return;
     const pNew = classGateOpen && (!classState || !classState.activeClass);
     const cNew = chantGateOpen && !chantUnlocked;
     if(pNew && !autoSurfaced.path){
@@ -5003,7 +5564,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
     } else if(cNew && !autoSurfaced.chant && !autoSurfaced.path){
       setQuestLine("chant"); setAutoSurfaced(p=>({...p,chant:true}));
     }
-  },[classGateOpen, chantGateOpen, chantUnlocked, classState, autoSurfaced]);
+  },[classGateOpen, chantGateOpen, chantUnlocked, classState, autoSurfaced, way]);
 
   /* Voice drops out of the switcher the moment it's unlocked — if the player
      is currently looking at it, return them to Main rather than stranding them. */
@@ -5123,7 +5684,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
         <div style={{position:"relative",zIndex:2,padding:"14px 20px 8px",display:"flex",alignItems:"center",gap:"12px"}}>
           <button onClick={()=>{setView("overview");setScene(0);setOnQuestScreen(false);}} style={{background:"none",border:"none",color:`${mood.accent}99`,cursor:"pointer",fontSize:"18px",padding:0}}>←</button>
           <span style={{...dsp("9px",`${mood.accent}88`,400,"0.18em")}}>{meta?.act} · CHAPTER {readingN}</span>
-          {isAlreadyComplete && <span style={{...body("11px",C.sage),marginLeft:"auto",fontStyle:"italic"}}>✓ Complete</span>}
+          {isAlreadyComplete && <span style={{...body("11px",SC.sage),marginLeft:"auto",fontStyle:"italic"}}>✓ Complete</span>}
         </div>
 
         <div style={{position:"relative",zIndex:2,flex:1,padding:"8px 26px 0",overflowY:"auto",opacity:fade?1:0,transition:"opacity 0.5s ease"}}>
@@ -5133,7 +5694,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
               <div style={{...dsp("10px",mood.accent,400,"0.22em"),marginBottom:"20px"}}>{scenes[scene]?.label?.toUpperCase()}</div>
               {(()=>{ const pp=scenes[scene]?.perPage||2; return (scenes[scene]?.body||[]).slice(paraPage*pp, paraPage*pp+pp).map((p,i)=>(
                 <p key={`${scene}-${paraPage}-${i}`}
-                   style={{...body("15px",C.cream),lineHeight:"1.95",marginBottom:"16px",fontStyle:"italic",
+                   style={{...body("15px",SC.cream),lineHeight:"1.95",marginBottom:"16px",fontStyle:"italic",
                      animation:`fadeRise 0.7s ease ${i*0.18}s both`}}>{p}</p>
               )); })()}
               </div>
@@ -5141,9 +5702,9 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
           ) : (
             /* Quest screen */
             <div>
-              <div style={{...dsp("9px",C.gold,400,"0.22em"),marginBottom:"6px"}}>CHAPTER {readingN} QUEST</div>
-              <div style={{...dsp("14px",C.cream,400,"0.08em"),marginBottom:"6px"}}>"{quest?.label}"</div>
-              <div style={{...body("13px",C.muted),fontStyle:"italic",lineHeight:"1.6",marginBottom:"24px"}}>{quest?.desc}</div>
+              <div style={{...dsp("9px",SC.gold,400,"0.22em"),marginBottom:"6px"}}>CHAPTER {readingN} QUEST</div>
+              <div style={{...dsp("14px",SC.cream,400,"0.08em"),marginBottom:"6px"}}>"{quest?.label}"</div>
+              <div style={{...body("13px",SC.muted),fontStyle:"italic",lineHeight:"1.6",marginBottom:"24px"}}>{quest?.desc}</div>
 
               {(()=>{
                 const req=CHAPTER_REQUIREMENTS[readingN];
@@ -5156,46 +5717,46 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                   return (
                     <div style={{marginBottom:"20px"}}>
                       {/* Story gate — clickable to re-read */}
-                      <button onClick={()=>{setOnQuestScreen(false);setScene(0);setParaPage(0);}} style={{width:"100%",display:"flex",alignItems:"center",gap:"10px",padding:"10px 14px",background:C.surf,border:`0.5px solid ${rDone?C.sageB:C.bord}`,borderRadius:"6px",marginBottom:"8px",cursor:"pointer",textAlign:"left"}}>
-                        <div style={{width:"22px",height:"22px",borderRadius:"50%",flexShrink:0,background:rDone?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${rDone?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                          {rDone?<span style={{color:C.sageB,fontSize:"11px"}}>✓</span>:<span style={{color:C.dim,fontSize:"9px"}}>i</span>}
+                      <button onClick={()=>{setOnQuestScreen(false);setScene(0);setParaPage(0);}} style={{width:"100%",display:"flex",alignItems:"center",gap:"10px",padding:"10px 14px",background:SC.surf,border:`0.5px solid ${rDone?SC.sageB:SC.bord}`,borderRadius:"6px",marginBottom:"8px",cursor:"pointer",textAlign:"left"}}>
+                        <div style={{width:"22px",height:"22px",borderRadius:"50%",flexShrink:0,background:rDone?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${rDone?SC.sageB:SC.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                          {rDone?<span style={{color:SC.sageB,fontSize:"11px"}}>✓</span>:<span style={{color:SC.dim,fontSize:"9px"}}>i</span>}
                         </div>
-                        <div style={{flex:1,...body("12px",rDone?C.cream:C.muted)}}>Read the chapter</div>
-                        {rDone&&<span style={{...body("10px",C.dim)}}>re-read →</span>}
+                        <div style={{flex:1,...body("12px",rDone?SC.cream:SC.muted)}}>Read the chapter</div>
+                        {rDone&&<span style={{...body("10px",SC.dim)}}>re-read →</span>}
                       </button>
                       {/* Anchor sub-quests */}
                       {ANCHOR_SUBQUESTS.map((sq,i)=>{
-                        const sc=STAT_COLORS[sq.sc]||C.sageB;
+                        const sc=AC(STAT_COLORS[sq.sc])||SC.sageB;
                         const isRead=libReadAt[sq.libId]!==undefined;
                         const isPrac=isRead&&qualSessions>libReadAt[sq.libId];
                         const isDone=isRead&&isPrac;
                         const isActive=rDone&&(i===0||ANCHOR_SUBQUESTS.slice(0,i).every(prev=>{const pr=libReadAt[prev.libId]; return pr!==undefined&&qualSessions>pr;}));
                         return (
-                          <div key={sq.id} style={{padding:"11px 14px",background:isDone?"rgba(163,192,137,0.04)":isActive?C.surf:"transparent",border:`0.5px solid ${isDone?C.sageB:isActive?C.bord:C.bord}`,borderRadius:"6px",marginBottom:"6px",opacity:(!rDone&&i>0)||(!isActive&&!isDone)?0.4:1}}>
+                          <div key={sq.id} style={{padding:"11px 14px",background:isDone?"rgba(163,192,137,0.04)":isActive?SC.surf:"transparent",border:`0.5px solid ${isDone?SC.sageB:isActive?SC.bord:SC.bord}`,borderRadius:"6px",marginBottom:"6px",opacity:(!rDone&&i>0)||(!isActive&&!isDone)?0.4:1}}>
                             <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:isActive&&!isDone?"8px":"0"}}>
-                              <div style={{width:"6px",height:"6px",borderRadius:"50%",background:isDone?C.sageB:isActive?sc:C.dim,flexShrink:0}}/>
+                              <div style={{width:"6px",height:"6px",borderRadius:"50%",background:isDone?SC.sageB:isActive?sc:SC.dim,flexShrink:0}}/>
                               <div style={{flex:1}}>
-                                <span style={{...dsp("10px",isDone?C.sageB:isActive?C.cream:C.muted,400,"0.1em")}}>{sq.label}</span>
-                                <span style={{...body("10px",C.dim),marginLeft:"6px"}}>{sq.hint}</span>
+                                <span style={{...dsp("10px",isDone?SC.sageB:isActive?SC.cream:SC.muted,400,"0.1em")}}>{sq.label}</span>
+                                <span style={{...body("10px",SC.dim),marginLeft:"6px"}}>{sq.hint}</span>
                               </div>
-                              {isDone&&<span style={{color:C.sageB,fontSize:"11px"}}>✓</span>}
+                              {isDone&&<span style={{color:SC.sageB,fontSize:"11px"}}>✓</span>}
                             </div>
                             {isActive&&!isDone&&(
                               <div style={{display:"flex",gap:"8px",paddingLeft:"14px"}}>
-                                <button onClick={()=>onGoToLib(sq.libId)} style={{display:"flex",alignItems:"center",gap:"5px",background:isRead?"rgba(163,192,137,0.08)":"transparent",border:`0.5px solid ${isRead?C.sageB:C.bord}`,borderRadius:"4px",padding:"4px 8px",cursor:"pointer"}}>
-                                  <span style={{fontSize:"9px",color:isRead?C.sageB:C.dim}}>{isRead?"✓":"○"}</span>
-                                  <span style={{...body("10px",isRead?C.sageB:C.muted)}}>Read in Library</span>
+                                <button onClick={()=>onGoToLib(sq.libId)} style={{display:"flex",alignItems:"center",gap:"5px",background:isRead?"rgba(163,192,137,0.08)":"transparent",border:`0.5px solid ${isRead?SC.sageB:SC.bord}`,borderRadius:"4px",padding:"4px 8px",cursor:"pointer"}}>
+                                  <span style={{fontSize:"9px",color:isRead?SC.sageB:SC.dim}}>{isRead?"✓":"○"}</span>
+                                  <span style={{...body("10px",isRead?SC.sageB:SC.muted)}}>Read in Library</span>
                                 </button>
-                                <button onClick={()=>onOpenAnchor("sitting")} style={{display:"flex",alignItems:"center",gap:"5px",background:isPrac?"rgba(163,192,137,0.08)":"transparent",border:`0.5px solid ${isPrac?C.sageB:C.bord}`,borderRadius:"4px",padding:"4px 8px",cursor:"pointer"}}>
-                                  <span style={{fontSize:"9px",color:isPrac?C.sageB:C.dim}}>{isPrac?"✓":"○"}</span>
-                                  <span style={{...body("10px",isPrac?C.sageB:C.muted)}}>Practice once</span>
+                                <button onClick={()=>onOpenAnchor("sitting")} style={{display:"flex",alignItems:"center",gap:"5px",background:isPrac?"rgba(163,192,137,0.08)":"transparent",border:`0.5px solid ${isPrac?SC.sageB:SC.bord}`,borderRadius:"4px",padding:"4px 8px",cursor:"pointer"}}>
+                                  <span style={{fontSize:"9px",color:isPrac?SC.sageB:SC.dim}}>{isPrac?"✓":"○"}</span>
+                                  <span style={{...body("10px",isPrac?SC.sageB:SC.muted)}}>Practice once</span>
                                 </button>
                               </div>
                             )}
                           </div>
                         );
                       })}
-                      {!rDone&&<div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px",textAlign:"center"}}>Read the chapter above to begin.</div>}
+                      {!rDone&&<div style={{...body("11px",SC.dim),fontStyle:"italic",marginTop:"6px",textAlign:"center"}}>Read the chapter above to begin.</div>}
                     </div>
                   );
                 }
@@ -5204,26 +5765,26 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                 const pDone=pracDone(readingN);
                 const libReqs = req.libRequired||[];
                 return (
-                  <div style={{background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"8px",padding:"14px 16px",marginBottom:"20px",display:"flex",flexDirection:"column",gap:"10px"}}>
+                  <div style={{background:SC.surf,border:`0.5px solid ${SC.bord}`,borderRadius:"8px",padding:"14px 16px",marginBottom:"20px",display:"flex",flexDirection:"column",gap:"10px"}}>
                     {/* Read gate — clickable to re-read */}
                     <button onClick={()=>{setOnQuestScreen(false);setScene(0);setParaPage(0);}} style={{display:"flex",alignItems:"center",gap:"12px",background:"none",border:"none",cursor:"pointer",textAlign:"left",padding:0}}>
-                      <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:rDone?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${rDone?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                        {rDone?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<span style={{color:C.dim,fontSize:"11px"}}>i</span>}
+                      <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:rDone?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${rDone?SC.sageB:SC.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        {rDone?<span style={{color:SC.sageB,fontSize:"13px"}}>✓</span>:<span style={{color:SC.dim,fontSize:"11px"}}>i</span>}
                       </div>
-                      <div style={{flex:1}}><div style={{...body("13px",rDone?C.cream:C.muted)}}>Read the chapter</div></div>
-                      {rDone&&<span style={{...body("10px",C.dim),paddingRight:"4px"}}>re-read →</span>}
+                      <div style={{flex:1}}><div style={{...body("13px",rDone?SC.cream:SC.muted)}}>Read the chapter</div></div>
+                      {rDone&&<span style={{...body("10px",SC.dim),paddingRight:"4px"}}>re-read →</span>}
                     </button>
                     {libReqs.map(id=>{
                       const e=LIBRARY_ENTRIES.find(x=>x.id===id);
                       const done=libReadAt[id]!==undefined;
                       return (
                         <button key={id} onClick={()=>{if(rDone)onGoToLib(id);}} style={{display:"flex",alignItems:"center",gap:"12px",opacity:rDone?1:0.4,background:"none",border:"none",cursor:rDone?"pointer":"default",textAlign:"left",padding:0}}>
-                          <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:done?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${done?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                            {done?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<span style={{color:C.dim,fontSize:"10px"}}>↗</span>}
+                          <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:done?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${done?SC.sageB:SC.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                            {done?<span style={{color:SC.sageB,fontSize:"13px"}}>✓</span>:<span style={{color:SC.dim,fontSize:"10px"}}>↗</span>}
                           </div>
                           <div>
-                            <div style={{...body("13px",done?C.cream:C.muted)}}>Read: {e?.title||id}</div>
-                            {!done&&rDone&&<div style={{...body("10px",C.dim),fontStyle:"italic"}}>Tap to open in Library →</div>}
+                            <div style={{...body("13px",done?SC.cream:SC.muted)}}>Read: {e?.title||id}</div>
+                            {!done&&rDone&&<div style={{...body("10px",SC.dim),fontStyle:"italic"}}>Tap to open in Library →</div>}
                           </div>
                         </button>
                       );
@@ -5237,12 +5798,12 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                       return (
                         <button key={r.refId} onClick={()=>{if(active)onOpenReflection({prompt:r.prompt, refId:r.refId, label:r.label});}}
                           style={{display:"flex",alignItems:"flex-start",gap:"12px",opacity:(rDone&&prevDone)||done?1:0.4,background:"none",border:"none",cursor:active?"pointer":"default",textAlign:"left",padding:0,width:"100%"}}>
-                          <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:done?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${done?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                            {done?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<span style={{color:C.dim,fontSize:"11px"}}>✎</span>}
+                          <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:done?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${done?SC.sageB:SC.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                            {done?<span style={{color:SC.sageB,fontSize:"13px"}}>✓</span>:<span style={{color:SC.dim,fontSize:"11px"}}>✎</span>}
                           </div>
                           <div style={{flex:1}}>
-                            <div style={{...body("13px",done?C.cream:C.muted)}}>{r.label}</div>
-                            {active&&<div style={{...body("10px",C.dim),fontStyle:"italic"}}>Tap to write in Journal →</div>}
+                            <div style={{...body("13px",done?SC.cream:SC.muted)}}>{r.label}</div>
+                            {active&&<div style={{...body("10px",SC.dim),fontStyle:"italic"}}>Tap to write in Journal →</div>}
                           </div>
                         </button>
                       );
@@ -5251,11 +5812,11 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                     {req.forgeGate && (
                       <button onClick={()=>{if(rDone){setQuestLine("forge");setView("overview");}}}
                         style={{display:"flex",alignItems:"center",gap:"12px",opacity:rDone?1:0.4,background:"none",border:"none",cursor:rDone?"pointer":"default",textAlign:"left",padding:0,width:"100%"}}>
-                        <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:pDone?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${pDone?"#d8783c":C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                          {pDone?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<AnvilIcon size={13} color={rDone?"#d8783c":C.dim}/>}
+                        <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:pDone?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${pDone?"#d8783c":SC.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                          {pDone?<span style={{color:SC.sageB,fontSize:"13px"}}>✓</span>:<AnvilIcon size={13} color={rDone?"#d8783c":SC.dim}/>}
                         </div>
                         <div style={{flex:1}}>
-                          <div style={{...body("13px",pDone?C.cream:C.muted)}}>{req.practice?.desc}</div>
+                          <div style={{...body("13px",pDone?SC.cream:SC.muted)}}>{req.practice?.desc}</div>
                           {!pDone&&rDone&&<div style={{...body("10px","#d8783c"),fontStyle:"italic"}}>Go to the Forge →</div>}
                         </div>
                       </button>
@@ -5270,38 +5831,38 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                           : sc.center
                           ? sessions.some(s=>hasLand(s,[sc.center])&&(s.elapsed||0)>=600)
                           : sessions.some(s=>s.typeId===sc.typeId&&(s.elapsed||0)>=300);
-                        const statColor = sc.key ? (STAT_COLORS[sc.key]||C.sageB) : C.sageB;
+                        const statColor = sc.key ? (STAT_COLORS[sc.key]||SC.sageB) : SC.sageB;
                         const xp = sc.key ? Math.min(chStats[sc.key]||0, sc.xpTarget) : 0;
                         return (
                           <button key={sc.key||sc.center||sc.typeId}
                             onClick={()=>{if(rDone&&!sc.key)onOpenAnchor(sc.anchorType||"sitting");}}
                             style={{display:"flex",alignItems:"center",gap:"12px",opacity:rDone?1:0.4,background:"none",border:"none",cursor:rDone&&!sc.key?"pointer":"default",textAlign:"left",padding:0,width:"100%"}}>
-                            <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:done?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${done?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                              {done?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<PresenceMark size={12} color={C.dim} sw={1}/>}
+                            <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:done?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${done?SC.sageB:SC.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                              {done?<span style={{color:SC.sageB,fontSize:"13px"}}>✓</span>:<PresenceMark size={12} color={SC.dim} sw={1}/>}
                             </div>
                             <div style={{flex:1}}>
                               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                                <div style={{...body("13px",done?C.cream:C.muted)}}>{sc.label}</div>
-                                {sc.key&&<div style={{...dsp("10px",done?C.sageB:C.muted,400,"0.06em")}}>{Math.min(chStats[sc.key]||0,sc.xpTarget)}/{sc.xpTarget} XP</div>}
+                                <div style={{...body("13px",done?SC.cream:SC.muted)}}>{sc.label}</div>
+                                {sc.key&&<div style={{...dsp("10px",done?SC.sageB:SC.muted,400,"0.06em")}}>{Math.min(chStats[sc.key]||0,sc.xpTarget)}/{sc.xpTarget} XP</div>}
                               </div>
                               {sc.key&&!done&&rDone&&(
                                 <div style={{marginTop:"4px",height:"3px",background:INK(0.08),borderRadius:"2px",overflow:"hidden"}}>
                                   <div style={{height:"100%",width:`${Math.min(100,((chStats[sc.key]||0)/sc.xpTarget)*100)}%`,background:statColor,borderRadius:"2px",transition:"width 0.4s"}}/>
                                 </div>
                               )}
-                              {!sc.key&&!done&&rDone&&<div style={{...body("10px",C.dim),fontStyle:"italic"}}>Tap to open Anchor →</div>}
+                              {!sc.key&&!done&&rDone&&<div style={{...body("10px",SC.dim),fontStyle:"italic"}}>Tap to open Anchor →</div>}
                             </div>
                           </button>
                         );
                       })
                     ) : (req.practice && !req.forgeGate) ? (
                     <button onClick={()=>{if(rDone)onOpenAnchor(readingN===9?"standing":"sitting");}} style={{display:"flex",alignItems:"center",gap:"12px",opacity:rDone?1:0.4,background:"none",border:"none",cursor:rDone?"pointer":"default",textAlign:"left",padding:0}}>
-                      <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:pDone?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${pDone?C.sageB:C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                        {pDone?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<PresenceMark size={12} color={C.dim} sw={1}/>}
+                      <div style={{width:"28px",height:"28px",borderRadius:"50%",flexShrink:0,background:pDone?"rgba(163,192,137,0.12)":"transparent",border:`1px solid ${pDone?SC.sageB:SC.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        {pDone?<span style={{color:SC.sageB,fontSize:"13px"}}>✓</span>:<PresenceMark size={12} color={SC.dim} sw={1}/>}
                       </div>
                       <div>
-                        <div style={{...body("13px",pDone?C.cream:C.muted)}}>{req.practice?.desc||""}</div>
-                        {!pDone&&rDone&&<div style={{...body("10px",C.dim),fontStyle:"italic"}}>Tap to open Anchor →</div>}
+                        <div style={{...body("13px",pDone?SC.cream:SC.muted)}}>{req.practice?.desc||""}</div>
+                        {!pDone&&rDone&&<div style={{...body("10px",SC.dim),fontStyle:"italic"}}>Tap to open Anchor →</div>}
                       </div>
                     </button>
                     ) : null}
@@ -5312,24 +5873,24 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
               {/* ── Invitations — honor-system practices, never gating ── */}
               {(CHAPTER_REQUIREMENTS[readingN]?.invitations||[]).length>0 && (
                 <div style={{marginBottom:"20px"}}>
-                  <div style={{...dsp("9px",C.muted,400,"0.2em"),marginBottom:"8px"}}>INVITATIONS</div>
+                  <div style={{...dsp("9px",SC.muted,400,"0.2em"),marginBottom:"8px"}}>INVITATIONS</div>
                   {(CHAPTER_REQUIREMENTS[readingN]?.invitations||[]).map((iv,i)=>(
-                    <div key={i} style={{padding:"9px 12px",background:INK(0.02),border:`0.5px solid ${C.bord}`,borderRadius:"6px",marginBottom:"6px"}}>
-                      <div style={{...dsp("10px",C.cream,400,"0.08em"),marginBottom:"3px"}}>{iv.t}</div>
-                      <div style={{...body("11px",C.muted),fontStyle:"italic",lineHeight:"1.6"}}>{iv.d}</div>
+                    <div key={i} style={{padding:"9px 12px",background:INK(0.02),border:`0.5px solid ${SC.bord}`,borderRadius:"6px",marginBottom:"6px"}}>
+                      <div style={{...dsp("10px",SC.cream,400,"0.08em"),marginBottom:"3px"}}>{iv.t}</div>
+                      <div style={{...body("11px",SC.muted),fontStyle:"italic",lineHeight:"1.6"}}>{iv.d}</div>
                     </div>
                   ))}
                 </div>
               )}
 
               {isAlreadyComplete ? (
-                <button onClick={()=>setView("overview")} style={{width:"100%",padding:"13px",background:"transparent",border:`0.5px solid ${C.bord}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.muted,400,"0.18em")}}>BACK TO QUEST MAP</button>
+                <button onClick={()=>setView("overview")} style={{width:"100%",padding:"13px",background:"transparent",border:`0.5px solid ${SC.bord}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",SC.muted,400,"0.18em")}}>BACK TO QUEST MAP</button>
               ) : qDone ? (
-                <button onClick={()=>{ onCompleteChapter(readingN); if(readingN===ACT1_FINAL_CHAPTER) setShowActComplete(1); else if(readingN===ACT2_FINAL_CHAPTER) setShowActComplete(2); else setView("overview"); }} style={{width:"100%",padding:"13px",background:"linear-gradient(rgba(201,168,76,0.18),rgba(201,168,76,0.07))",border:`0.5px solid ${C.gold}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.goldB,400,"0.18em")}}>
+                <button onClick={()=>{ onCompleteChapter(readingN); if(readingN===ACT1_FINAL_CHAPTER) setShowActComplete(1); else if(readingN===ACT2_FINAL_CHAPTER) setShowActComplete(2); else setView("overview"); }} style={{width:"100%",padding:"13px",background:"linear-gradient(rgba(201,168,76,0.18),rgba(201,168,76,0.07))",border:`0.5px solid ${SC.gold}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",SC.goldB,400,"0.18em")}}>
                   COMPLETE CHAPTER {readingN} ↑
                 </button>
               ) : (
-                <button onClick={()=>setView("overview")} style={{width:"100%",padding:"13px",background:"transparent",border:`0.5px solid ${C.bord}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.dim,400,"0.18em")}}>RETURN · QUEST AWAITS</button>
+                <button onClick={()=>setView("overview")} style={{width:"100%",padding:"13px",background:"transparent",border:`0.5px solid ${SC.bord}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",SC.dim,400,"0.18em")}}>RETURN · QUEST AWAITS</button>
               )}
             </div>
           )}
@@ -5343,11 +5904,11 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                 Array.from({length:Math.ceil((sc.body?.length||1)/(sc.perPage||2))},(_,pi)=>{
                   const active = si===scene && pi===paraPage;
                   const past   = si<scene || (si===scene && pi<paraPage);
-                  return <div key={`${si}-${pi}`} style={{width:active?"16px":"5px",height:"5px",borderRadius:"3px",background:active?C.gold:past?C.sage:C.bord,transition:"all .3s"}}/>;
+                  return <div key={`${si}-${pi}`} style={{width:active?"16px":"5px",height:"5px",borderRadius:"3px",background:active?SC.gold:past?SC.sage:SC.bord,transition:"all .3s"}}/>;
                 })
               )}
             </div>
-            <button onClick={advance} style={{width:"100%",padding:"13px",background:"rgba(163,192,137,0.1)",border:`0.5px solid ${C.sageB}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.sageB,400,"0.18em")}}>
+            <button onClick={advance} style={{width:"100%",padding:"13px",background:"rgba(163,192,137,0.1)",border:`0.5px solid ${SC.sageB}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",SC.sageB,400,"0.18em")}}>
               {(scene<scenes.length-1||(scene===scenes.length-1&&paraPage<Math.ceil((scenes[scene]?.body?.length||1)/(scenes[scene]?.perPage||2))-1))?"CONTINUE →":"THE QUEST →"}
             </button>
           </div>
@@ -5357,47 +5918,49 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   }
 
   /* ── OVERVIEW ── */
-  const activeN = CHAPTER_META.find(c=>getState(c.n)==="active")?.n || 1;
+  /* The Crucible is the only story act now; the old Act II is retired. */
+  const crucible = CHAPTER_META.filter(c=>c.act==="ACT I");
+  const crucibleDone = crucible.every(c=>completedChapters.includes(c.n));
+  const activeN = crucible.find(c=>getState(c.n)==="active")?.n || (crucibleDone ? ACT1_FINAL_CHAPTER : 1);
   const activeMeta = CHAPTER_META.find(c=>c.n===activeN);
 
   // Switcher entries — Main always present; Voice and Path appear as they unlock.
   const pathActive = classState && classState.activeClass && trialComplete(classState.activeClass);
   const pathNew = classGateOpen && (!classState || !classState.activeClass); // gate open, not yet chosen
   const chantNew = chantGateOpen && !chantUnlocked;
-  /* Forge — veiled (grey anvil, no label) until ch.12 goes active; ignites then. */
-  const forgeOpen = devMode || getState(FORGE_CHAPTER)!=="locked";
-  const forgeNew  = forgeOpen && way && !way.forged;
+  /* The Forge — the player's own story — comes first, before the Crucible. */
+  const forgeNew  = !storyForged(way);
   const switcherItems = [
-    { id:"main", label:"Main Story", show:true,
+    { id:"forge", label:"Forge", icon:true, show:true,
+      state: forgeNew ? "new" : "" },
+    { id:"main", label:"The Crucible", show:true,
       state: "active" },
     { id:"chant", label:"Voice", show: chantGateOpen && !chantUnlocked,
       state: chantNew ? "new" : "" },
     { id:"path", label: pathActive ? (CLASS_BY_ID[classState.activeClass]?.name||"Path") : "Choose Your Path",
       show: classGateOpen, state: pathNew ? "new" : (pathActive ? "" : "") },
-    { id:"forge", icon:true, show:true, veiled:!forgeOpen,
-      state: forgeNew ? "new" : "" },
   ].filter(x=>x.show);
 
   const heroTitle = questLine==="chant" ? "Voice"
     : questLine==="path" ? (pathActive ? (CLASS_BY_ID[classState.activeClass]?.name+" Path") : "Choose Your Path")
-    : questLine==="forge" ? "The Forge"
-    : "Main Quest";
+    : questLine==="forge" ? (storyForged(way) ? way.story.name : "The Forge")
+    : "The Crucible";
   const heroSub = questLine==="chant" ? "The oldest practice"
     : questLine==="path" ? (pathActive ? CLASS_BY_ID[classState.activeClass]?.verb : "Your direction of cultivation")
-    : questLine==="forge" ? (way?.forged ? "Your Way, in your hand" : "Where character is shaped")
-    : `${activeMeta?.act==="ACT II"?"Act II":"Act I"} · Chapter ${activeN}`;
+    : questLine==="forge" ? (storyForged(way) ? "The Forge · Your story" : "Your story")
+    : crucibleDone ? "The Crucible · Complete" : `The Crucible · Chapter ${activeN}`;
 
   return (
     <div>
       <div style={{position:"relative"}}>
         <RidgelineScene h={190}/>
-        <div style={{position:"absolute",inset:0,background:`linear-gradient(to bottom, ${PANEL(0)} 35%, ${C.bg} 100%)`}}/>
+        <div style={{position:"absolute",inset:0,background:`linear-gradient(to bottom, ${PANEL(0)} 35%, ${SC.bg} 100%)`}}/>
         <div style={{position:"absolute",top:"14px",left:"20px"}}>
-          <span style={{...dsp("13px",C.cream,400,"0.16em")}}>QUEST</span>
+          <span style={{...dsp("13px",SC.cream,400,"0.16em")}}>QUEST</span>
         </div>
         <div style={{position:"absolute",bottom:"14px",left:"20px",right:"20px"}}>
-          <div style={{...dsp("11px",C.gold,400,"0.18em"),marginBottom:"4px"}}>{heroSub}</div>
-          <div style={{...dsp("22px",C.cream,500,"0.04em"),textShadow:"0 2px 12px rgba(0,0,0,0.6)"}}>{questLine==="main"?activeMeta?.title:heroTitle}</div>
+          <div style={{...dsp("11px",SC.gold,400,"0.18em"),marginBottom:"4px"}}>{heroSub}</div>
+          <div style={{...dsp("22px",SC.cream,500,"0.04em"),textShadow:"0 2px 12px rgba(0,0,0,0.6)"}}>{questLine==="main"?activeMeta?.title:heroTitle}</div>
         </div>
       </div>
 
@@ -5406,22 +5969,21 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
         <div style={{display:"flex",gap:"8px",padding:"14px 20px 4px",flexWrap:"wrap"}}>
           {switcherItems.map(it=>{
             const sel=questLine===it.id;
-            const accent = it.id==="path"&&pathActive ? (CLASS_BY_ID[classState.activeClass]?.accent||C.sageB)
+            const accent = it.id==="path"&&pathActive ? (AC(CLASS_BY_ID[classState.activeClass]?.accent)||C.sageB)
               : it.id==="forge" ? "#d8783c" : C.sageB;
             /* Forge pill — icon-only. Veiled: dim grey anvil; tap = a single
                ember pulse, no navigation, no words. Lit: warm, selectable. */
             if(it.icon){
               return (
                 <button key={it.id}
-                  onClick={()=>{ if(it.veiled){ setEmberPulse(p=>p+1); } else { setQuestLine(it.id); } }}
-                  style={{position:"relative",padding:"7px 11px",borderRadius:"7px",cursor:"pointer",marginLeft:"auto",
-                    background:sel?"rgba(216,120,60,0.10)":C.surf,
-                    border:`0.5px solid ${sel?accent:C.bord}`,display:"flex",alignItems:"center"}}>
-                  <span key={it.veiled?emberPulse:"lit"} style={it.veiled&&emberPulse?{animation:"emberPulse 0.9s ease"}:undefined}>
-                    <AnvilIcon size={15} color={it.veiled?C.dim:(sel?"#e8945c":accent)} spark={!it.veiled}/>
-                  </span>
-                  {it.state==="new" && !it.veiled && (
-                    <span style={{position:"absolute",top:"-6px",right:"-6px",background:"#d8783c",color:C.bg,
+                  onClick={()=>setQuestLine(it.id)}
+                  style={{position:"relative",padding:"7px 12px",borderRadius:"7px",cursor:"pointer",gap:"7px",
+                    background:sel?`rgba(${C.goldRGB},0.12)`:C.surf,
+                    border:`0.5px solid ${sel?C.gold:C.bord}`,display:"flex",alignItems:"center"}}>
+                  <AnvilIcon size={14} color={sel?C.gold:C.muted} spark={sel}/>
+                  <span style={{...dsp("10px",sel?C.cream:C.muted,400,"0.08em")}}>{it.label}</span>
+                  {it.state==="new" && (
+                    <span style={{position:"absolute",top:"-6px",right:"-6px",background:C.gold,color:C.bg,
                       fontSize:"7px",fontFamily:"Cinzel,serif",letterSpacing:"0.1em",padding:"2px 5px",borderRadius:"8px"}}>NEW</span>
                   )}
                 </button>
@@ -5430,7 +5992,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
             return (
               <button key={it.id} onClick={()=>setQuestLine(it.id)}
                 style={{position:"relative",padding:"7px 14px",borderRadius:"7px",cursor:"pointer",
-                  background:sel?"rgba(163,192,137,0.12)":C.surf,
+                  background:sel?`rgba(${C.sageRGB},0.12)`:C.surf,
                   border:`0.5px solid ${sel?accent:C.bord}`,
                   ...dsp("10px",sel?C.cream:C.muted,400,"0.08em")}}>
                 {it.label}
@@ -5455,7 +6017,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
              starting Act II quietly folds up a finished Act I on its own,
              without ever fighting a choice the player made themselves. */
           const actNames = [...new Set(CHAPTER_META.map(c=>c.act))];
-          const actTitles = { "ACT I":"ACT I · THE DRIFT", "ACT II":"ACT II · THE AUTHORING" };
+          const actTitles = { "ACT I":"THE CRUCIBLE", "ACT II":"THE AUTHORING" };
           const isActCollapsed = (actName) => {
             if(actCollapsed[actName]!==undefined) return actCollapsed[actName];
             const chNums = CHAPTER_META.filter(c=>c.act===actName).map(c=>c.n);
@@ -5464,6 +6026,16 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
             return actDone && actName!==activeAct;
           };
           return actNames.map(actName=>{
+            if(actName==="ACT II"){
+              /* Retired. Shown only to players who walked part of it. */
+              if(!CHAPTER_META.some(c=>c.act==="ACT II" && completedChapters.includes(c.n))) return null;
+              return (
+                <div key={actName} style={{padding:"14px 0 6px",borderTop:`0.5px solid ${C.bord}`,marginTop:"8px",opacity:0.6}}>
+                  <div style={{...dsp("11px",C.muted,400,"0.16em")}}>THE AUTHORING · RETIRED</div>
+                  <div style={{...body("13px",C.dim),fontStyle:"italic",marginTop:"4px"}}>Its work now lives in the Forge.</div>
+                </div>
+              );
+            }
             const chaptersInAct = CHAPTER_META.filter(c=>c.act===actName && (devMode || getState(c.n)!=="locked"));
             if(chaptersInAct.length===0) return null; // nothing unlocked in this act yet — don't even show its header
             const collapsed = isActCollapsed(actName);
@@ -5512,7 +6084,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                 <div style={{width:"12px",height:"12px",borderRadius:"50%",flexShrink:0,
                   background:complete?C.gold:active?"transparent":"transparent",
                   border:`1.5px solid ${complete?C.gold:active?C.sageB:C.dim}`,
-                  boxShadow:active?`0 0 14px rgba(163,192,137,0.7)`:"none",
+                  boxShadow:active?`0 0 14px rgba(${C.sageRGB},0.7)`:"none",
                   animation:active?"emberPulse 2.6s ease-in-out infinite":"none",
                   display:"flex",alignItems:"center",justifyContent:"center",
                 }}>
@@ -5525,7 +6097,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                 onClick={()=>{ if(active||complete) openChapter(c.n); }}
                 onMouseDown={devMode?onPressStart:undefined} onMouseUp={devMode?onPressEnd:undefined} onMouseLeave={devMode?()=>clearTimeout(lpTimerRef.current):undefined}
                 onTouchStart={devMode?onPressStart:undefined} onTouchEnd={devMode?onPressEnd:undefined}
-                style={{flex:1,background:complete?"rgba(201,168,76,0.04)":active?C.surf:"transparent",border:`${active?1.5:0.5}px solid ${complete?C.goldDim:active?C.sageB:devMode?"rgba(180,100,100,0.4)":C.bord}`,borderRadius:"6px",padding:"11px 14px",cursor:(active||complete||devMode)?"pointer":"default",opacity:active||complete?1:devMode?0.7:0.4,marginBottom:"8px",transition:"all .2s",animation:active?"questGlow 2.6s ease-in-out infinite":"none"}}
+                style={{flex:1,background:complete?`rgba(${C.goldRGB},0.04)`:active?C.surf:"transparent",border:`${active?1.5:0.5}px solid ${complete?C.goldDim:active?C.sageB:devMode?"rgba(180,100,100,0.4)":C.bord}`,borderRadius:"6px",padding:"11px 14px",cursor:(active||complete||devMode)?"pointer":"default",opacity:active||complete?1:devMode?0.7:0.4,marginBottom:"8px",transition:"all .2s",animation:active?"questGlow 2.6s ease-in-out infinite":"none"}}
               >
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                   <div style={{flex:1}}>
@@ -5537,7 +6109,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                     {/* Quest status under active chapter */}
                     {active && quest && (
                       <div style={{display:"flex",alignItems:"center",gap:"6px",marginTop:"7px"}}>
-                        <div style={{width:"10px",height:"10px",borderRadius:"50%",border:`1px solid ${qDone?C.sageB:C.dim}`,background:qDone?"rgba(163,192,137,0.2)":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        <div style={{width:"10px",height:"10px",borderRadius:"50%",border:`1px solid ${qDone?C.sageB:C.dim}`,background:qDone?`rgba(${C.sageRGB},0.2)`:"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
                           {qDone&&<span style={{fontSize:"7px",color:C.sageB,lineHeight:1}}>✓</span>}
                         </div>
                         <span style={{...body("11px",qDone?C.sage:C.dim),fontStyle:"italic"}}>{quest.label}</span>
@@ -5618,13 +6190,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
 
         {/* ── The Forge — the player-authored questline ── */}
         {questLine==="forge" && (
-          <ForgeQuestline way={way} onWayChange={onWayChange} jEnt={jEnt} forgeOpen={forgeOpen}
-            onOpenAnchor={onOpenAnchor} onAwardWayXP={onAwardWayXP}
-            onSeal={()=>{
-              onWayChange(w=>({...w,forged:true,cycleStart:new Date().toISOString()}));
-              if(!completedChapters.includes(FORGE_CHAPTER)) onCompleteChapter(FORGE_CHAPTER);
-              setShowActComplete(2);
-            }}/>
+          <ForgeStoryView way={way} onWayChange={onWayChange} onOpenMyPath={onOpenMyPath}/>
         )}
       </div>
     </div>
@@ -6134,9 +6700,9 @@ function WorldView({ zones=[], userPos, onSelectCluster, onReturnToLocal, onClos
               style={{position:"absolute",left:g.sx,top:g.sy,width:"40px",height:"40px",transform:"translate(-50%,-50%)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",zIndex:3}}>
               {g.summit&&<svg width="9" height="7" viewBox="0 0 14 12" style={{position:"absolute",top:`${20-d/2-9}px`}}><polygon points="7,1 13,11 1,11" fill={C.gold} stroke={C.goldB} strokeWidth="1"/></svg>}
               {n>1 ? (
-                <div style={{width:`${d}px`,height:`${d}px`,borderRadius:"50%",background:"rgba(125,154,106,0.28)",border:`1px solid ${C.sageB}`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 8px rgba(163,192,137,0.25)`,...body("10px",C.cream)}}>{n}</div>
+                <div style={{width:`${d}px`,height:`${d}px`,borderRadius:"50%",background:"rgba(125,154,106,0.28)",border:`1px solid ${C.sageB}`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 8px rgba(${C.sageRGB},0.25)`,...body("10px",C.cream)}}>{n}</div>
               ) : (
-                <div style={{width:"8px",height:"8px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 0 4px rgba(163,192,137,0.18), 0 0 6px rgba(163,192,137,0.5)`}}/>
+                <div style={{width:"8px",height:"8px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 0 4px rgba(${C.sageRGB},0.18), 0 0 6px rgba(163,192,137,0.5)`}}/>
               )}
             </div>
           );
@@ -6161,7 +6727,7 @@ function WorldView({ zones=[], userPos, onSelectCluster, onReturnToLocal, onClos
       <div style={{position:"relative",background:`linear-gradient(${C.surf2}ee,${C.bg2}f8)`,borderTop:`0.5px solid ${C.bord}`,padding:"12px 18px 16px",backdropFilter:"blur(6px)",flexShrink:0}}>
         <div style={{...body("11px",C.dim),fontStyle:"italic",marginBottom:"6px"}}>The world is waiting.</div>
         <div style={{display:"flex",alignItems:"center",gap:"7px"}}>
-          <div style={{width:"5px",height:"5px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 5px rgba(163,192,137,0.6)`}}/>
+          <div style={{width:"5px",height:"5px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 5px rgba(${C.sageRGB},0.6)`}}/>
           <span style={{...dsp("9px",C.muted,400,"0.14em")}}>PLACES ANCHORED: {placesCount}</span>
         </div>
       </div>
@@ -6558,7 +7124,7 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
           {/* Center dot */}
           <div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",zIndex:2,pointerEvents:"none"}}>
             {locatePulse&&<div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",width:"40px",height:"40px",borderRadius:"50%",border:`1px solid ${C.sageB}`,opacity:0.4}}/>}
-            <div style={{width:"7px",height:"7px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 ${locatePulse?"16px":"8px"} rgba(163,192,137,${locatePulse?"0.9":"0.7"})`,transition:"box-shadow .3s"}}/>
+            <div style={{width:"7px",height:"7px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 ${locatePulse?"16px":"8px"} rgba(${C.sageRGB},${locatePulse?"0.9":"0.7"})`,transition:"box-shadow .3s"}}/>
           </div>
           {/* Peaks — landmarks, drawn everywhere (not clipped to reveal zones) */}
           {renderPeaks.map(pk=>{
@@ -6595,8 +7161,8 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
                 <div key={i} onClick={e=>{e.stopPropagation();setHoveredPin(v=>v===key?null:key);}}
                   style={{position:"absolute",left:`${p.rx}%`,top:`${p.ry}%`,transform:"translate(-50%,-50%)",cursor:"pointer",zIndex:isOpen?5:1}}>
                   <svg width="9" height="9" viewBox="0 0 9 9">
-                    <line x1="4.5" y1="1" x2="4.5" y2="8" stroke={isOpen?C.sageB:"rgba(163,192,137,0.55)"} strokeWidth="1" strokeLinecap="round"/>
-                    <line x1="1" y1="4.5" x2="8" y2="4.5" stroke={isOpen?C.sageB:"rgba(163,192,137,0.55)"} strokeWidth="1" strokeLinecap="round"/>
+                    <line x1="4.5" y1="1" x2="4.5" y2="8" stroke={isOpen?C.sageB:`rgba(${C.sageRGB},0.55)`} strokeWidth="1" strokeLinecap="round"/>
+                    <line x1="1" y1="4.5" x2="8" y2="4.5" stroke={isOpen?C.sageB:`rgba(${C.sageRGB},0.55)`} strokeWidth="1" strokeLinecap="round"/>
                   </svg>
                   {isOpen&&(
                     <div style={{position:"absolute",bottom:"calc(100% + 7px)",left:"50%",transform:`translateX(-50%) scale(${1/zoom})`,transformOrigin:"center bottom",background:PANEL(0.95),border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
@@ -6610,7 +7176,7 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
             return (
               <div key={i} onMouseEnter={()=>setHoveredPin(key)} onMouseLeave={()=>setHoveredPin(null)} onClick={e=>{e.stopPropagation();setHoveredPin(v=>v===key?null:key);}}
                 style={{position:"absolute",left:`${p.rx}%`,top:`${p.ry}%`,transform:"translate(-50%,-50%)",display:"flex",flexDirection:"column",alignItems:"center",gap:"3px",cursor:"pointer",zIndex:isOpen?5:1}}>
-                <svg width="13" height="13" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill={isOpen?"rgba(163,192,137,0.22)":"rgba(163,192,137,0.12)"} stroke={C.sageB} strokeWidth="0.6"/><line x1="7" y1="5" x2="7" y2="9" stroke={C.sageB} strokeWidth="0.7"/><line x1="5" y1="7" x2="9" y2="7" stroke={C.sageB} strokeWidth="0.7"/></svg>
+                <svg width="13" height="13" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill={isOpen?`rgba(${C.sageRGB},0.22)`:`rgba(${C.sageRGB},0.12)`} stroke={C.sageB} strokeWidth="0.6"/><line x1="7" y1="5" x2="7" y2="9" stroke={C.sageB} strokeWidth="0.7"/><line x1="5" y1="7" x2="9" y2="7" stroke={C.sageB} strokeWidth="0.7"/></svg>
                 {isOpen&&(
                   <div style={{position:"absolute",bottom:"calc(100% + 7px)",left:"50%",transform:`translateX(-50%) scale(${1/zoom})`,transformOrigin:"center bottom",background:PANEL(0.95),border:`0.5px solid ${C.sageB}`,borderRadius:"6px",padding:"8px 11px",whiteSpace:"nowrap",pointerEvents:"none",zIndex:10}}>
                     <div style={{...body("11px",C.cream),marginBottom:"2px"}}>{p.tag||"Anchored"}</div>
@@ -6660,7 +7226,7 @@ function MapTab({ pins, revealZones=[], savedPos=null, onLocationConfirmed=()=>{
         <div style={{position:"absolute",bottom:0,left:0,right:0,background:`linear-gradient(${C.surf2}ee,${C.bg2}f8)`,borderTop:`0.5px solid ${C.bord}`,padding:"12px 18px 16px",zIndex:3,backdropFilter:"blur(6px)"}}>
           <div style={{...body("11px",C.dim),fontStyle:"italic",marginBottom:"6px"}}>The world is waiting.</div>
           <div style={{display:"flex",alignItems:"center",gap:"7px"}}>
-            <div style={{width:"5px",height:"5px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 5px rgba(163,192,137,0.6)`}}/>
+            <div style={{width:"5px",height:"5px",borderRadius:"50%",background:C.sageB,boxShadow:`0 0 5px rgba(${C.sageRGB},0.6)`}}/>
             <span style={{...dsp("9px",C.muted,400,"0.14em")}}>PLACES ANCHORED: {placesCount}</span>
             {userEle!=null&&!viewingCluster&&<span style={{...dsp("9px",C.muted,400,"0.14em"),marginLeft:"8px"}}>ELEVATION: {fmtEle(userEle).toUpperCase()}</span>}
             {namedPeakCount>0&&<span style={{...dsp("9px",C.muted,400,"0.14em"),marginLeft:"8px"}}>PEAKS: {namedPeakCount}</span>}
@@ -6752,7 +7318,7 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
 
   /* ── DETAIL VIEW ── */
   if(selected){
-    const sc = STAT_COLORS[selected.sc]||C.sageB;
+    const sc = AC(STAT_COLORS[selected.sc])||C.sageB;
     const anchorType = ANCHOR_TYPE[selected.id];
     const sq = ANCHOR_SUBQUESTS.find(a=>a.libId===selected.id);
     const isRead = sq ? libReadAt[selected.id]!==undefined : false;
@@ -6779,14 +7345,14 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
           ))}
           {/* Practice block */}
           {selected.practice && (
-            <div style={{marginTop:"22px",padding:"14px 16px",background:"rgba(163,192,137,0.06)",border:`0.5px solid rgba(163,192,137,0.2)`,borderRadius:"8px"}}>
+            <div style={{marginTop:"22px",padding:"14px 16px",background:`rgba(${C.sageRGB},0.06)`,border:`0.5px solid rgba(${C.sageRGB},0.2)`,borderRadius:"8px"}}>
               <div style={{...dsp("8px",C.sage,400,"0.14em"),marginBottom:"8px"}}>PRACTICE</div>
               <p style={{...body("13px",C.muted),lineHeight:"1.8",margin:0,fontStyle:"italic"}}>{selected.practice}</p>
             </div>
           )}
           {/* Anchor action button */}
           {selected.id in ANCHOR_TYPE && (
-            <button onClick={()=>onOpenAnchor(ANCHOR_TYPE[selected.id])} style={{marginTop:"16px",width:"100%",padding:"13px",background:"rgba(163,192,137,0.1)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",cursor:"pointer",...dsp("10px",C.sageB,400,"0.18em")}}>
+            <button onClick={()=>onOpenAnchor(ANCHOR_TYPE[selected.id])} style={{marginTop:"16px",width:"100%",padding:"13px",background:`rgba(${C.sageRGB},0.1)`,border:`0.5px solid ${C.sageB}`,borderRadius:"6px",cursor:"pointer",...dsp("10px",C.sageB,400,"0.18em")}}>
               {ANCHOR_TYPE[selected.id]
                 ? `ANCHOR NOW · ${ANCHOR_TYPE[selected.id].toUpperCase()}`
                 : "ANCHOR NOW ↗"}
@@ -6794,7 +7360,7 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
           )}
           {/* Sub-quest status if applicable */}
           {sq && (
-            <div style={{marginTop:"12px",padding:"10px 12px",background:isPrac?"rgba(163,192,137,0.06)":"rgba(201,168,76,0.07)",border:`0.5px solid ${isPrac?C.sageB:C.goldDim}`,borderRadius:"6px"}}>
+            <div style={{marginTop:"12px",padding:"10px 12px",background:isPrac?`rgba(${C.sageRGB},0.06)`:`rgba(${C.goldRGB},0.07)`,border:`0.5px solid ${isPrac?C.sageB:C.goldDim}`,borderRadius:"6px"}}>
               <div style={{...body("11px",isPrac?C.sageB:C.gold),fontStyle:"italic"}}>
                 {isPrac?"✓ Sub-quest complete":"Read ✓ — anchor once to complete this sub-quest"}
               </div>
@@ -6841,7 +7407,7 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
             <div key={pn} style={{marginBottom:"14px"}}>
               <div style={{...dsp("8px",C.dim,400,"0.16em"),marginBottom:"6px",paddingLeft:"2px"}}>{pn.toUpperCase()}</div>
               {its.map(e=>{
-                const sc=STAT_COLORS[e.sc]||C.sageB;
+                const sc=AC(STAT_COLORS[e.sc])||C.sageB;
                 return (
                   <div key={e.id} onClick={()=>openEntry(e)} style={{marginBottom:"8px",borderRadius:"8px",border:`0.5px solid ${C.bord}`,overflow:"hidden",cursor:"pointer"}}>
                     <div style={{display:"flex",alignItems:"center",gap:"12px",padding:"13px 14px"}}>
@@ -6855,7 +7421,7 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
             </div>
           ))}
           {!isCollapsed && !subGroups && items.map(e=>{
-            const sc=STAT_COLORS[e.sc]||C.sageB;
+            const sc=AC(STAT_COLORS[e.sc])||C.sageB;
             const hasAction=e.id in ANCHOR_TYPE;
             return (
               <div key={e.id} onClick={()=>openEntry(e)} style={{marginBottom:"8px",borderRadius:"8px",border:`0.5px solid ${C.bord}`,overflow:"hidden",cursor:"pointer",transition:"border-color .2s",":hover":{borderColor:sc}}}>
@@ -6864,7 +7430,7 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
                   <div style={{flex:1}}>
                     <div style={{display:"flex",alignItems:"center",gap:"7px"}}>
                       <div style={{...body("14px",C.cream)}}>{e.title}</div>
-                      {hasAction&&<div style={{fontSize:"9px",color:C.dim,border:`0.5px solid ${C.bord}`,padding:"1px 5px",borderRadius:"3px",fontFamily:"Cinzel,serif",letterSpacing:"0.06em"}}>ANCHOR</div>}
+                      {hasAction&&<div style={{fontSize:"9px",color:C.dim,border:`0.5px solid ${C.bord}`,padding:"1px 5px",borderRadius:"3px",fontFamily:"Cinzel,serif",letterSpacing:"0.06em"}}>CULTIVATE</div>}
                     </div>
                     <div style={{...body("11px",C.muted)}}>{e.sub}</div>
                   </div>
@@ -6954,7 +7520,7 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, pen
       {mode!=="reflect" && modeTabs.length>1 && (
         <div style={{display:"flex",background:C.surf,borderRadius:"6px",border:`0.5px solid ${C.bord}`,marginBottom:"16px",overflow:"hidden"}}>
           {modeTabs.map(([id,l])=>(
-            <button key={id} onClick={()=>setMode(id)} style={{flex:1,padding:"9px",border:"none",cursor:"pointer",background:mode===id?"rgba(163,192,137,0.1)":"transparent",borderBottom:mode===id?`1.5px solid ${C.sageB}`:"1.5px solid transparent",...dsp("9px",mode===id?C.sageB:C.muted,400,"0.12em")}}>{l.toUpperCase()}</button>
+            <button key={id} onClick={()=>setMode(id)} style={{flex:1,padding:"9px",border:"none",cursor:"pointer",background:mode===id?`rgba(${C.sageRGB},0.1)`:"transparent",borderBottom:mode===id?`1.5px solid ${C.sageB}`:"1.5px solid transparent",...dsp("9px",mode===id?C.sageB:C.muted,400,"0.12em")}}>{l.toUpperCase()}</button>
           ))}
         </div>
       )}
@@ -6991,7 +7557,7 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, pen
 
       <SL title={mode==="inquire"?"Sit with it. Then answer.":mode==="tend"?"Reflect":releaseKind==="Gratitude"?"What's still good?":releaseKind==="Forgiveness"?"What are you setting down?":"Entry"}/>
       <textarea value={entry} onChange={e=>{setEntry(e.target.value);setSaved(false);onEntryChange&&onEntryChange(e.target.value);}} placeholder={mode==="inquire"?"Let the question work on you before you work on it…":mode==="reflect"?"Begin wherever it starts.":mode==="tend"?"What happened? What did you notice?":releaseKind==="Gratitude"?"What's still true, still good, never taken?":releaseKind==="Forgiveness"?"Name it. You don't have to excuse it, just set it down.":"What do you notice right now?"} rows={7} style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("15px"),padding:"12px",resize:"none",boxSizing:"border-box",outline:"none",lineHeight:"1.7",caretColor:C.sageB}}/>
-      <button onClick={save} style={{marginTop:"10px",padding:"10px 20px",background:canSave&&!saved?"rgba(163,192,137,0.12)":"transparent",border:`0.5px solid ${canSave&&!saved?C.sageB:C.bord}`,color:canSave&&!saved?C.sageB:C.muted,...dsp("9px",undefined,400,"0.14em"),cursor:"pointer",borderRadius:"6px"}}>{saved?"✓ SAVED":"SAVE ENTRY"}</button>
+      <button onClick={save} style={{marginTop:"10px",padding:"10px 20px",background:canSave&&!saved?`rgba(${C.sageRGB},0.12)`:"transparent",border:`0.5px solid ${canSave&&!saved?C.sageB:C.bord}`,...dsp("9px",canSave&&!saved?C.sageB:C.muted,400,"0.14em"),cursor:"pointer",borderRadius:"6px"}}>{saved?"✓ SAVED":"SAVE ENTRY"}</button>
     </Overlay>
   );
 }
@@ -6999,7 +7565,7 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, pen
 function LogsScreen({ onBack, sessions, jEntries }){
   const [tab,setTab]=useState("timeline"),[exp,setExp]=useState(null);
   const [range,setRange]=useState("week"); // "week" | "month" | "3months" — charts tab only
-  const TC={"Sit":C.gold,"Stand":C.sage,"Walk":C.slate,"Move":"#b06a52","Train":"#9b8550","Create":"#6b9e8e","Serve":"#b8834a","Anchor":"rgba(163,192,137,0.55)"};
+  const TC={"Sit":C.gold,"Stand":C.sage,"Walk":C.slate,"Move":"#b06a52","Train":"#9b8550","Create":"#6b9e8e","Serve":"#b8834a","Anchor":`rgba(${C.sageRGB},0.55)`};
   const todayISO=new Date().toISOString().slice(0,10);
   const formatDate=d=>{
     if(!d)return "";
@@ -7020,7 +7586,7 @@ function LogsScreen({ onBack, sessions, jEntries }){
     <Overlay title="Logs" onBack={onBack}>
       <div style={{display:"flex",background:C.surf,borderRadius:"6px",border:`0.5px solid ${C.bord}`,marginBottom:"18px",overflow:"hidden"}}>
         {[["timeline","Timeline"],["charts","Charts"]].map(([id,l])=>(
-          <button key={id} onClick={()=>setTab(id)} style={{flex:1,padding:"9px",border:"none",cursor:"pointer",background:tab===id?"rgba(163,192,137,0.1)":"transparent",borderBottom:tab===id?`1.5px solid ${C.sageB}`:"1.5px solid transparent",...dsp("9px",tab===id?C.sageB:C.muted,400,"0.12em")}}>{l.toUpperCase()}</button>
+          <button key={id} onClick={()=>setTab(id)} style={{flex:1,padding:"9px",border:"none",cursor:"pointer",background:tab===id?`rgba(${C.sageRGB},0.1)`:"transparent",borderBottom:tab===id?`1.5px solid ${C.sageB}`:"1.5px solid transparent",...dsp("9px",tab===id?C.sageB:C.muted,400,"0.12em")}}>{l.toUpperCase()}</button>
         ))}
       </div>
       {tab==="timeline" && (dates.length===0
@@ -7034,7 +7600,7 @@ function LogsScreen({ onBack, sessions, jEntries }){
             if(xp)sum.push(`+${xp} XP`); if(ee.length)sum.push(`${ee.length} entr${ee.length>1?"ies":"y"}`);
             return (
               <div key={date} style={{marginBottom:"7px"}}>
-                <button onClick={()=>setExp(isOpen?null:date)} style={{width:"100%",background:isOpen?"rgba(163,192,137,0.08)":C.surf,border:`0.5px solid ${isOpen?C.sageB:C.bord}`,borderRadius:"6px",padding:"13px 15px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
+                <button onClick={()=>setExp(isOpen?null:date)} style={{width:"100%",background:isOpen?`rgba(${C.sageRGB},0.08)`:C.surf,border:`0.5px solid ${isOpen?C.sageB:C.bord}`,borderRadius:"6px",padding:"13px 15px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
                   <div style={{textAlign:"left"}}><div style={{...dsp("11px",isOpen?C.sageB:C.cream)}}>{formatDate(date)}</div><div style={{...body("11px",C.muted),marginTop:"2px"}}>{sum.join(" · ")||"—"}</div></div>
                   <span style={{color:C.muted,fontSize:"11px",display:"inline-block",transform:isOpen?"rotate(180deg)":"none"}}>▾</span>
                 </button>
@@ -7059,11 +7625,11 @@ function LogsScreen({ onBack, sessions, jEntries }){
                         {s.reflection&&<div style={{...body("12px",C.muted),fontStyle:"italic",paddingLeft:"10px",lineHeight:"1.5"}}>"{s.reflection}"</div>}
                         <div style={{display:"flex",flexWrap:"wrap",gap:"4px",paddingLeft:"10px",marginTop:"5px"}}>
                           {(s.xp||0)>0&&<span style={{fontSize:"10px",color:C.gold,background:C.goldFt,border:`0.5px solid ${C.goldDim}`,padding:"1px 7px",borderRadius:"10px"}}>+{s.xp} XP</span>}
-                          {Object.entries(s.sg||{}).filter(([,v])=>v>0).map(([k,v])=><span key={k} style={{fontSize:"10px",color:C.sageB,background:"rgba(163,192,137,0.08)",border:`0.5px solid ${C.bord}`,padding:"1px 7px",borderRadius:"10px",textTransform:"capitalize"}}>{k} +{v}</span>)}
+                          {Object.entries(s.sg||{}).filter(([,v])=>v>0).map(([k,v])=><span key={k} style={{fontSize:"10px",color:C.sageB,background:`rgba(${C.sageRGB},0.08)`,border:`0.5px solid ${C.bord}`,padding:"1px 7px",borderRadius:"10px",textTransform:"capitalize"}}>{k} +{v}</span>)}
                         </div>
                       </div>
                     ))}
-                    {anch>0&&<div style={{...body("11px","rgba(163,192,137,0.6)"),paddingTop:"8px",borderTop:ps.length?`0.5px solid ${C.bord}`:"none"}}>{anch} anchor{anch>1?"s":""}</div>}
+                    {anch>0&&<div style={{...body("11px",`rgba(${C.sageRGB},0.6)`),paddingTop:"8px",borderTop:ps.length?`0.5px solid ${C.bord}`:"none"}}>{anch} anchor{anch>1?"s":""}</div>}
                     {ee.length>0&&(
                       <div style={{borderTop:(ps.length||anch>0)?`0.5px solid ${C.bord}`:"none",paddingTop:(ps.length||anch>0)?"12px":"0",marginTop:(ps.length||anch>0)?"8px":"0"}}>
                         <div style={{...dsp("7.5px",C.sage,400,"0.18em"),marginBottom:"10px"}}>JOURNAL</div>
@@ -7127,7 +7693,7 @@ function LogsScreen({ onBack, sessions, jEntries }){
               {[["week","Week"],["month","Month"],["3months","3 Months"]].map(([id,label])=>(
                 <button key={id} onClick={()=>setRange(id)}
                   style={{flex:1,padding:"7px 6px",borderRadius:"6px",cursor:"pointer",textAlign:"center",
-                    background:range===id?"rgba(163,192,137,0.12)":"transparent",
+                    background:range===id?`rgba(${C.sageRGB},0.12)`:"transparent",
                     border:`0.5px solid ${range===id?C.sageB:C.bord}`,
                     ...body("11px",range===id?C.sageB:C.muted)}}>
                   {label}
@@ -7192,7 +7758,7 @@ function LogsScreen({ onBack, sessions, jEntries }){
 
 function Toggle({ on, onToggle }){
   return (
-    <button onClick={onToggle} style={{width:"42px",height:"24px",borderRadius:"12px",border:`0.5px solid ${on?C.sageB:C.bord}`,background:on?"rgba(163,192,137,0.2)":"transparent",cursor:"pointer",position:"relative",transition:"all .2s",flexShrink:0,padding:0}}>
+    <button onClick={onToggle} style={{width:"42px",height:"24px",borderRadius:"12px",border:`0.5px solid ${on?C.sageB:C.bord}`,background:on?`rgba(${C.sageRGB},0.2)`:"transparent",cursor:"pointer",position:"relative",transition:"all .2s",flexShrink:0,padding:0}}>
       <div style={{position:"absolute",top:"2px",left:on?"20px":"2px",width:"18px",height:"18px",borderRadius:"50%",background:on?C.sageB:C.muted,transition:"left .2s, background .2s"}}/>
     </button>
   );
@@ -7263,7 +7829,7 @@ function SettingsScreen({ onBack, name, setName, theme, setTheme,
           {[["reveal","Tap to Reveal"],["hidden","Hidden"],["visible","Visible"]].map(([id,label])=>(
             <button key={id} onClick={()=>setTimerVisibility(id)}
               style={{flex:1,padding:"8px 6px",borderRadius:"6px",cursor:"pointer",textAlign:"center",
-                background:timerVisibility===id?"rgba(163,192,137,0.12)":"transparent",
+                background:timerVisibility===id?`rgba(${C.sageRGB},0.12)`:"transparent",
                 border:`0.5px solid ${timerVisibility===id?C.sageB:C.bord}`,
                 ...body("11px",timerVisibility===id?C.sageB:C.muted)}}>
               {label}
@@ -7298,7 +7864,7 @@ function SettingsScreen({ onBack, name, setName, theme, setTheme,
           {[{k:1.0,l:"Small"},{k:1.15,l:"Medium"},{k:1.25,l:"Large"}].map(({k,l})=>{
             const on=fontScale===k;
             return (
-              <button key={k} onClick={()=>setFontScale(k)} style={{flex:1,padding:"8px 4px",borderRadius:"6px",cursor:"pointer",background:on?"rgba(163,192,137,0.08)":"transparent",border:`0.5px solid ${on?C.sageB:"transparent"}`,transition:"all .2s",...dsp("9px",on?C.cream:C.muted,400,"0.1em")}}>{l}</button>
+              <button key={k} onClick={()=>setFontScale(k)} style={{flex:1,padding:"8px 4px",borderRadius:"6px",cursor:"pointer",background:on?`rgba(${C.sageRGB},0.08)`:"transparent",border:`0.5px solid ${on?C.sageB:"transparent"}`,transition:"all .2s",...dsp("9px",on?C.cream:C.muted,400,"0.1em")}}>{l}</button>
             );
           })}
         </div>
@@ -7326,7 +7892,7 @@ function SettingsScreen({ onBack, name, setName, theme, setTheme,
                 <Toggle on={autoCloudSync} onToggle={()=>setAutoCloudSync(v=>!v)}/>
               </div>
               <div style={{display:"flex",gap:"8px",marginBottom:"8px"}}>
-                <button onClick={onSaveCloud} disabled={cloudSyncing} style={{flex:1,padding:"9px",background:"rgba(163,192,137,0.08)",border:`0.5px solid ${C.sageB}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.sageB,400,"0.12em")}}>
+                <button onClick={onSaveCloud} disabled={cloudSyncing} style={{flex:1,padding:"9px",background:`rgba(${C.sageRGB},0.08)`,border:`0.5px solid ${C.sageB}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.sageB,400,"0.12em")}}>
                   {cloudSyncing?"…":"↑ SAVE TO CLOUD"}
                 </button>
                 <button onClick={onLoadCloud} disabled={cloudSyncing} style={{flex:1,padding:"9px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.muted,400,"0.12em")}}>
@@ -7360,7 +7926,7 @@ function SettingsScreen({ onBack, name, setName, theme, setTheme,
                     style={{width:"100%",padding:"9px 10px",background:C.bg,border:`0.5px solid ${C.bord}`,borderRadius:"4px",color:C.txt,...body("16px"),outline:"none",caretColor:C.sageB,boxSizing:"border-box",marginBottom:"8px",textAlign:"center",letterSpacing:"0.3em"}}/>
                   {otpError&&<div style={{...body("10px","rgba(220,120,120,0.9)"),marginBottom:"8px",textAlign:"center"}}>{otpError}</div>}
                   <button onClick={handleVerifyCode} disabled={cloudCode.length<6||otpStatus==="verifying"}
-                    style={{width:"100%",padding:"9px",background:"rgba(163,192,137,0.08)",border:`0.5px solid ${cloudCode.length===6?C.sageB:C.bord}`,borderRadius:"4px",cursor:cloudCode.length===6?"pointer":"default",...dsp("9px",cloudCode.length===6?C.sageB:C.dim,400,"0.14em")}}>
+                    style={{width:"100%",padding:"9px",background:`rgba(${C.sageRGB},0.08)`,border:`0.5px solid ${cloudCode.length===6?C.sageB:C.bord}`,borderRadius:"4px",cursor:cloudCode.length===6?"pointer":"default",...dsp("9px",cloudCode.length===6?C.sageB:C.dim,400,"0.14em")}}>
                     {otpStatus==="verifying"?"VERIFYING…":"CONFIRM CODE"}
                   </button>
                   <button onClick={()=>{setOtpStep("email");setOtpStatus("idle");setCloudCode("");setOtpError("");}}
@@ -7374,7 +7940,7 @@ function SettingsScreen({ onBack, name, setName, theme, setTheme,
                     style={{width:"100%",padding:"9px 10px",background:C.bg,border:`0.5px solid ${C.bord}`,borderRadius:"4px",color:C.txt,...body("13px"),outline:"none",caretColor:C.sageB,boxSizing:"border-box",marginBottom:"8px"}}/>
                   {otpError&&<div style={{...body("10px","rgba(220,120,120,0.9)"),marginBottom:"8px",textAlign:"center"}}>{otpError}</div>}
                   <button onClick={handleSendCode} disabled={!cloudEmail.trim()||otpStatus==="sending"}
-                    style={{width:"100%",padding:"9px",background:"rgba(163,192,137,0.08)",border:`0.5px solid ${cloudEmail.trim()?C.sageB:C.bord}`,borderRadius:"4px",cursor:cloudEmail.trim()?"pointer":"default",...dsp("9px",cloudEmail.trim()?C.sageB:C.dim,400,"0.14em")}}>
+                    style={{width:"100%",padding:"9px",background:`rgba(${C.sageRGB},0.08)`,border:`0.5px solid ${cloudEmail.trim()?C.sageB:C.bord}`,borderRadius:"4px",cursor:cloudEmail.trim()?"pointer":"default",...dsp("9px",cloudEmail.trim()?C.sageB:C.dim,400,"0.14em")}}>
                     {otpStatus==="sending"?"SENDING…":"SEND CODE"}
                   </button>
                   <div style={{...body("10px",C.dim),fontStyle:"italic",marginTop:"6px",textAlign:"center"}}>A 6-digit code will arrive in your email.</div>
@@ -7390,7 +7956,7 @@ function SettingsScreen({ onBack, name, setName, theme, setTheme,
         <input ref={fileInputRef} type="file" accept=".json" onChange={handleFileImport} style={{display:"none"}}/>
         <div style={{display:"flex",gap:"8px",marginBottom:"6px"}}>
           <button onClick={exportData} style={{flex:1,padding:"9px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.muted,400,"0.12em")}}>↓ BACKUP</button>
-          <button onClick={()=>fileInputRef.current?.click()} style={{flex:1,padding:"9px",background:importDone?"rgba(163,192,137,0.1)":"transparent",border:`0.5px solid ${importDone?C.sageB:C.bord}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",importDone?C.sageB:C.muted,400,"0.12em")}}>
+          <button onClick={()=>fileInputRef.current?.click()} style={{flex:1,padding:"9px",background:importDone?`rgba(${C.sageRGB},0.1)`:"transparent",border:`0.5px solid ${importDone?C.sageB:C.bord}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",importDone?C.sageB:C.muted,400,"0.12em")}}>
             {importDone?"✓ RESTORED":"↑ RESTORE"}
           </button>
         </div>
@@ -7580,6 +8146,16 @@ export default function AscendApp(){
   const [cultSel,setCultSelState]=useState(()=>{ try{ return localStorage.getItem("ascend_cultivate_sel")||"center"; }catch(e){ return "center"; } });
   const setCultSel=v=>{ setCultSelState(v); try{ localStorage.setItem("ascend_cultivate_sel", v); }catch(e){} };
   const [anchStartType,setAnchStartType]=useState(null);
+  const [anchPractice,setAnchPractice]=useState(null); // activity id of the practice a session opens with
+  /* Paths / My Path, and what My Path has selected — per-device conveniences. */
+  const lsGet=(k,d)=>{ try{ return localStorage.getItem(k)||d; }catch(e){ return d; } };
+  const lsSet=(k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
+  const [cultModeRaw,setCultModeState]=useState(()=>lsGet("ascend_cultivate_mode",null));
+  const setCultMode=v=>{ setCultModeState(v); lsSet("ascend_cultivate_mode",v); };
+  const [mySel,setMySelState]=useState(()=>lsGet("ascend_mypath_sel","center"));
+  const setMySel=v=>{ setMySelState(v); lsSet("ascend_mypath_sel",v); };
+  const [questLineReq,setQuestLineReq]=useState(null);
+  const [sessionPath,setSessionPath]=useState(null); // name of the path the running session cultivates, if any
   const [scr,setScr]=useState(null);
   const [journalDraft,setJournalDraft]=useState("");
   const [savePending,setSavePending]=useState(null);
@@ -8097,6 +8673,12 @@ export default function AscendApp(){
   /* ── CLASS SYSTEM HANDLERS ──────────────────────────────────────────────── */
   const presenceLevel = levelFromTotalXP(ch.totalXP??0);
   const classGateOpen = devMode || classGateMet(presenceLevel, completedChapters);
+  /* The map's selection, when it is a path the player walks with its trial done:
+     the Cultivate button then reads "Cultivate <Path>" and opens in that path's mode. */
+  const cultReadyPath = (cultSel && cultSel!=="center" && (classState?.chosenClasses||[]).includes(cultSel) && CLASS_MODE[cultSel] && classTrialDone(classState, cultSel)) ? cultSel : null;
+  /* The nav's Cultivate button is gold while the class map is the screen in view
+     (or a session it started is running), grey everywhere else. */
+  const cultOn = (tab==="cultivate" && !scr) || anch;
   const chantGateOpen = devMode || completedChapters.includes(CHANT_UNLOCK_CHAPTER);
 
   /* Apply a quest's unlocks (activities, journal features, practice types)
@@ -8234,7 +8816,7 @@ export default function AscendApp(){
     if(quest){
       const chainId = Object.keys(QUEST_CHAINS).find(cid=>QUEST_CHAINS[cid].includes(quest));
       const ascended = quest.isCapstone && classState?.ascents?.[questId];
-      notifyQuestComplete({title:quest.title, accent:ascended?C.gold:(CLASS_BY_ID[chainId]?.accent||C.sageB), kind:quest.isCapstone?(ascended?"CHAIN COMPLETE · ASCENT":"CHAIN COMPLETE"):"QUEST COMPLETE"});
+      notifyQuestComplete({title:quest.title, accent:ascended?C.gold:(AC(CLASS_BY_ID[chainId]?.accent)||C.sageB), kind:quest.isCapstone?(ascended?"CHAIN COMPLETE · ASCENT":"CHAIN COMPLETE"):"QUEST COMPLETE"});
       /* the moment this quest completes, the NEXT quest in its chain becomes
          active — apply its unlocks now, immediately, not on its own completion */
       const chain = QUEST_CHAINS[chainId]||[];
@@ -8329,6 +8911,11 @@ export default function AscendApp(){
      engine (nobody should be able to grind dailies for levels).
      openReflection: routes an Act guided reflection into the Journal. */
   const updateWay = (fn) => setWay(w=>migrateWay(typeof fn==="function"?fn(w):fn));
+  const updateStory = fn => updateWay(w=>({...w, story:migrateStory(fn(migrateStory(w.story)))}));
+  const story = storyForged(way) ? way.story : null;
+  const cultMode = cultModeRaw || (story ? "mine" : "paths");
+  const practiceActivities = (way?.story?.practices||[]).map(practiceActivity);
+  const myPractice = cultMode==="mine" && story && mySel.startsWith("p:") ? story.practices.find(p=>`p:${p.id}`===mySel) : null;
   const awardWayXP = (stat) => setCh(p=>{
     const st={...p.stats};
     if(stat && st[stat]!==undefined) st[stat]=(st[stat]||0)+2;
@@ -8667,8 +9254,24 @@ export default function AscendApp(){
             <SplashLogo size={270} onLoad={()=>setSplashImgLoaded(true)}/>
             {!splashImgLoaded && <div style={{textAlign:"center",marginTop:"22px"}}><div style={{...dsp("30px",C.gold,500,"0.28em")}}>ASCEND</div><div style={{...dsp("10px",C.muted,400,"0.32em"),marginTop:"8px"}}>INFINITE POTENTIAL</div></div>}
             <div style={{...body("15px",C.muted),marginTop:"16px",lineHeight:"1.7",fontStyle:"italic"}}>Presence. Embodiment.<br/>Participation.</div>
-            <button onClick={()=>setOnboarding("intro")} style={{marginTop:"48px",padding:"13px 44px",background:"linear-gradient(rgba(163,192,137,0.16),rgba(163,192,137,0.06))",border:`0.5px solid ${C.sageB}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.sageB,400,"0.22em")}}>BEGIN THE CLIMB</button>
+            <button onClick={()=>setOnboarding(storyForged(way)?"intro":"start")} style={{marginTop:"48px",padding:"13px 44px",background:"linear-gradient(rgba(163,192,137,0.16),rgba(163,192,137,0.06))",border:`0.5px solid ${C.sageB}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.sageB,400,"0.22em")}}>BEGIN THE CLIMB</button>
           </div>
+        </div>
+      </div>
+    );
+  }
+  /* ── START PAGE + THE FORGE — before the Crucible ── */
+  if(onboarding==="start" || onboarding==="forge"){
+    return (
+      <div style={outerWrap}>
+        <style>{`body{margin:0;padding:0;background:${C.bg};} html{background:${C.bg};}`}</style>
+        <div style={phoneStyle}>
+          {onboarding==="start" ? <PotentialStart onBegin={()=>setOnboarding("forge")}/> : (
+            <div style={{flex:1,overflowY:"auto",padding:"38px 24px 40px"}}>
+              <ForgeStoryFlow onCancel={()=>setOnboarding("start")}
+                onDone={ans=>{ updateWay(w=>forgeStory(w, ans, false)); setCultMode("mine"); setMySel("center"); setOnboarding("intro"); }}/>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -8711,7 +9314,7 @@ export default function AscendApp(){
 
     return (
       <div style={outerWrap}>
-        <div style={{width:"100%",maxWidth:"430px",height:"100dvh",margin:"0 auto",position:"relative",overflow:"hidden",background:C.bg,color:C.txt,fontFamily:"'Crimson Pro',Georgia,serif"}}>
+        <div style={{width:"100%",maxWidth:"430px",height:"100dvh",margin:"0 auto",position:"relative",overflow:"hidden",background:SC.bg,color:SC.txt,fontFamily:"'Crimson Pro',Georgia,serif"}}>
 
           {/* Full-screen morning scene background */}
           <MorningScene sceneIdx={ob1Scene} paraPage={ob1ParaPage}/>
@@ -8722,8 +9325,8 @@ export default function AscendApp(){
 
           {/* Chapter label + title — top left */}
           <div style={{position:"absolute",top:"18px",left:"22px",zIndex:3}}>
-            <div style={{...dsp("9px",C.gold,400,"0.22em"),marginBottom:"3px",opacity:0.8}}>ASCENSION PROJECT</div>
-            <div style={{...dsp("20px",C.cream,500,"0.06em"),textShadow:"0 2px 12px rgba(4,6,14,0.9)"}}>The Climb Begins</div>
+            <div style={{...dsp("9px",SC.gold,400,"0.22em"),marginBottom:"3px",opacity:0.8}}>ASCENSION PROJECT</div>
+            <div style={{...dsp("20px",SC.cream,500,"0.06em"),textShadow:"0 2px 12px rgba(4,6,14,0.9)"}}>The Climb Begins</div>
           </div>
 
           {/* Content area — floats over scene, anchored to bottom */}
@@ -8740,26 +9343,26 @@ export default function AscendApp(){
                 ))}
               </> : <></>}
               {obPractices && <>
-                <div style={{...dsp("9px",C.gold,400,"0.22em"),marginBottom:"4px"}}>WHO ARE YOU?</div>
+                <div style={{...dsp("9px",SC.gold,400,"0.22em"),marginBottom:"4px"}}>WHO ARE YOU?</div>
                 <div style={{...body("12px","rgba(180,170,155,0.75)"),fontStyle:"italic",marginBottom:"24px",lineHeight:"1.5"}}>Every climb begins with a name.</div>
                 <div style={{marginBottom:"20px"}}>
                   <input autoFocus value={nameInput} onChange={e=>setNameInput(e.target.value)}
                     placeholder="Your name on the climb…"
                     style={{width:"100%",background:"transparent",border:"none",
-                      borderBottom:`1px solid ${nameInput.trim()?C.sageB:C.bord}`,
-                      color:C.cream,...body("20px",C.cream),outline:"none",
-                      padding:"8px 0",caretColor:C.sageB,boxSizing:"border-box",transition:"border-color .3s"}}/>
+                      borderBottom:`1px solid ${nameInput.trim()?SC.sageB:SC.bord}`,
+                      color:SC.cream,...body("20px",SC.cream),outline:"none",
+                      padding:"8px 0",caretColor:SC.sageB,boxSizing:"border-box",transition:"border-color .3s"}}/>
                   {nameInput.trim() && (
-                    <div style={{...body("12px",C.sage),marginTop:"8px",fontStyle:"italic",opacity:0.85}}>
+                    <div style={{...body("12px",SC.sage),marginTop:"8px",fontStyle:"italic",opacity:0.85}}>
                       Welcome, {nameInput.trim()}. The climb is yours.
                     </div>
                   )}
                 </div>
-                <div style={{borderTop:`0.5px solid ${ob1FadeStep>=1?C.bord:"transparent"}`,paddingTop:"20px",transition:"border-color 1s"}}>
+                <div style={{borderTop:`0.5px solid ${ob1FadeStep>=1?SC.bord:"transparent"}`,paddingTop:"20px",transition:"border-color 1s"}}>
                   <div style={{opacity:ob1FadeStep>=1?1:0,transition:"opacity 3s ease",marginBottom:"10px"}}>
-                    <div style={{...dsp("9px",C.gold,400,"0.22em")}}>BUT WHO ARE YOU, REALLY?</div>
+                    <div style={{...dsp("9px",SC.gold,400,"0.22em")}}>BUT WHO ARE YOU, REALLY?</div>
                   </div>
-                  <div style={{...body("14px",C.muted),fontStyle:"italic",lineHeight:"2.1"}}>
+                  <div style={{...body("14px",SC.muted),fontStyle:"italic",lineHeight:"2.1"}}>
                     <div style={{opacity:ob1FadeStep>=2?1:0,transition:"opacity 3s ease"}}>Tap the Anchor below.</div>
                     <div style={{opacity:ob1FadeStep>=3?1:0,transition:"opacity 3s ease"}}>Stay as long as you need.</div>
                     <div style={{opacity:ob1FadeStep>=4?1:0,transition:"opacity 3s ease"}}>This is the doorway</div>
@@ -8795,15 +9398,15 @@ export default function AscendApp(){
             }}>
               <button
                 onClick={()=>{ setCh(p=>({...p,name:nameInput.trim()})); setObAnchorOpen(true); }}
-                style={{border:"none",background:"none",cursor:"pointer",padding:0,filter:`drop-shadow(0 0 16px rgba(201,168,76,0.7)) drop-shadow(0 -2px 10px ${C.glow})`}}
+                style={{border:"none",background:"none",cursor:"pointer",padding:0,filter:`drop-shadow(0 0 16px rgba(201,168,76,0.7)) drop-shadow(0 -2px 10px ${SC.glow})`}}
               >
               <svg width="82" height="103" viewBox="0 0 70 88" style={{display:"block"}}>
-                <circle cx="35" cy="30" r="28" fill={C.surf}/>
-                <circle cx="35" cy="30" r="28" fill="none" stroke={C.gold} strokeWidth="1.4"/>
+                <circle cx="35" cy="30" r="28" fill={SC.surf}/>
+                <circle cx="35" cy="30" r="28" fill="none" stroke={SC.gold} strokeWidth="1.4"/>
                 <g transform="translate(-26.074,-46.771) scale(0.5446)">
-                  <path d={ANCHOR1_D} fill={C.gold} stroke="none"/>
+                  <path d={ANCHOR1_D} fill={SC.gold} stroke="none"/>
                 </g>
-                <text x="35" y="75" textAnchor="middle" fontSize="8" fill={C.sage} fontFamily="Cinzel,serif" letterSpacing="1.5">ANCHOR</text>
+                <text x="35" y="75" textAnchor="middle" fontSize="7.4" fill={SC.sage} fontFamily="Cinzel,serif" letterSpacing="1.1">CULTIVATE</text>
               </svg>
               </button>
             </div>
@@ -8855,10 +9458,14 @@ export default function AscendApp(){
         <div style={{flex:1,overflowY:"auto",paddingBottom:"calc(118px + env(safe-area-inset-bottom))"}}>
           <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities} classState={classState} classGateOpen={classGateOpen} onOpenPath={cid=>{setPathView(cid);setScr("path");}}/></div>
           <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
-            classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}/></div>
-          <div style={{display:tab==="cultivate"?"block":"none"}}><CultivateTab classState={classState} sessions={sessions} jEnt={jEnt} gateOpen={classGateOpen}
+            classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}
+            onOpenMyPath={()=>{ setCultMode("mine"); setMySel("center"); setTab("cultivate"); }} lineReq={questLineReq}/></div>
+          <div style={{display:tab==="cultivate"?"block":"none",height:"100%"}}><CultivateTab classState={classState} sessions={sessions} jEnt={jEnt} gateOpen={classGateOpen}
             sel={cultSel} onSelect={setCultSel} onOpenPath={cid=>{setPathView(cid);setScr("path");}}
-            onChoosePath={cid=>{chooseClass(cid);setTab("quest");}}/></div>
+            onChoosePath={cid=>{chooseClass(cid);setTab("quest");}}
+            story={story} mode={cultMode} onMode={setCultMode} mySel={mySel} onMySel={setMySel} onStoryChange={updateStory}
+            practiceModes={["sitting","standing","walking",...unlockedClassPracticeTypes.filter(t=>t==="train"||t==="restore")]}
+            onOpenForge={()=>{ setTab("quest"); setQuestLineReq({line:"forge", n:Date.now()}); }}/></div>
           <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones} savedPos={lastKnownPos} onLocationConfirmed={setLastKnownPos} active={tab==="map"}
             onZoneSeen={(id,r)=>setRevealZones(zs=>zs.map(z=>z.id===id&&!((z.seenR??0)>=r)?{...z,seenR:r}:z))}/></div>
           <div style={{display:tab==="library"?"block":"none"}}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)} collapsed={libCollapsed} setCollapsed={setLibCollapsed} classState={classState} chantUnlocked={chantUnlocked}/></div>
@@ -8869,17 +9476,25 @@ export default function AscendApp(){
             /* Away from Cultivate, the button brings you home to the map.
                On the map, it starts the practice the map has selected. */
             if(tab!=="cultivate" || scr){ setScr(null); setAnch(false); setTab("cultivate"); return; }
+            if(cultMode==="mine" && story){
+              setAnchStartType(myPractice ? (myPractice.mode||"sitting") : null);
+              setSessionPath(myPractice ? myPractice.name : null);
+              setAnchPractice(myPractice ? practiceActId(myPractice) : null);
+              setAnch(true); return;
+            }
             const cid=cultSel;
-            const ready = cid!=="center" && (classState?.chosenClasses||[]).includes(cid) && trialComplete(cid) && CLASS_MODE[cid];
+            const ready = cultReadyPath===cid;
             setAnchStartType(ready ? CLASS_MODE[cid] : null);
+            setSessionPath(ready ? CLASS_BY_ID[cid]?.name : null);
+            setAnchPractice(null);
             setAnch(true);
           }} aria-label="Cultivate" style={{position:"absolute",bottom:"calc(-7px + env(safe-area-inset-bottom))",left:"50%",transform:"translateX(-50%)",zIndex:showActComplete?0:261,opacity:showActComplete?0:1,transition:"opacity .8s ease",pointerEvents:showActComplete?"none":"auto",border:"none",background:"none",cursor:"pointer",padding:0,filter:anch?`drop-shadow(0 0 16px rgba(201,168,76,0.85)) drop-shadow(0 -2px 8px ${C.glow})`:`drop-shadow(0 -2px 10px ${C.glow})`}}>
           <svg width="82" height="103" viewBox="0 0 70 88" style={{display:"block"}}>
             {/* ── Anchor_1.svg glyph (active) ── */}
             <circle cx="35" cy="30" r="28" fill={C.surf}/>
-            <circle cx="35" cy="30" r="28" fill="none" stroke={C.gold} strokeWidth="1.4"/>
+            <circle cx="35" cy="30" r="28" fill="none" stroke={cultOn?C.gold:C.muted} strokeWidth="1.4"/>
             <g transform="translate(-26.074,-46.771) scale(0.5446)">
-              <path d={ANCHOR1_D} fill={C.gold} stroke="none"/>
+              <path d={ANCHOR1_D} fill={cultOn?C.gold:C.muted} stroke="none"/>
             </g>
             {/* ── ORIGINAL glyph — uncomment to revert:
             <path d="M35 18 L41 27 L29 27 Z" fill={C.gold}/>
@@ -8888,7 +9503,7 @@ export default function AscendApp(){
             <rect x="27"   y="45" width="16" height="2.6" rx="1" fill={C.gold}/>
             <rect x="33.5" y="52" width="3"  height="2.6" rx="0.5" fill={C.gold}/>
             ── */}
-            <text x="35" y="75" textAnchor="middle" fontSize="7.4" fill={(anch||tab==="cultivate")?C.gold:C.muted} fontFamily="Cinzel,serif" letterSpacing="1.1">CULTIVATE</text>
+            <text x="35" y="75" textAnchor="middle" fontSize="7.4" fill={cultOn?C.gold:C.muted} fontFamily="Cinzel,serif" letterSpacing="1.1">CULTIVATE</text>
           </svg>
         </button>
 
@@ -8941,7 +9556,7 @@ export default function AscendApp(){
                 <button onClick={()=>{
                   if(journalDraft.trim()){const date=new Date().toISOString().slice(0,10);setJEnt(p=>[{text:journalDraft.trim(),date},...p]);awardJournalXP();}
                   setJournalDraft(""); savePending(); setSavePending(null);
-                }} style={{padding:"9px 18px",background:"rgba(163,192,137,0.12)",border:`0.5px solid ${C.sageB}`,borderRadius:"6px",cursor:"pointer",...dsp("9px",C.sageB,400,"0.12em")}}>SAVE & LEAVE</button>
+                }} style={{padding:"9px 18px",background:`rgba(${C.sageRGB},0.12)`,border:`0.5px solid ${C.sageB}`,borderRadius:"6px",cursor:"pointer",...dsp("9px",C.sageB,400,"0.12em")}}>SAVE & LEAVE</button>
                 <button onClick={()=>{setJournalDraft(""); savePending(); setSavePending(null);}}
                   style={{padding:"9px 18px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"6px",cursor:"pointer",...dsp("9px",C.muted,400,"0.12em")}}>DISCARD</button>
               </div>
@@ -8990,14 +9605,14 @@ export default function AscendApp(){
             Tend, Reflect, journalEntry). */}
         {justCompletedQuest && (
           <div onClick={()=>setJustCompletedQuest(null)} style={{position:"fixed",inset:0,zIndex:60,background:"rgba(8,10,8,0.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}}>
-            <div onClick={e=>e.stopPropagation()} style={{background:C.surf,border:`0.5px solid ${justCompletedQuest.accent}88`,borderRadius:"10px",padding:"26px 24px",maxWidth:"320px",textAlign:"center"}}>
-              <div style={{...dsp("9px",justCompletedQuest.accent,400,"0.18em"),marginBottom:"10px"}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:C.surf,border:`0.5px solid ${AC(justCompletedQuest.accent)}88`,borderRadius:"10px",padding:"26px 24px",maxWidth:"320px",textAlign:"center"}}>
+              <div style={{...dsp("9px",AC(justCompletedQuest.accent),400,"0.18em"),marginBottom:"10px"}}>
                 {justCompletedQuest.kind}
               </div>
               <div style={{...dsp("18px",C.cream,500,"0.04em"),marginBottom:"18px"}}>{justCompletedQuest.title}</div>
               <button onClick={()=>setJustCompletedQuest(null)}
-                style={{padding:"9px 22px",background:INK(0.04),border:`0.5px solid ${justCompletedQuest.accent}`,
-                  color:justCompletedQuest.accent,...dsp("9px",undefined,400,"0.14em"),cursor:"pointer",borderRadius:"6px"}}>
+                style={{padding:"9px 22px",background:INK(0.04),border:`0.5px solid ${AC(justCompletedQuest.accent)}`,
+                  ...dsp("9px",AC(justCompletedQuest.accent),400,"0.14em"),cursor:"pointer",borderRadius:"6px"}}>
                 CONTINUE
               </button>
             </div>
@@ -9012,7 +9627,7 @@ export default function AscendApp(){
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
         {scr==="path"&&pathView&&<PathPortal classId={pathView} classState={classState} sessions={sessions} jEnt={jEnt} activities={activities} onBack={()=>setScr(null)}/>}
         {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} timerVisibility={timerVisibility} setTimerVisibility={setTimerVisibility} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onDeleteCloud={handleDeleteCloud} onSignOut={handleSignOut} onVerified={handleVerified} autoCloudSync={autoCloudSync} setAutoCloudSync={setAutoCloudSync}/>}
-        {anch&&<AnchorPortal onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={activities} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchStartType || (["sitting","standing","walking"].includes(anchInitType) ? anchInitType : "sitting")} reflectUnlocked={!!classState?.questProgress?.s_reflect || (classState?.activeClass==="sage" && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={classState?.activeClass||null} unlocks={anchorUnlocks(completedChapters)} guideCues={!anchorUnlocks(completedChapters).modifiers ? [
+        {anch&&<AnchorPortal sessionTitle={sessionPath?`CULTIVATE ${sessionPath.toUpperCase()}`:"CULTIVATE"} onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={[...activities, ...practiceActivities]} initialActIds={anchPractice?[anchPractice]:[]} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchStartType || (["sitting","standing","walking"].includes(anchInitType) ? anchInitType : "sitting")} reflectUnlocked={!!classState?.questProgress?.s_reflect || (classState?.activeClass==="sage" && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={classState?.activeClass||null} unlocks={anchPractice ? {...anchorUnlocks(completedChapters), activities:true} : anchorUnlocks(completedChapters)} guideCues={!anchPractice && !anchorUnlocks(completedChapters).modifiers ? [
           {s:0,  e:5,  text:"Sit comfortably."},
           {s:5,  e:10, text:"Let your eyes soften or close."},
           {s:10, e:50, text:"This is your time to simply be here, breathing, for as long as feels right."},
