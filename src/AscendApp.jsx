@@ -3845,6 +3845,16 @@ function cmNodes(){
   all.forEach(place);
   return all;
 }
+/* Plain-words unlock condition for a locked path. */
+function cmUnlockText(n, classState, gateOpen){
+  const qp=classState?.questProgress||{};
+  if(!n.real) return "Coming. Its practices are still being written.";
+  if(!n.parents) return gateOpen ? "" : "Unlocks when you complete The Crucible.";
+  const need=(ADVANCED_CLASS_REQS[n.id]||n.parents).filter(p=>!chainComplete(p, qp)).map(p=>CLASS_BY_ID[p]?.name||p);
+  if(!need.length) return "";
+  return `Unlocks when you complete the ${need.length>1 ? need.slice(0,-1).join(", ")+" and "+need[need.length-1] : need[0]} path${need.length>1?"s":""}.`;
+}
+const CM_LOCK_D = "M7 11V8a5 5 0 0 1 10 0v3 M5 11h14v10H5z";
 function cmVisible(n, classState, gateOpen){
   const qp=classState?.questProgress||{};
   if((classState?.chosenClasses||[]).includes(n.id)) return true;
@@ -3919,7 +3929,7 @@ function myPathNodes(story){
     const step=Math.min(26, n>1 ? (360/nV)*0.8/(n-1) : 26);
     ps.forEach((p,j)=>{
       const a=ang+(j-(n-1)/2)*step, r=n>3 && j%2 ? MP_R2B : MP_R2;
-      out.push({ id:`p:${p.id}`, kind:"practice", name:p.name, practice:p, value:v, parents:[`v:${v}`], pos:{x:r*Math.sin(rad(a)), y:-r*Math.cos(rad(a)), r} });
+      out.push({ id:`p:${p.id}`, kind:"practice", hidden:true, name:p.name, practice:p, value:v, parents:[`v:${v}`], pos:{...out.find(o=>o.id===`v:${v}`).pos} });
     });
   });
   return out;
@@ -3990,12 +4000,21 @@ function MyPathSheetBody({ story, node, sessions=[], modes, onPick=()=>{}, onSto
     return (
       <div>
         <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"6px 0 2px"}}>VALUES</div>
-        {story.values.map(v=>{ const n=story.practices.filter(p=>p.value===v).length; return (
-          <button key={v} onClick={()=>onPick(`v:${v}`)} style={rowBtn}>
-            <span style={{...body("15px",C.cream),flex:1}}>{v}</span>
-            <span style={{...body("12px",C.muted)}}>{n ? `${n} practice${n===1?"":"s"}` : "no practices yet"}</span>
-            <span style={{...body("12px",C.dim)}}>›</span>
-          </button>); })}
+        {story.values.map(v=>{ const ps=story.practices.filter(p=>p.value===v); return (
+          <div key={v} style={{borderBottom:`0.5px solid ${C.bord}`,paddingBottom:ps.length?"6px":0}}>
+            <button onClick={()=>onPick(`v:${v}`)} style={{...rowBtn,borderBottom:"none"}}>
+              <span style={{...body("15px",C.cream),flex:1}}>{v}</span>
+              {!ps.length && <span style={{...body("12px",C.dim)}}>no practices yet</span>}
+              <span style={{...body("12px",C.dim)}}>›</span>
+            </button>
+            {ps.map(p=>(
+              <button key={p.id} onClick={()=>onPick(`p:${p.id}`)} style={{width:"100%",display:"flex",alignItems:"center",gap:"8px",padding:"5px 0 5px 12px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
+                <span style={{width:"6px",height:"6px",borderRadius:"50%",background:practiceAccent(p),flexShrink:0}}/>
+                <span style={{...body("13.5px",C.muted),flex:1}}>{p.name}</span>
+                <span style={{...body("11.5px",C.dim)}}>{practiceHistory(p, sessions).days}d</span>
+              </button>
+            ))}
+          </div>); })}
         <button onClick={onOpenForge} style={{marginTop:"16px",padding:"8px 16px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"6px",cursor:"pointer",...dsp("8.5px",C.muted,400,"0.16em")}}>THE FORGE ›</button>
       </div>
     );
@@ -4029,7 +4048,8 @@ function MyPathSheetBody({ story, node, sessions=[], modes, onPick=()=>{}, onSto
     </div>);
   return (
     <div>
-      <div style={{display:"flex",border:`0.5px solid ${C.bord}`,borderRadius:"8px",margin:"6px 0 14px",overflow:"hidden"}}>
+      <button onClick={()=>onPick(`v:${p.value}`)} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 0 6px",...body("13px",C.muted)}}>‹ {p.value}</button>
+      <div style={{display:"flex",border:`0.5px solid ${C.bord}`,borderRadius:"8px",margin:"2px 0 14px",overflow:"hidden"}}>
         {cell("DAYS", h.days)}{cell("SESSIONS", h.sessions)}{cell("TOTAL", h.total?fmtAmt(h.total,h.unit):"—")}
         <div style={{flex:1,minWidth:0,padding:"10px 0",textAlign:"center"}}>
           <div style={{...body("17px",C.cream)}}>{h.best?fmtAmt(h.best,h.unit):"—"}</div>
@@ -4059,7 +4079,8 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
   const nodes = mine ? myNodes : pathNodes;
   const sel = mine ? (mySel==="center"||myNodes.some(n=>n.id===mySel) ? mySel : "center") : pathSel;
   const onSelect = mine ? onMySel : onPathSelect;
-  const visible = mine ? myNodes : pathNodes.filter(n=>cmVisible(n, classState, gateOpen));
+  const visible = mine ? myNodes : pathNodes;   // every path is on the map; locked ones are greyed
+  const openIds = new Set(mine ? [] : pathNodes.filter(n=>n.real && cmVisible(n, classState, gateOpen)).map(n=>n.id));
   const visIds=new Set(visible.map(n=>n.id));
   const wrapRef=useRef(null);
   const [box,setBox]=useState({w:390,h:560});
@@ -4086,8 +4107,9 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
 
   /* ── Map view: pinch / drag only. The map centres in the space above the peek. ── */
   const mapH=VH-PEEK;
-  const maxR=Math.max(0,...visible.map(n=>n.pos.r));
-  const fitK=maxR ? Math.min(0.85, (Math.min(vw,mapH)/2-40)/maxR) : 0.85;
+  const shown = visible.filter(n=>!n.hidden);   // practices stay off the map, in their value's panel
+  const maxR=Math.max(0,...shown.map(n=>n.pos.r));
+  const fitK=maxR ? Math.min(0.85, (Math.min(vw,mapH)/2-(mine?40:22))/maxR) : 0.85;
   const [view,setView]=useState(null);
   const v=view||{k:fitK, ox:0, oy:0};
   const tx=vw/2+v.ox, ty=mapH/2+v.oy, k=v.k;
@@ -4123,17 +4145,19 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
 
   const X=x=>tx+x*k, Y=y=>ty+y*k;
   const trim=(x1,y1,x2,y2,t1,t2)=>{ const d=Math.hypot(x2-x1,y2-y1)||1, ux=(x2-x1)/d, uy=(y2-y1)/d; return `M ${x1+ux*t1} ${y1+uy*t1} L ${x2-ux*t2} ${y2-uy*t2} `; };
-  let solid="", dashed="", rings="";
+  let solid="", dashed="", faint="", rings="";
   const radii=new Set();
-  visible.forEach(n=>{
+  shown.forEach(n=>{
     radii.add(Math.round(n.pos.r));
-    if(!n.parents) solid+=trim(tx,ty,X(n.pos.x),Y(n.pos.y),mine?42:36,mine?26:28);
-    else n.parents.filter(p=>visIds.has(p)).forEach(p=>{ const pp=nodes.find(m=>m.id===p).pos; const seg=trim(X(pp.x),Y(pp.y),X(n.pos.x),Y(n.pos.y),28,mine?22:28); if(mine) solid+=seg; else dashed+=seg; });
+    const locked = !mine && !openIds.has(n.id);
+    if(!n.parents){ const seg=trim(tx,ty,X(n.pos.x),Y(n.pos.y),mine?42:36,mine?26:28); if(locked) faint+=seg; else solid+=seg; }
+    else n.parents.filter(p=>visIds.has(p)).forEach(p=>{ const pp=nodes.find(m=>m.id===p).pos; const seg=trim(X(pp.x),Y(pp.y),X(n.pos.x),Y(n.pos.y),28,mine?22:28); if(mine) solid+=seg; else if(locked) faint+=seg; else dashed+=seg; });
   });
   radii.forEach(r0=>{ const rr=r0*k; if(rr>0) rings+=`M ${tx-rr} ${ty} a ${rr} ${rr} 0 1 0 ${2*rr} 0 a ${rr} ${rr} 0 1 0 ${-2*rr} 0 `; });
 
   const selNode = sel!=="center" && visIds.has(sel) ? nodes.find(n=>n.id===sel) : null;
   const centerOn = !selNode;
+  const selLocked = !mine && !!selNode && !openIds.has(selNode.id);
   const st = !mine&&selNode&&selNode.real ? classBadgeState(selNode.id, classState) : null;
   const trialDone = st ? classTrialDone(classState, selNode.id) : false;
   const funds = st ? (FUNDAMENTALS[selNode.id]||[]) : [];
@@ -4146,13 +4170,13 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
       : myPr ? `Press Cultivate to practice ${myPr.name} · ${modeLabel(myPr.mode)}.`
       : "Add the practices that serve this value.")
     : centerOn ? "Press Cultivate to practice: Sit, Stand or Walk."
-    : !selNode.real ? "This path is coming. Its practices are still being written."
+    : selLocked ? cmUnlockText(selNode, classState, gateOpen)
     : !st.chosen ? "Open to you. Choose it to begin its trial."
     : !trialDone ? "Complete this path's trial in the Quest tab. Cultivate opens a plain session until then."
     : `Press Cultivate to practice ${selNode.name} · ${MODE_LABEL[cMode]||"Practice"}.`;
-  const accent = mine ? (myPr ? practiceAccent(myPr) : C.gold) : selNode ? selNode.accent : C.gold;
+  const accent = mine ? (myPr ? practiceAccent(myPr) : C.gold) : selLocked ? C.muted : selNode ? AC(selNode.accent) : C.gold;
   const eyebrow = mine ? (centerOn ? "MY PATH" : myPr ? `SERVES ${myPr.value.toUpperCase()}${myPr.stat?` · ${statLabel(myPr.stat).toUpperCase()}`:""}` : "VALUE")
-    : centerOn ? "THE CENTER" : !selNode.real ? "COMING" : st.chosen ? (st.complete?`MASTERY ${st.level}`:`PATH ${st.done}/${st.total}`) : "OPEN";
+    : centerOn ? "THE CENTER" : !selNode.real ? "COMING · LOCKED" : selLocked ? "LOCKED" : st.chosen ? (st.complete?`MASTERY LVL ${st.level}`:`PATH ${st.done}/${st.total}`) : "OPEN";
   const sheetTitle = mine ? (centerOn ? story.name : selNode.name) : (centerOn ? "Presence" : selNode.name);
   const sheetBlurb = mine ? (centerOn ? (story.ideal || "The name your values point to.") : myPr ? `${modeLabel(myPr.mode)} · ${myPr.unit==="minutes"?"tracked by time":`counted in ${myPr.unit}`}` : `${story.practices.filter(p=>p.value===selNode.value).length||"No"} practice${story.practices.filter(p=>p.value===selNode.value).length===1?"":"s"} serve ${selNode.name}.`)
     : centerOn ? "Every path draws on these four, practiced through Sit, Stand and Walk." : selNode.blurb;
@@ -4176,16 +4200,18 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
           <path d={rings} stroke={INK(0.14)} strokeWidth="1" strokeDasharray="2 6"/>
           <path d={solid} stroke={INK(0.3)} strokeWidth="1.4"/>
           <path d={dashed} stroke={INK(0.3)} strokeWidth="1.4" strokeDasharray="4 5"/>
+          <path d={faint} stroke={INK(0.13)} strokeWidth="1.2" strokeDasharray="3 6"/>
         </svg>
-        <button type="button" aria-label={mine?story.name:"The Center"} aria-pressed={centerOn} onClick={()=>{ onSelect("center"); glide(0,0); }}
+        <button type="button" aria-label={mine?story.name:"Presence"} aria-pressed={centerOn} onClick={()=>{ onSelect("center"); glide(0,0); }}
           style={{position:"absolute",left:tx-(mine?38:32),top:ty-(mine?38:32),width:mine?76:64,height:mine?76:64,borderRadius:"50%",padding:0,cursor:"pointer",border:`1.5px solid ${C.gold}`,
             background:centerOn?`rgba(${C.goldRGB},0.16)`:`rgba(${C.goldRGB},0.06)`,boxShadow:centerOn?`0 0 0 5px rgba(${C.goldRGB},0.18)`:"none",display:"flex",alignItems:"center",justifyContent:"center"}}>
           {mine ? (()=>{ const longest=Math.max(...story.name.split(/\s+/).map(w=>w.length)); const fs=Math.max(6.5,Math.min(11,62/(Math.max(1,longest)*0.8)));
             return <span style={{...dsp(`${fs}px`,C.gold,400,"0.06em"),textAlign:"center",lineHeight:1.2,padding:"0 5px",overflow:"hidden",maxHeight:"44px"}}>{story.name.toUpperCase()}</span>; })()
-            : <span style={{...dsp("8px",C.gold,400,"0.2em")}}>CENTER</span>}
+            : <span style={{...dsp("7.5px",C.gold,400,"0.14em")}}>PRESENCE</span>}
         </button>
-        {mine && visible.map(n=>{
-          const on=sel===n.id, val=n.kind==="value";
+        {mine && shown.map(n=>{
+          const on=sel===n.id || (selNode?.kind==="practice" && selNode.value===n.value), val=n.kind==="value";
+          const nPr=story.practices.filter(p=>p.value===n.value).length;
           const ac = val ? C.gold : practiceAccent(n.practice);
           const D = val ? 46 : 34;
           return (
@@ -4196,21 +4222,35 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
                 <span style={{...dsp(val?"17px":"13px",ac)}}>{n.name[0].toUpperCase()}</span>
               </div>
               <span style={{...body(val?"12.5px":"11.5px",on?C.cream:C.muted),lineHeight:"13px",textShadow:`0 0 6px ${C.bg}`,maxWidth:88,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.name}</span>
+              {nPr>0 && <span style={{...body("10.5px",C.dim),lineHeight:"11px",marginTop:"-2px"}}>{nPr} practice{nPr===1?"":"s"}</span>}
             </button>
           );
         })}
         {!mine && visible.map(n=>{
           const on=sel===n.id;
           const chosen=(classState?.chosenClasses||[]).includes(n.id);
+          const locked=!openIds.has(n.id);
+          const bs=n.real ? classBadgeState(n.id, classState) : null;
+          const mastered=!!(bs && bs.chosen && bs.complete);
+          const ac = locked ? C.dim : AC(n.accent);
           return (
-            <button key={n.id} type="button" aria-pressed={on} onClick={()=>{ onSelect(n.id); glide(n.pos.x,n.pos.y); }}
+            <button key={n.id} type="button" aria-pressed={on} aria-label={`${n.name}${locked?", locked":mastered?`, mastery level ${bs.level}`:""}`} onClick={()=>{ onSelect(n.id); glide(n.pos.x,n.pos.y); }}
               style={{position:"absolute",left:X(n.pos.x)-44,top:Y(n.pos.y)-24,width:88,padding:0,background:"none",border:0,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
-              <div style={{width:48,height:48,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",color:AC(n.accent),
-                border:`${chosen?2:1.5}px ${n.parents&&!chosen?"dashed":"solid"} ${AC(n.accent)}`,background:on?`${AC(n.accent)}2e`:C.surf,boxShadow:on?`0 0 0 5px ${AC(n.accent)}33`:"none",opacity:n.real?1:0.75}}>
+              <div style={{position:"relative",width:48,height:48,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",color:ac,
+                border:`${chosen?2:1.5}px ${locked||(n.parents&&!chosen)?"dashed":"solid"} ${ac}`,
+                background:on?`${ac}2e`:C.surf,
+                boxShadow:mastered ? `0 0 0 3px ${C.surf}, 0 0 0 4.5px ${C.gold}${on?`, 0 0 0 9px ${AC(n.accent)}33`:""}, 0 0 14px rgba(${C.goldRGB},0.35)` : on?`0 0 0 5px ${ac}33`:"none",
+                opacity:locked?0.55:1}}>
                 {CM_ICONS[n.id] ? <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={CM_ICONS[n.id]}/></svg>
-                  : <span style={{...dsp("19px",AC(n.accent))}}>{n.name[0]}</span>}
+                  : <span style={{...dsp("19px",ac)}}>{n.name[0]}</span>}
               </div>
-              <span style={{...body("12.5px",on?C.cream:C.muted),lineHeight:"14px",textShadow:`0 0 6px ${C.bg}`}}>{n.name}</span>
+              {mastered && (
+                <span aria-hidden="true" style={{position:"absolute",left:"55px",top:"-7px",minWidth:20,height:20,padding:"0 3px",boxSizing:"border-box",borderRadius:"10px",background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",gap:"1px"}}>
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill={C.bg}><path d="M12 2l3 7 7 .6-5.3 4.6 1.6 7.1L12 17.6 5.7 21.3l1.6-7.1L2 9.6 9 9z"/></svg>
+                  <span style={{...dsp("8px",C.bg,500,"0")}}>{bs.level}</span>
+                </span>
+              )}
+              <span style={{...body("12.5px",on?C.cream:locked?C.dim:C.muted),lineHeight:"14px",textShadow:`0 0 6px ${C.bg}`}}>{n.name}</span>
             </button>
           );
         })}
@@ -4277,7 +4317,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
                 </div>
               );
             })}
-            {!st.chosen && (
+            {!st.chosen && !selLocked && (
               <button onClick={()=>onChoosePath(selNode.id)} style={{marginTop:"14px",padding:"9px 18px",background:"transparent",border:`0.5px solid ${accent}`,borderRadius:"6px",cursor:"pointer",...dsp("9px",accent,400,"0.16em")}}>CHOOSE THIS PATH</button>
             )}
             {st.chosen && (
