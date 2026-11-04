@@ -357,18 +357,18 @@ const QUEST_CHAINS = {
       libId: "lib_w_strength",
       criteria: "Accumulate 100 pushups, 100 squats, and complete Core sessions.",
       unlocks: [
-        { kind: "activity", practiceType: "train", name: "Pushups", stat: "str", target: 100, unit: "reps" },
-        { kind: "activity", practiceType: "train", name: "Squats",  stat: "str", target: 100, unit: "reps" },
-        { kind: "activity", practiceType: "train", name: "Core",    stat: "vit", target: 50, unit: "reps" },
+        { kind: "activity", practiceType: "train", name: "Pushups", stat: "str", target: 100, unit: "reps", category: "w_arms" },
+        { kind: "activity", practiceType: "train", name: "Squats",  stat: "str", target: 100, unit: "reps", category: "w_legs" },
+        { kind: "activity", practiceType: "train", name: "Core",    stat: "vit", target: 50, unit: "reps", category: "w_core" },
       ],
     },
     {
       id: "w_run",
       title: "Light Footed",
-      myth: "Iron that does not move is only weight.\n\nThe Warrior trains not just to be strong, but to carry that strength somewhere — and nothing reveals the will faster than the road. Long before the legs give out, the mind asks to stop. This is the secret runners learn and few others ever discover: the body rarely quits first. It is given permission.\n\nRunning is the truest test the Warrior has. No opponent, no weight, no technique to hide behind — only you, the ground, and the question of how far you're willing to go before you let yourself stop.\n\nTen kilometers. Not all at once — earn it in pieces, one stretch of ground at a time, until the distance is behind you.\n\nRun unlocked. Find it in your Walking practice.",
+      myth: "Iron that does not move is only weight.\n\nThe Warrior trains not just to be strong, but to carry that strength somewhere — and nothing reveals the will faster than the road. Long before the legs give out, the mind asks to stop. This is the secret runners learn and few others ever discover: the body rarely quits first. It is given permission.\n\nRunning is the truest test the Warrior has. No opponent, no weight, no technique to hide behind — only you, the ground, and the question of how far you're willing to go before you let yourself stop.\n\nTen kilometers. Not all at once — earn it in pieces, one stretch of ground at a time, until the distance is behind you.\n\nRun unlocked, under Endure. Find it in your Train practice.",
       libId: "lib_w_run",
       criteria: "Accumulate 10 km of running.",
-      unlocks: [{ kind: "activity", practiceType: "walking", name: "Run", stat: "wil", target: 10, unit: "km" }],
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Run", stat: "wil", target: 10, unit: "km", category: "w_endure" }],
     },
     {
       id: "w_measure",
@@ -377,15 +377,16 @@ const QUEST_CHAINS = {
       libId: "lib_w_measure",
       criteria: "Log a test of each Fundamental: Arms, Legs, Core and Endure.",
       unlocks: [{ kind: "groups", scope: "since", recordBaseline: true, groups: [
-        { label: "Arms",   names: ["Arms","Pushups"] },
-        { label: "Legs",   names: ["Legs","Squats"] },
-        { label: "Core",   names: ["Core"] },
-        { label: "Endure", names: ["Endure","Run"] },
+        { label: "Arms",   names: ["Arms","Pushups"], cat: "w_arms" },
+        { label: "Legs",   names: ["Legs","Squats"], cat: "w_legs" },
+        { label: "Core",   names: ["Core"], cat: "w_core" },
+        { label: "Endure", names: ["Endure","Run"], cat: "w_endure" },
       ] }],
     },
     {
       id: "w_cold",
       title: "Cold Exposure",
+      minMastery: 1,
       myth: "You have built the body. Now you are given something harder: presence with nothing to do.\n\nEvery skill before this asked you to generate something — a rep, a stride, a strike. Cold asks the opposite. It asks you to stay, while something difficult happens to you, and not flee. This is the final face of \"presence under pressure\" — not power, but stillness inside discomfort.\n\nCold Exposure is a condition you can carry into any practice — sit in it, stand in it, walk in it. Seek it where you can find it: a cold shower, an early swim, the morning air.",
       libId: "lib_w_cold",
       criteria: "Practice Cold Exposure, then mark it complete.",
@@ -394,15 +395,16 @@ const QUEST_CHAINS = {
     {
       id: "w_proving",
       title: "The Proving",
+      minMastery: 2,
       isCapstone: true,
       myth: "Four Fundamentals, trained apart, day after day. Now they meet.\n\nIn one session, train them all: Arms, Legs, Core, and Endure. Not as four exercises in a row, but as one body that has become capable — pushing, carrying, holding, going the distance.\n\nIf you can, take it up a mountain. Climb, and train at the top.\n\nThe Warrior's path was never about strength for its own sake. It was about a body you can trust. This is where you find out you have one.",
       libId: "lib_w_proving",
       criteria: "Train all four Fundamentals in a single session.",
       unlocks: [{ kind: "groups", scope: "single", groups: [
-        { label: "Arms",   names: ["Arms","Pushups"] },
-        { label: "Legs",   names: ["Legs","Squats"] },
-        { label: "Core",   names: ["Core"] },
-        { label: "Endure", names: ["Endure","Run"] },
+        { label: "Arms",   names: ["Arms","Pushups"], cat: "w_arms" },
+        { label: "Legs",   names: ["Legs","Squats"], cat: "w_legs" },
+        { label: "Core",   names: ["Core"], cat: "w_core" },
+        { label: "Endure", names: ["Endure","Run"], cat: "w_endure" },
       ] }],
     },
   ],
@@ -995,7 +997,8 @@ function migrateActivityMetadata(activities){
       if(u.kind==="activity") unlockByName[u.name]=u;
     }));
   });
-  return activities.map(a=>{
+  const RETIRED_FUND = ["fund_w_arms","fund_w_legs","fund_w_core","fund_w_endure"];
+  return activities.filter(a=>!(a && RETIRED_FUND.includes(a.id))).map(a=>{
     /* One-time rename: "Communion" was renamed to "Commune" — anyone who
        already has the old-named activity gets it renamed in place (id and
        name updated to match), with count fully preserved, rather than ending
@@ -1015,9 +1018,10 @@ function migrateActivityMetadata(activities){
     const u = unlockByName[a.name];
     if(!u) return a; // no current quest defines this skill (shouldn't normally happen)
     const target = u.target ?? null, unit = u.unit ?? null, singleSession = !!u.singleSession;
+    const category = u.category ?? a.category ?? null;
     const inSync = a.target===target && a.unit===unit && a.stat===u.stat &&
-                   a.practiceType===u.practiceType && a.singleSession===singleSession;
-    return inSync ? a : {...a, stat:u.stat, practiceType:u.practiceType, target, unit, singleSession};
+                   a.practiceType===u.practiceType && a.singleSession===singleSession && (a.category??null)===category;
+    return inSync ? a : {...a, stat:u.stat, practiceType:u.practiceType, target, unit, singleSession, ...(category?{category}:{})};
   });
 }
 
@@ -1049,8 +1053,12 @@ function migrateClassState(cs){
   return out;
 }
 
+/* Mastery quests (minMastery) sit outside the numbered chain: they open once
+   the chain is complete and the path's mastery reaches their level. */
+function isChainQuest(q){ return !q.isTrial && !q.isEpilogue && !q.minMastery; }
+function masteryQuestsOf(classId){ return (QUEST_CHAINS[classId]||[]).filter(q=>q.minMastery); }
 function chainComplete(classId, questProgress={}){
-  const numbered = (QUEST_CHAINS[classId]||[]).filter(q=>!q.isTrial && !q.isEpilogue);
+  const numbered = (QUEST_CHAINS[classId]||[]).filter(isChainQuest);
   return numbered.length>0 && numbered.every(q=>questProgress[q.id]);
 }
 
@@ -1060,10 +1068,12 @@ function chainComplete(classId, questProgress={}){
    OWN completion, or nothing could ever reach the completion that requires
    using the very thing the quest unlocks (e.g. Tend must be usable while
    Deep Listening is active, not only after Deep Listening is already done). */
-function questActiveOrDone(classId, questId, questProgress={}, trialDoneFn=()=>true){
+function questActiveOrDone(classId, questId, questProgress={}, trialDoneFn=()=>true, masteryXP=0){
   if(questProgress?.[questId]) return true;
   if(!trialDoneFn(classId)) return false;
-  const numbered = (QUEST_CHAINS[classId]||[]).filter(q=>!q.isTrial && !q.isEpilogue);
+  const mq=(QUEST_CHAINS[classId]||[]).find(q=>q.id===questId && q.minMastery);
+  if(mq) return chainComplete(classId, questProgress) && masteryLevelFromXP(classId, masteryXP) >= mq.minMastery;
+  const numbered = (QUEST_CHAINS[classId]||[]).filter(isChainQuest);
   const idx = numbered.findIndex(q=>q.id===questId);
   if(idx===-1) return false;
   if(idx===0) return true;
@@ -1093,10 +1103,13 @@ function questActiveOrDone(classId, questId, questProgress={}, trialDoneFn=()=>t
                   (omitted = once the path's trial is complete)            */
 const FUNDAMENTALS = {
   warrior: [
-    { id:"w_arms",   name:"Arms",   unit:"reps",    stat:"str", practiceType:"train", variations:"Pushups, rows, chin-ups, hangs",     sources:["Pushups"], unlockQuest:"w_strength" },
-    { id:"w_legs",   name:"Legs",   unit:"reps",    stat:"str", practiceType:"train", variations:"Squats, lunges, step-ups",           sources:["Squats"],  unlockQuest:"w_strength" },
-    { id:"w_core",   name:"Core",   unit:"reps",    stat:"vit", practiceType:"train", variations:"Planks, holds, leg raises",          sources:[],          unlockQuest:"w_strength" },
-    { id:"w_endure", name:"Endure", unit:"minutes", stat:"wil", practiceType:"any",   variations:"Run, hike, swim, cycle",             sources:["Run"],     unlockQuest:"w_run" },
+    /* Categories, not activities: each holds its exercises (Pushups under
+       Arms…) and whatever the player adds. `legacy` names count old history
+       logged under the category's own name. */
+    { id:"w_arms",   name:"Arms",   activity:false, category:true, unit:"reps",    stat:"str", practiceType:"train", variations:"Pushups, rows, chin-ups, hangs", sources:["Pushups"], legacy:["Arms"],   unlockQuest:"w_strength" },
+    { id:"w_legs",   name:"Legs",   activity:false, category:true, unit:"reps",    stat:"str", practiceType:"train", variations:"Squats, lunges, step-ups",       sources:["Squats"],  legacy:["Legs"],   unlockQuest:"w_strength" },
+    { id:"w_core",   name:"Core",   activity:false, category:true, unit:"reps",    stat:"vit", practiceType:"train", variations:"Sit-ups, planks, leg raises",    sources:["Core"],    legacy:[],         unlockQuest:"w_strength" },
+    { id:"w_endure", name:"Endure", activity:false, category:true, unit:"minutes", stat:"wil", practiceType:"train", variations:"Run, hike, swim, cycle",         sources:["Run"],     legacy:["Endure"], unlockQuest:"w_run" },
   ],
   healer: [
     { id:"h_body",  name:"Body",          unit:"minutes", stat:"vit", practiceType:"any", variations:"Release, breath, rest, toning",          sources:["Tension Release","Voice Work"] },
@@ -1128,6 +1141,9 @@ const FUNDAMENTALS = {
   ],
 };
 const FUND_MARKS = [7, 21, 49, 108, 216, 365, 1000];
+/* category id → its path, e.g. w_arms → warrior */
+const FUND_OWNER = Object.fromEntries(Object.entries(FUNDAMENTALS).flatMap(([cid,fs])=>fs.map(f=>[f.id,cid])));
+const fundMatches = (f, a) => a && (a.name===f.name && f.activity!==false || (f.sources||[]).includes(a.name) || (f.legacy||[]).includes(a.name) || (f.category && a.category===f.id));
 
 /* "groups" quests (The Measure, The Proving): each group is met by a session
    that used one of its activities for real — a logged count for counted
@@ -1139,7 +1155,7 @@ const FUND_MARKS = [7, 21, 49, 108, 216, 365, 1000];
 function sessionGroupValue(s, g){
   let v=0, hit=false;
   (s.activities||[]).forEach(a=>{
-    if(!g.names.includes(a.name)) return;
+    if(!g.names.includes(a.name) && !(g.cat && a.category===g.cat)) return;
     if(!a.unit || a.unit==="minutes"){ if((s.elapsed||0)>=30){ hit=true; v=Math.max(v,(s.elapsed||0)/60); } }
     else { const c=Number(s.loggedCounts?.[a.id])||0; if(c>0){ hit=true; v+=c; } }
   });
@@ -1170,16 +1186,15 @@ function fundamentalUnlocked(f, cid, classState){
     if(masteryLevelFromXP(cid, classState.mastery?.[cid]?.xp||0) < f.minMastery) return false;
   }
   if(!f.unlockQuest) return true;
-  return questActiveOrDone(cid, f.unlockQuest, classState.questProgress, c=>classTrialDone(classState, c));
+  return questActiveOrDone(cid, f.unlockQuest, classState.questProgress, c=>classTrialDone(classState, c), classState.mastery?.[cid]?.xp||0);
 }
 /* Days trained, personal best and marks for each of a path's Fundamentals. */
 function computeFundamentals(cid, sessions=[], jEnt=[]){
   return (FUNDAMENTALS[cid]||[]).map(f=>{
-    const names=new Set([f.name, ...(f.sources||[])]);
     const days=new Set(); let best=0;
     (sessions||[]).forEach(s=>{
       const d=s.date; if(!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
-      const acts=(s.activities||[]).filter(a=>names.has(a.name));
+      const acts=(s.activities||[]).filter(a=>fundMatches(f,a));
       const reflectHit = !!(f.reflectSit && s.typeId==="sitting" && s.reflection && String(s.reflection).trim());
       if(!acts.length && !reflectHit) return;
       days.add(d);
@@ -1230,6 +1245,7 @@ function masteryPathsForSession(s){
   Object.entries(PATH_SKILL_NAMES).forEach(([cid,set])=>{
     if(names.some(n=>set.has(n))) paths.add(cid);
   });
+  (s.activities||[]).forEach(a=>{ if(a.category && FUND_OWNER[a.category]) paths.add(FUND_OWNER[a.category]); });
   if(s.typeId==="standing") paths.add("warrior");
   if(s.typeId==="sitting") paths.add("sage");
   const lands = Array.isArray(s.awarenessLanding) ? s.awarenessLanding : [];
@@ -2233,7 +2249,7 @@ function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, librar
                 need real-time +/-10 interaction here, during the session) */}
             {activeActIds.map(id=>{
               const act=activities.find(a=>a.id===id);
-              if(!act || (!act.target && !act.fundamental && !act.practice)) return null;
+              if(!act || (!act.target && !act.fundamental && !act.practice && !act.category)) return null;
               const sc=AC(STAT_COLORS[act.stat])||C.sageB;
               if(act.unit==="minutes") return null;
               const entered = actCounts[id]??0;
@@ -3740,7 +3756,7 @@ const CHAPTER_QUESTS = {
 function classBadgeState(cid, classState){
   const chosen=(classState?.chosenClasses||[]).includes(cid);
   const qp=classState?.questProgress||{};
-  const chain=(QUEST_CHAINS[cid]||[]).filter(q=>!q.isTrial && !q.isEpilogue);
+  const chain=(QUEST_CHAINS[cid]||[]).filter(isChainQuest);
   const done=chain.filter(q=>qp[q.id]).length;
   const complete=chainComplete(cid, qp);
   const level=complete ? masteryLevelFromXP(cid, classState?.mastery?.[cid]?.xp||0) : 0;
@@ -3870,15 +3886,18 @@ function cmVisible(n, classState, gateOpen){
    saved); an Inquire entry earns its 3. Approximate by design: sessions never
    recorded XP per activity. */
 const TEND_XP_MULT = { "Deep Listening": 1.5, "Service": 1 };
-function fundamentalDetail(f, sessions=[], jEnt=[]){
+function fundamentalDetail(f, sessions=[], jEnt=[], activities=[]){
   const own=f.activity===false ? [] : [f.name];
-  const names=[...own, ...(f.sources||[])];
-  const per=Object.fromEntries(names.map(n=>[n,{name:n, own:n===f.name, days:new Set(), total:0, unit:null}]));
+  /* a category lists its exercises, then what the player added under it */
+  const added=f.category ? (activities||[]).filter(a=>a.category===f.id && !(f.sources||[]).includes(a.name)).map(a=>a.name) : [];
+  const names=[...new Set([...own, ...(f.sources||[]), ...added, ...(f.legacy||[])])];
+  const per=Object.fromEntries(names.map(n=>[n,{name:n, own:n===f.name&&f.activity!==false, legacy:(f.legacy||[]).includes(n), userAdded:added.includes(n), days:new Set(), total:0, unit:null}]));
+  const rowFor=a=>per[a.name] || (f.category && a.category===f.id ? (per[a.name]={name:a.name, userAdded:true, days:new Set(), total:0, unit:null}) : null);
   let xp=0;
   (sessions||[]).forEach(s=>{
     const acts=s.activities||[];
     const reflectHit = !!(f.reflectSit && s.typeId==="sitting" && s.reflection && String(s.reflection).trim());
-    const mine=acts.filter(a=>per[a.name]);
+    const mine=acts.filter(a=>rowFor(a));
     if(!mine.length && !reflectHit) return;
     const bonusOf=a=> (a.unit && a.unit!=="minutes") ? (Number(s.loggedCounts?.[a.id])||0)*COUNT_BONUS_PER_UNIT : 0;
     const totalBonus=acts.reduce((t,a)=>t+bonusOf(a),0);
@@ -3886,7 +3905,7 @@ function fundamentalDetail(f, sessions=[], jEnt=[]){
     const timeShare=Math.max(0,(s.xp||0)-totalBonus)/members;
     xp += timeShare*(mine.length + (reflectHit?1:0)) + mine.reduce((t,a)=>t+bonusOf(a),0);
     mine.forEach(a=>{
-      const r=per[a.name]; if(s.date) r.days.add(s.date);
+      const r=rowFor(a); if(s.date) r.days.add(s.date);
       if(!a.unit || a.unit==="minutes"){ r.total+=(s.elapsed||0)/60; r.unit=r.unit||"min"; }
       else { r.total+=Number(s.loggedCounts?.[a.id])||0; r.unit=a.unit; }
     });
@@ -3908,7 +3927,7 @@ function fundamentalDetail(f, sessions=[], jEnt=[]){
     (sessions||[]).forEach(s=>{ if(s.typeId==="sitting" && s.reflection && String(s.reflection).trim()){ row.total+=1; if(s.date) row.days.add(s.date); } });
     journalRows.push(row);
   }
-  const rows=[...Object.values(per), ...journalRows].map(r=>({...r, days:r.days.size}));
+  const rows=[...Object.values(per).filter(r=>!r.legacy || r.days.size), ...journalRows].map(r=>({...r, days:r.days.size}));
   return { xp:Math.round(xp), rows };
 }
 const fmtTotal = r => !r.total ? "—" : r.unit==="min" ? `${Math.round(r.total)} min` : `${Math.round(r.total*10)/10} ${r.unit||""}`.trim();
@@ -4070,7 +4089,32 @@ function MyPathSheetBody({ story, node, sessions=[], modes, onPick=()=>{}, onSto
   );
 }
 
+/* Add an exercise under a category Fundamental (e.g. Chin-ups under Arms). */
+function CategoryAddForm({ f, taken=[], onAdd, onCancel }){
+  const [name,setName]=useState("");
+  const [unit,setUnit]=useState(f.unit==="minutes"?"minutes":(f.unit||"reps"));
+  const clean=name.trim().replace(/\s+/g," ").slice(0,32);
+  const dup=taken.some(n=>n.toLowerCase()===clean.toLowerCase());
+  const ok=!!clean && !dup;
+  const pill=on=>({padding:"5px 11px",borderRadius:"14px",cursor:"pointer",border:`0.5px solid ${on?C.sageB:C.bord}`,background:on?`rgba(${C.sageRGB},0.14)`:"transparent",...body("12.5px",on?C.cream:C.muted)});
+  return (
+    <div style={{padding:"6px 0 4px"}}>
+      <input autoFocus value={name} onChange={e=>setName(e.target.value)} placeholder={`Add to ${f.name}…`} maxLength={32}
+        onKeyDown={e=>{ if(e.key==="Enter"&&ok) onAdd({name:clean, unit}); }}
+        style={{width:"100%",boxSizing:"border-box",background:"transparent",border:"none",borderBottom:`1px solid ${ok?C.sageB:C.bord}`,color:C.cream,...body("15px",C.cream),padding:"6px 2px",outline:"none"}}/>
+      {dup && <div style={{...body("11.5px",C.dim),marginTop:"4px"}}>You already have that one.</div>}
+      <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginTop:"9px",alignItems:"center"}}>
+        {[["reps","Reps"],["minutes","Minutes"],["km","Km"]].map(([u,l])=><button key={u} onClick={()=>setUnit(u)} style={pill(unit===u)}>{l}</button>)}
+        <span style={{flex:1}}/>
+        <button onClick={onCancel} style={{background:"none",border:"none",cursor:"pointer",...body("12.5px",C.dim)}}>Cancel</button>
+        <button onClick={()=>ok&&onAdd({name:clean, unit})} disabled={!ok} style={{padding:"6px 14px",borderRadius:"6px",cursor:ok?"pointer":"default",background:ok?`rgba(${C.sageRGB},0.12)`:"transparent",border:`0.5px solid ${ok?C.sageB:C.bord}`,...dsp("8.5px",ok?C.sageB:C.dim,400,"0.16em")}}>ADD</button>
+      </div>
+    </div>
+  );
+}
+
 function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pathSel="center", onSelect:onPathSelect=()=>{}, onOpenPath=()=>{}, onChoosePath=()=>{},
+  activities=[], onAddCategoryItem=()=>{}, onRemoveActivity=()=>{},
   story=null, mode="paths", onMode=()=>{}, mySel="center", onMySel=()=>{}, onStoryChange=()=>{}, practiceModes=["sitting","standing","walking"], onOpenForge=()=>{} }){
   const hasStory=!!(story && story.name && story.values?.length);
   const mine = mode==="mine" && hasStory;
@@ -4164,7 +4208,8 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
   const fundStats = st&&st.chosen ? Object.fromEntries(computeFundamentals(selNode.id, sessions, jEnt).map(f=>[f.id,f])) : {};
   const cMode = st&&st.chosen&&trialDone ? CLASS_MODE[selNode.id] : null;
   const [openFund,setOpenFund]=useState(null);
-  useEffect(()=>{ setOpenFund(null); },[sel]);
+  const [addingTo,setAddingTo]=useState(null);
+  useEffect(()=>{ setOpenFund(null); setAddingTo(null); },[sel]);
   const myPr = mine && selNode?.kind==="practice" ? selNode.practice : null;
   const hint = mine ? (centerOn ? "Press Cultivate to practice: Sit, Stand or Walk."
       : myPr ? `Press Cultivate to practice ${myPr.name} · ${modeLabel(myPr.mode)}.`
@@ -4290,7 +4335,8 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
           ) : !selNode.real ? null : (<>
             <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"6px 0 4px"}}>FUNDAMENTALS</div>
             {funds.map(f=>{
-              const d=st.chosen ? fundamentalDetail(f, sessions, jEnt) : null;
+              const d=st.chosen ? fundamentalDetail(f, sessions, jEnt, activities) : null;
+              const canAdd = f.category && st.chosen && fundamentalUnlocked(f, selNode.id, classState);
               const fs=fundStats[f.id];
               const open=openFund===f.id;
               return (
@@ -4305,13 +4351,19 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
                   {open && (
                     <div style={{padding:"0 0 10px 10px"}}>
                       <div style={{...body("12px",C.dim),fontStyle:"italic",marginBottom:"6px"}}>{f.variations}{fs&&fs.best?` · best ${fmtFundBest(fs)}`:""}</div>
-                      {(d ? d.rows : [...(f.activity===false?[]:[{name:f.name,own:true}]), ...(f.sources||[]).map(n=>({name:n}))]).map(r=>(
+                      {(d ? d.rows : [...(f.activity===false?[]:[{name:f.name,own:true}]), ...(f.sources||[]).map(n=>({name:n}))]).map(r=>{
+                        const mineAct = r.userAdded ? activities.find(a=>a.name===r.name && a.category===f.id) : null;
+                        return (
                         <div key={r.name} style={{display:"flex",alignItems:"baseline",gap:"8px",padding:"5px 0"}}>
-                          <span style={{...body("13.5px",C.cream),flex:1}}>{r.own?`${r.name}`:r.name}{r.own&&<span style={{...body("11px",C.dim)}}> · any variation</span>}</span>
+                          <span style={{...body("13.5px",C.cream),flex:1}}>{r.name}{r.own&&<span style={{...body("11px",C.dim)}}> · any variation</span>}{r.legacy&&<span style={{...body("11px",C.dim)}}> · earlier</span>}</span>
                           {d && <span style={{...body("12px",C.muted)}}>{fmtTotal(r)}</span>}
                           {d && <span style={{...body("11px",C.dim),minWidth:"48px",textAlign:"right"}}>{r.days} {r.days===1?"day":"days"}</span>}
-                        </div>
-                      ))}
+                          {canAdd && <span style={{width:"16px",textAlign:"right"}}>{mineAct && !r.days && <button aria-label={`Remove ${r.name}`} onClick={()=>onRemoveActivity(mineAct.id)} style={{background:"none",border:"none",cursor:"pointer",padding:0,...body("14px",C.dim)}}>×</button>}</span>}
+                        </div>);
+                      })}
+                      {canAdd && (addingTo===f.id
+                        ? <CategoryAddForm f={f} taken={activities.map(a=>a.name)} onCancel={()=>setAddingTo(null)} onAdd={x=>{ onAddCategoryItem(f, x); setAddingTo(null); }}/>
+                        : <button onClick={()=>setAddingTo(f.id)} style={{marginTop:"6px",background:"none",border:"none",cursor:"pointer",padding:"4px 0",...body("13px",C.sageB)}}>+ Add to {f.name}</button>)}
                     </div>
                   )}
                 </div>
@@ -4338,11 +4390,11 @@ function PathPortal({ classId, classState, sessions=[], jEnt=[], activities=[], 
   const xp=classState?.mastery?.[classId]?.xp||0;
   const lvlFloor=masteryTotalXPForLevel(classId, st.level), lvlNext=masteryTotalXPForLevel(classId, st.level+1);
   const lvlPct = st.complete ? Math.min(100, Math.round((xp-lvlFloor)/Math.max(1,lvlNext-lvlFloor)*100)) : Math.round(st.done/Math.max(1,st.total)*100);
-  const chain=(QUEST_CHAINS[classId]||[]).filter(q=>!q.isTrial && !q.isEpilogue);
+  const chain=(QUEST_CHAINS[classId]||[]).filter(isChainQuest);
   const trialDone=classTrialDone(classState, classId);
   const skills=[];
-  chain.forEach(q=>{
-    if(!questActiveOrDone(classId, q.id, qp, c=>classTrialDone(classState,c))) return;
+  (QUEST_CHAINS[classId]||[]).filter(q=>!q.isTrial && !q.isEpilogue).forEach(q=>{
+    if(!questActiveOrDone(classId, q.id, qp, c=>classTrialDone(classState,c), classState?.mastery?.[classId]?.xp||0)) return;
     (q.unlocks||[]).forEach(u=>{ if(u.kind==="activity" && !skills.includes(u.name)) skills.push(u.name); });
   });
   (MASTERY_BONUSES[classId]||[]).forEach(b=>{ if(st.complete && st.level>=b.level && !skills.includes(b.name)) skills.push(b.name); });
@@ -4431,7 +4483,7 @@ function ClassChoiceScreen({ onChoose, alreadyChosen=[], activeClass=null, onRet
         const isActive = activeClass===c.id;
         const walked = alreadyChosen.includes(c.id) && !isActive;
         const trialDone = trialComplete(c.id);
-        const chainQuests = (QUEST_CHAINS[c.id]||[]).filter(q=>!q.isTrial && !q.isEpilogue);
+        const chainQuests = (QUEST_CHAINS[c.id]||[]).filter(isChainQuest);
         const doneCount = chainQuests.filter(q=>questProgress[q.id]).length;
         const isMastered = trialDone && doneCount===chainQuests.length;
         const masteryLvl = isMastered ? masteryLevelFromXP(c.id, mastery[c.id]?.xp||0) : 0;
@@ -4644,7 +4696,7 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
   if(!cls) return null;
   const chain = QUEST_CHAINS[classId]||[];
   /* Trial quest is handled separately; numbered quests start after it. */
-  const numbered = chain.filter(q=>!q.isTrial && !q.isEpilogue);
+  const numbered = chain.filter(isChainQuest);
   const epilogue = chain.find(q=>q.isEpilogue);
   const isDone = q => !!questProgress[q.id];
   /* A quest is active if it's the first not-yet-done quest in order. */
@@ -4685,6 +4737,27 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
               })}
             </div>
           )}
+        </div>
+      )}
+      {masteryQuestsOf(classId).length>0 && (
+        <div style={{marginBottom:"22px"}}>
+          <SL title="Mastery quests"/>
+          {masteryQuestsOf(classId).map(q=>{
+            const done=isDone(q), open=fullyComplete && masteryLvl>=q.minMastery, can=done||open;
+            return (
+              <div key={q.id} onClick={()=>{ if(can) onOpenQuest(q.id); }}
+                style={{background:done?INK(0.02):open?C.surf:"transparent",border:`0.5px solid ${done?`${AC(cls.accent)}44`:open?C.sageB:C.bord}`,borderRadius:"6px",
+                  padding:"11px 14px",cursor:can?"pointer":"default",opacity:can?1:0.45,marginBottom:"8px"}}>
+                <div style={{...dsp("8px",done?AC(cls.accent):open?C.sageB:C.muted,400,"0.16em"),marginBottom:"3px"}}>
+                  MASTERY {q.minMastery} · {done?"COMPLETE":open?"ACTIVE":"LOCKED"}{q.isCapstone?" · CAPSTONE":""}
+                  {q.isCapstone&&ascents[q.id]&&<span style={{color:C.gold}}> · ▲ ASCENT</span>}
+                </div>
+                <div style={{...body("15px",C.cream)}}>{q.title}</div>
+                {!can && <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"5px"}}>{fullyComplete?`Opens at Mastery ${q.minMastery}.`:"Opens once the path is complete."}</div>}
+                {open && !done && <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{questProgressLine(q,activities,jEnt)}</div>}
+              </div>
+            );
+          })}
         </div>
       )}
       <SL title={`${cls.name} · ${cls.verb}`}/>
@@ -7304,7 +7377,9 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
        the trial is done (since the first quest's skill unlocks with the trial) */
     if(classState.questProgress?.[e.skillUnlockQuest]) return true;
     const chain = QUEST_CHAINS[e.pathId]||[];
-    const numbered = chain.filter(q=>!q.isTrial && !q.isEpilogue);
+    const mq = chain.find(q=>q.id===e.skillUnlockQuest && q.minMastery);
+    if(mq) return chainComplete(e.pathId, classState.questProgress||{}) && masteryLevelFromXP(e.pathId, classState.mastery?.[e.pathId]?.xp||0) >= mq.minMastery;
+    const numbered = chain.filter(isChainQuest);
     const firstId = numbered[0]?.id;
     if(e.skillUnlockQuest===firstId){
       const cls=CLASS_BY_ID[e.pathId];
@@ -8393,8 +8468,8 @@ export default function AscendApp(){
       (classState.chosenClasses||[]).forEach(cid=>{
         const cap=(QUEST_CHAINS[cid]||[]).find(q=>q.isCapstone);
         if(!cap || have[cap.id] || won[cap.id]) return;
-        if(!questActiveOrDone(cid, cap.id, classState.questProgress, trialComplete)) return;
-        if(!pin.acts.some(n=>PATH_SKILL_NAMES[cid]?.has(n))) return;
+        if(!questActiveOrDone(cid, cap.id, classState.questProgress, trialComplete, classState.mastery?.[cid]?.xp||0)) return;
+        if(!pin.acts.some(n=>PATH_SKILL_NAMES[cid]?.has(n) || activities.some(a=>a.name===n && a.category && FUND_OWNER[a.category]===cid))) return;
         won[cap.id]=rec; awards.push(`${cap.title}`);
       });
       ACT_CAPSTONES.forEach(a=>{
@@ -8742,13 +8817,13 @@ export default function AscendApp(){
             return [...p, {
               id:`cls_${u.name.replace(/\s+/g,'_').toLowerCase()}`,
               name:u.name, stat:u.stat, classSkill:true, practiceType:u.practiceType,
-              count:0, target, unit, singleSession,
+              count:0, target, unit, singleSession, ...(u.category?{category:u.category}:{}),
             }];
           }
           const inSync = existing.target===target && existing.unit===unit && existing.stat===u.stat &&
-                         existing.practiceType===u.practiceType && existing.singleSession===singleSession;
+                         existing.practiceType===u.practiceType && existing.singleSession===singleSession && (!u.category || existing.category===u.category);
           if(inSync) return p;
-          return p.map(a=>a.name===u.name ? {...a, stat:u.stat, practiceType:u.practiceType, target, unit, singleSession} : a);
+          return p.map(a=>a.name===u.name ? {...a, stat:u.stat, practiceType:u.practiceType, target, unit, singleSession, ...(u.category?{category:u.category}:{})} : a);
         });
       }
       /* kind:"journal" (tend/inquire) and kind:"practiceType" are read directly
@@ -8767,7 +8842,7 @@ export default function AscendApp(){
   /* Call once a class's trial completes — applies the FIRST numbered quest's
      unlocks immediately, since that quest is now active. */
   const activateFirstQuest = (classId) => {
-    const first = (QUEST_CHAINS[classId]||[]).find(q=>!q.isTrial && !q.isEpilogue);
+    const first = (QUEST_CHAINS[classId]||[]).find(isChainQuest);
     if(first) applyQuestUnlocks(first);
   };
 
@@ -8820,7 +8895,7 @@ export default function AscendApp(){
     (classState.chosenClasses||[]).forEach(cid=>{
       if(!trialComplete(cid)) return;
       (QUEST_CHAINS[cid]||[]).filter(q=>!q.isTrial && !q.isEpilogue).forEach(q=>{
-        if(!questActiveOrDone(cid, q.id, classState.questProgress, trialComplete)) return;
+        if(!questActiveOrDone(cid, q.id, classState.questProgress, trialComplete, classState.mastery?.[cid]?.xp||0)) return;
         const missing=(q.unlocks||[]).some(u=>u.kind==="activity" && !activities.some(a=>a.name===u.name));
         if(missing) applyQuestUnlocks(q);
         else if(!classState.questProgress?.[q.id] && !classState.questStartedOn?.[q.id]) stamp[q.id]=today;
@@ -8856,14 +8931,18 @@ export default function AscendApp(){
     if(quest){
       const chainId = Object.keys(QUEST_CHAINS).find(cid=>QUEST_CHAINS[cid].includes(quest));
       const ascended = quest.isCapstone && classState?.ascents?.[questId];
-      notifyQuestComplete({title:quest.title, accent:ascended?C.gold:(AC(CLASS_BY_ID[chainId]?.accent)||C.sageB), kind:quest.isCapstone?(ascended?"CHAIN COMPLETE · ASCENT":"CHAIN COMPLETE"):"QUEST COMPLETE"});
+      const chainQs = (QUEST_CHAINS[chainId]||[]).filter(isChainQuest);
+      const endsChain = chainQs.length && chainQs[chainQs.length-1].id===questId;
+      notifyQuestComplete({title:quest.title, accent:ascended?C.gold:(AC(CLASS_BY_ID[chainId]?.accent)||C.sageB),
+        kind: ascended ? "QUEST COMPLETE · ASCENT" : endsChain ? "CHAIN COMPLETE · MASTERY 1" : quest.minMastery ? `MASTERY ${quest.minMastery} QUEST COMPLETE` : "QUEST COMPLETE"});
       /* the moment this quest completes, the NEXT quest in its chain becomes
          active — apply its unlocks now, immediately, not on its own completion */
       const chain = QUEST_CHAINS[chainId]||[];
-      const numbered = chain.filter(q=>!q.isTrial && !q.isEpilogue);
+      const numbered = chain.filter(isChainQuest);
       const idx = numbered.findIndex(q=>q.id===questId);
-      const next = numbered[idx+1];
+      const next = idx>=0 ? numbered[idx+1] : null;
       if(next) applyQuestUnlocks(next);
+      if(idx>=0 && idx===numbered.length-1) masteryQuestsOf(chainId).filter(q=>q.minMastery<=1).forEach(applyQuestUnlocks);
       /* epilogue becomes active once the chain (last numbered quest) completes */
       if(idx===numbered.length-1){
         const epilogue = chain.find(q=>q.isEpilogue);
@@ -9152,7 +9231,7 @@ export default function AscendApp(){
         QUEST_CHAINS[cid].forEach(q=>{
           if(classState.questProgress?.[q.id]) return;
           const gu=(q.unlocks||[]).find(u=>u.kind==="groups"); if(!gu) return;
-          if(!questActiveOrDone(cid, q.id, classState.questProgress, trialComplete)) return;
+          if(!questActiveOrDone(cid, q.id, classState.questProgress, trialComplete, classState.mastery?.[cid]?.xp||0)) return;
           const st=groupsStatus(gu, allSessions, classState.questStartedOn?.[q.id]);
           if(!st.every(g=>g.met)) return;
           if(gu.recordBaseline) setClassState(cs=>({...cs, baselines:{...(cs.baselines||{}), [q.id]:Object.fromEntries(st.map(g=>[g.label, Math.round(g.best*10)/10]))}}));
@@ -9503,6 +9582,9 @@ export default function AscendApp(){
           <div style={{display:tab==="cultivate"?"block":"none",height:"100%"}}><CultivateTab classState={classState} sessions={sessions} jEnt={jEnt} gateOpen={classGateOpen}
             sel={cultSel} onSelect={setCultSel} onOpenPath={cid=>{setPathView(cid);setScr("path");}}
             onChoosePath={cid=>{chooseClass(cid);setTab("quest");}}
+            activities={activities} onRemoveActivity={deleteActivity}
+            onAddCategoryItem={(f,{name,unit})=>setActivities(p=>p.some(a=>a.name.toLowerCase()===name.toLowerCase()) ? p
+              : [...p,{id:`act_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, name, stat:f.stat, practiceType:f.practiceType||"train", unit, category:f.id, count:0}])}
             story={story} mode={cultMode} onMode={setCultMode} mySel={mySel} onMySel={setMySel} onStoryChange={updateStory}
             practiceModes={["sitting","standing","walking",...unlockedClassPracticeTypes.filter(t=>t==="train"||t==="restore")]}
             onOpenForge={()=>{ setTab("quest"); setQuestLineReq({line:"forge", n:Date.now()}); }}/></div>
