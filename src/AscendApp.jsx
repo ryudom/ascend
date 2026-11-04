@@ -1174,6 +1174,12 @@ function groupsStatus(u, sessions=[], startedOn=null){
   });
 }
 
+/* The next unfinished step of a path's Foundation Trial, or null. */
+function nextTrialStep(classState, cid){
+  const cls=CLASS_BY_ID[cid]; if(!cls) return null;
+  const prog=classState?.trialProgress?.[cid]||{};
+  return cls.trial.find(st=>!prog[st.type]) || null;
+}
 function classTrialDone(classState, cid){
   const cls=CLASS_BY_ID[cid]; if(!cls || !classState) return false;
   const prog=classState.trialProgress?.[cid]||{};
@@ -4089,6 +4095,35 @@ function MyPathSheetBody({ story, node, sessions=[], modes, onPick=()=>{}, onSto
   );
 }
 
+/* A path's Foundation Trial, inside the class sheet. */
+function TrialSteps({ cls, classState, devMode=false, onDevSkipTrial=()=>{} }){
+  const [vow,setVow]=useState(false);
+  const prog=classState?.trialProgress?.[cls.id]||{};
+  const next=nextTrialStep(classState, cls.id);
+  const trialQuest=(QUEST_CHAINS[cls.id]||[]).find(q=>q.isTrial);
+  return (
+    <div>
+      <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"6px 0 6px"}}>THE TRIAL</div>
+      {cls.trial.map(step=>{ const done=!!prog[step.type], isNext=next?.type===step.type; return (
+        <div key={step.type} style={{display:"flex",alignItems:"center",gap:"12px",padding:"8px 0",borderBottom:`0.5px solid ${C.bord}`}}>
+          <div style={{width:"24px",height:"24px",borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
+            border:`1px solid ${done?C.sageB:isNext?AC(cls.accent):C.dim}`,background:done?`rgba(${C.sageRGB},0.12)`:"transparent"}}>
+            {done && <span style={{color:C.sageB,fontSize:"12px"}}>✓</span>}
+          </div>
+          <span style={{...body("15px",done?C.muted:C.cream),flex:1}}>{step.label} · 3 min</span>
+          {isNext && <span style={{...dsp("8px",AC(cls.accent),400,"0.16em")}}>NEXT</span>}
+        </div>); })}
+      {trialQuest && (
+        <button onClick={()=>setVow(v=>!v)} style={{marginTop:"10px",background:"none",border:"none",cursor:"pointer",padding:"4px 0",...body("13px",C.muted)}}>{vow?"Hide the vow":"Read the vow ›"}</button>
+      )}
+      {vow && (trialQuest.myth||"").split("\n\n").map((p,i)=>(
+        <div key={i} style={{...body("14px",C.txt),lineHeight:1.7,margin:"8px 0",whiteSpace:"pre-line"}}>{p}</div>
+      ))}
+      {devMode && <button onClick={()=>onDevSkipTrial(cls.id)} style={{display:"block",marginTop:"10px",padding:"6px 10px",background:"none",border:"0.5px dashed rgba(180,100,100,0.5)",color:"rgba(180,100,100,0.85)",fontFamily:"monospace",fontSize:"9px",cursor:"pointer",borderRadius:"5px"}}>DEV · SKIP TRIAL</button>}
+    </div>
+  );
+}
+
 /* Add an exercise under a category Fundamental (e.g. Chin-ups under Arms). */
 function CategoryAddForm({ f, taken=[], onAdd, onCancel }){
   const [name,setName]=useState("");
@@ -4115,6 +4150,7 @@ function CategoryAddForm({ f, taken=[], onAdd, onCancel }){
 
 function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pathSel="center", onSelect:onPathSelect=()=>{}, onOpenPath=()=>{}, onChoosePath=()=>{},
   activities=[], onAddCategoryItem=()=>{}, onRemoveActivity=()=>{},
+  onOpenClassQuest=()=>{}, onOpenLib=()=>{}, onAcknowledgeTrial=()=>{}, devMode=false, onDevSkipTrial=()=>{},
   story=null, mode="paths", onMode=()=>{}, mySel="center", onMySel=()=>{}, onStoryChange=()=>{}, practiceModes=["sitting","standing","walking"], onOpenForge=()=>{} }){
   const hasStory=!!(story && story.name && story.values?.length);
   const mine = mode==="mine" && hasStory;
@@ -4209,7 +4245,11 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
   const cMode = st&&st.chosen&&trialDone ? CLASS_MODE[selNode.id] : null;
   const [openFund,setOpenFund]=useState(null);
   const [addingTo,setAddingTo]=useState(null);
-  useEffect(()=>{ setOpenFund(null); setAddingTo(null); },[sel]);
+  const [sheetTab,setSheetTab]=useState(null); // "quests" | "fundamentals"; null = pick by progress
+  useEffect(()=>{ setOpenFund(null); setAddingTo(null); setSheetTab(null); },[sel]);
+  const celebrated = st&&st.chosen&&trialDone ? (!!classState?.trialCelebrated?.[selNode.id] || (QUEST_CHAINS[selNode.id]||[]).some(q=>classState?.questProgress?.[q.id])) : true;
+  const showTabs = !!(st && st.chosen && trialDone && celebrated);
+  const tabNow = sheetTab || (st && st.complete ? "fundamentals" : "quests");
   const myPr = mine && selNode?.kind==="practice" ? selNode.practice : null;
   const hint = mine ? (centerOn ? "Press Cultivate to practice: Sit, Stand or Walk."
       : myPr ? `Press Cultivate to practice ${myPr.name} · ${modeLabel(myPr.mode)}.`
@@ -4217,7 +4257,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
     : centerOn ? "Press Cultivate to practice: Sit, Stand or Walk."
     : selLocked ? cmUnlockText(selNode, classState, gateOpen)
     : !st.chosen ? "Open to you. Choose it to begin its trial."
-    : !trialDone ? "Complete this path's trial in the Quest tab. Cultivate opens a plain session until then."
+    : !trialDone ? `Trial: Sit, Stand and Walk, three minutes each. Press Cultivate for your ${nextTrialStep(classState, selNode.id)?.label||"next"}.`
     : `Press Cultivate to practice ${selNode.name} · ${MODE_LABEL[cMode]||"Practice"}.`;
   const accent = mine ? (myPr ? practiceAccent(myPr) : C.gold) : selLocked ? C.muted : selNode ? AC(selNode.accent) : C.gold;
   const eyebrow = mine ? (centerOn ? "MY PATH" : myPr ? `SERVES ${myPr.value.toUpperCase()}${myPr.stat?` · ${statLabel(myPr.stat).toUpperCase()}`:""}` : "VALUE")
@@ -4332,7 +4372,25 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
                 <div key={x} style={{...body("15px",C.cream),padding:"9px 0",borderBottom:`0.5px solid ${C.bord}`}}>{x}</div>
               ))}
             </div>
-          ) : !selNode.real ? null : (<>
+          ) : !selNode.real ? null : st.chosen && !trialDone ? (
+            <TrialSteps cls={CLASS_BY_ID[selNode.id]} classState={classState} devMode={devMode} onDevSkipTrial={onDevSkipTrial}/>
+          ) : st.chosen && !celebrated ? (
+            <TrialCompleteScreen classId={selNode.id} onContinue={()=>onAcknowledgeTrial(selNode.id)}/>
+          ) : (<>
+            {showTabs && (
+              <div role="tablist" style={{display:"flex",gap:"6px",margin:"4px 0 10px"}}>
+                {[["quests","Quests"],["fundamentals","Fundamentals"]].map(([id,l])=>{ const on=tabNow===id; return (
+                  <button key={id} role="tab" aria-selected={on} onClick={()=>setSheetTab(id)} style={{flex:1,padding:"8px",borderRadius:"6px",cursor:"pointer",
+                    border:`0.5px solid ${on?accent:C.bord}`,background:on?`${accent}1f`:"transparent",...dsp("9px",on?C.cream:C.muted,400,"0.16em")}}>{l.toUpperCase()}</button>); })}
+              </div>
+            )}
+            {showTabs && tabNow==="quests" ? (
+              <ClassQuestSection classId={selNode.id} questProgress={classState.questProgress||{}}
+                inquireAnswered={classState.inquireAnswered||{}} epilogueRevealed={classState.epilogueRevealed||{}}
+                masteryXP={classState.mastery?.[selNode.id]?.xp||0} isActivePath={true}
+                activities={activities} jEnt={jEnt} ascents={classState.ascents||{}}
+                onOpenQuest={qid=>onOpenClassQuest(selNode.id, qid)} onOpenLib={onOpenLib}/>
+            ) : (<>
             <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"6px 0 4px"}}>FUNDAMENTALS</div>
             {funds.map(f=>{
               const d=st.chosen ? fundamentalDetail(f, sessions, jEnt, activities) : null;
@@ -4369,6 +4427,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
                 </div>
               );
             })}
+            </>)}
             {!st.chosen && !selLocked && (
               <button onClick={()=>onChoosePath(selNode.id)} style={{marginTop:"14px",padding:"9px 18px",background:"transparent",border:`0.5px solid ${accent}`,borderRadius:"6px",cursor:"pointer",...dsp("9px",accent,400,"0.16em")}}>CHOOSE THIS PATH</button>
             )}
@@ -4712,6 +4771,28 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
   const pctToNext = Math.min(100, Math.round(((masteryXP-curThreshold)/Math.max(1,nextThreshold-curThreshold))*100));
   const bonuses = MASTERY_BONUSES[classId]||[];
 
+  const masteryQuestsBlock = masteryQuestsOf(classId).length>0 ? (
+        <div style={{marginBottom:"22px"}}>
+          <SL title="Mastery quests"/>
+          {masteryQuestsOf(classId).map(q=>{
+            const done=isDone(q), open=fullyComplete && masteryLvl>=q.minMastery, can=done||open;
+            return (
+              <div key={q.id} onClick={()=>{ if(can) onOpenQuest(q.id); }}
+                style={{background:done?INK(0.02):open?C.surf:"transparent",border:`0.5px solid ${done?`${AC(cls.accent)}44`:open?C.sageB:C.bord}`,borderRadius:"6px",
+                  padding:"11px 14px",cursor:can?"pointer":"default",opacity:can?1:0.45,marginBottom:"8px"}}>
+                <div style={{...dsp("8px",done?AC(cls.accent):open?C.sageB:C.muted,400,"0.16em"),marginBottom:"3px"}}>
+                  MASTERY {q.minMastery} · {done?"COMPLETE":open?"ACTIVE":"LOCKED"}{q.isCapstone?" · CAPSTONE":""}
+                  {q.isCapstone&&ascents[q.id]&&<span style={{color:C.gold}}> · ▲ ASCENT</span>}
+                </div>
+                <div style={{...body("15px",C.cream)}}>{q.title}</div>
+                {!can && <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"5px"}}>{fullyComplete?`Opens at Mastery ${q.minMastery}.`:"Opens once the path is complete."}</div>}
+                {open && !done && <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{questProgressLine(q,activities,jEnt)}</div>}
+              </div>
+            );
+          })}
+        </div>
+      
+  ) : null;
   return (
     <div style={{padding:"8px 0 4px"}}>
       {fullyComplete && (
@@ -4739,27 +4820,7 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
           )}
         </div>
       )}
-      {masteryQuestsOf(classId).length>0 && (
-        <div style={{marginBottom:"22px"}}>
-          <SL title="Mastery quests"/>
-          {masteryQuestsOf(classId).map(q=>{
-            const done=isDone(q), open=fullyComplete && masteryLvl>=q.minMastery, can=done||open;
-            return (
-              <div key={q.id} onClick={()=>{ if(can) onOpenQuest(q.id); }}
-                style={{background:done?INK(0.02):open?C.surf:"transparent",border:`0.5px solid ${done?`${AC(cls.accent)}44`:open?C.sageB:C.bord}`,borderRadius:"6px",
-                  padding:"11px 14px",cursor:can?"pointer":"default",opacity:can?1:0.45,marginBottom:"8px"}}>
-                <div style={{...dsp("8px",done?AC(cls.accent):open?C.sageB:C.muted,400,"0.16em"),marginBottom:"3px"}}>
-                  MASTERY {q.minMastery} · {done?"COMPLETE":open?"ACTIVE":"LOCKED"}{q.isCapstone?" · CAPSTONE":""}
-                  {q.isCapstone&&ascents[q.id]&&<span style={{color:C.gold}}> · ▲ ASCENT</span>}
-                </div>
-                <div style={{...body("15px",C.cream)}}>{q.title}</div>
-                {!can && <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"5px"}}>{fullyComplete?`Opens at Mastery ${q.minMastery}.`:"Opens once the path is complete."}</div>}
-                {open && !done && <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{questProgressLine(q,activities,jEnt)}</div>}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {fullyComplete && masteryQuestsBlock}
       <SL title={`${cls.name} · ${cls.verb}`}/>
       {numbered.map((q,i)=>{
         const st = stateOf(q,i);
@@ -4790,6 +4851,7 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
           </div>
         );
       })}
+      {!fullyComplete && masteryQuestsBlock && <div style={{marginTop:"18px"}}>{masteryQuestsBlock}</div>}
       {/* Epilogue, revealed once the chain completes */}
       {epilogue && fullyComplete && (
         <div style={{marginTop:"10px",borderTop:`0.5px solid ${C.bord}`,paddingTop:"14px"}}>
@@ -5670,7 +5732,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
      An unforged story outranks them: the Forge stays in front until done. */
   useEffect(()=>{
     if(!storyForged(way)) return;
-    const pNew = classGateOpen && (!classState || !classState.activeClass);
+    const pNew = false; // paths are chosen on the Cultivate map
     const cNew = chantGateOpen && !chantUnlocked;
     if(pNew && !autoSurfaced.path){
       setQuestLine("path"); setAutoSurfaced(p=>({...p,path:true}));
@@ -6051,7 +6113,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
     { id:"chant", label:"Voice", show: chantGateOpen && !chantUnlocked,
       state: chantNew ? "new" : "" },
     { id:"path", label: pathActive ? (CLASS_BY_ID[classState.activeClass]?.name||"Path") : "Choose Your Path",
-      show: classGateOpen, state: pathNew ? "new" : (pathActive ? "" : "") },
+      show: false, /* class quests live on the Cultivate map now */ state: pathNew ? "new" : "" },
   ].filter(x=>x.show);
 
   const heroTitle = questLine==="chant" ? "Voice"
@@ -8271,6 +8333,7 @@ export default function AscendApp(){
   const setMySel=v=>{ setMySelState(v); lsSet("ascend_mypath_sel",v); };
   const [questLineReq,setQuestLineReq]=useState(null);
   const [sessionPath,setSessionPath]=useState(null); // name of the path the running session cultivates, if any
+  const [sessionClass,setSessionClass]=useState(null); // id of that path — its trial step counts from this session
   const [scr,setScr]=useState(null);
   const [journalDraft,setJournalDraft]=useState("");
   const [savePending,setSavePending]=useState(null);
@@ -9242,9 +9305,10 @@ export default function AscendApp(){
 
     /* Foundation Trial: a qualifying ≥3-min sit/stand/walk advances the active
        class's trial while it's still in progress. */
-    if(!isA && classState.activeClass && (elapsedSecs||0)>=180 &&
+    const trialFor = sessionClass && (classState.chosenClasses||[]).includes(sessionClass) && !trialComplete(sessionClass) ? sessionClass : classState.activeClass;
+    if(!isA && trialFor && (elapsedSecs||0)>=180 &&
        ["sitting","standing","walking"].includes(typeId)){
-      const ac=classState.activeClass;
+      const ac=trialFor;
       if(!trialComplete(ac)){
         const cls=CLASS_BY_ID[ac];
         const needs=cls?.trial?.some(st=>st.type===typeId && !(classState.trialProgress[ac]||{})[st.type]);
@@ -9577,11 +9641,13 @@ export default function AscendApp(){
         <div style={{flex:1,overflowY:"auto",paddingBottom:"calc(118px + env(safe-area-inset-bottom))"}}>
           <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities} classState={classState} classGateOpen={classGateOpen} onOpenPath={cid=>{setPathView(cid);setScr("path");}}/></div>
           <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
-            classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid)=>setOpenClassQuest({classId:classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}
+            classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid,cid)=>setOpenClassQuest({classId:cid||classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}
             onOpenMyPath={()=>{ setCultMode("mine"); setMySel("center"); setTab("cultivate"); }} lineReq={questLineReq}/></div>
           <div style={{display:tab==="cultivate"?"block":"none",height:"100%"}}><CultivateTab classState={classState} sessions={sessions} jEnt={jEnt} gateOpen={classGateOpen}
             sel={cultSel} onSelect={setCultSel} onOpenPath={cid=>{setPathView(cid);setScr("path");}}
-            onChoosePath={cid=>{chooseClass(cid);setTab("quest");}}
+            onChoosePath={cid=>chooseClass(cid)}
+            onOpenClassQuest={(cid,qid)=>setOpenClassQuest({classId:cid,questId:qid})} onOpenLib={(id)=>{setTab("library");setLibOpenId(id);}}
+            onAcknowledgeTrial={acknowledgeTrialComplete} devMode={devMode} onDevSkipTrial={onDevSkipTrial}
             activities={activities} onRemoveActivity={deleteActivity}
             onAddCategoryItem={(f,{name,unit})=>setActivities(p=>p.some(a=>a.name.toLowerCase()===name.toLowerCase()) ? p
               : [...p,{id:`act_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, name, stat:f.stat, practiceType:f.practiceType||"train", unit, category:f.id, count:0}])}
@@ -9601,13 +9667,17 @@ export default function AscendApp(){
             if(cultMode==="mine" && story){
               setAnchStartType(myPractice ? (myPractice.mode||"sitting") : null);
               setSessionPath(myPractice ? myPractice.name : null);
+              setSessionClass(null);
               setAnchPractice(myPractice ? practiceActId(myPractice) : null);
               setAnch(true); return;
             }
             const cid=cultSel;
             const ready = cultReadyPath===cid;
-            setAnchStartType(ready ? CLASS_MODE[cid] : null);
-            setSessionPath(ready ? CLASS_BY_ID[cid]?.name : null);
+            /* A chosen path still in its trial: Cultivate starts its next step. */
+            const trialStep = cid && cid!=="center" && (classState?.chosenClasses||[]).includes(cid) && !trialComplete(cid) ? nextTrialStep(classState, cid) : null;
+            setAnchStartType(trialStep ? trialStep.type : ready ? CLASS_MODE[cid] : null);
+            setSessionPath(trialStep ? `${CLASS_BY_ID[cid]?.name} Trial` : ready ? CLASS_BY_ID[cid]?.name : null);
+            setSessionClass(trialStep||ready ? cid : null);
             setAnchPractice(null);
             setAnch(true);
           }} aria-label="Cultivate" style={{position:"absolute",bottom:"calc(-7px + env(safe-area-inset-bottom))",left:"50%",transform:"translateX(-50%)",zIndex:showActComplete?0:261,opacity:showActComplete?0:1,transition:"opacity .8s ease",pointerEvents:showActComplete?"none":"auto",border:"none",background:"none",cursor:"pointer",padding:0,filter:anch?`drop-shadow(0 0 16px rgba(201,168,76,0.85)) drop-shadow(0 -2px 8px ${C.glow})`:`drop-shadow(0 -2px 10px ${C.glow})`}}>
@@ -9685,7 +9755,7 @@ export default function AscendApp(){
             </div>
           </div>
         )}
-        {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");setPendingInquiry(null);setPendingReflection(null);}} onSave={e=>{const updated=[e,...jEnt];setJEnt(updated);awardJournalXP();awardEntryMasteryXP(e);if(e.tag==="inquire"&&e.question)recordInquiry(e.question);if(e.tag==="tend")checkTendQuestCompletion(updated);if(e.tag==="release")checkJournalEntryQuestCompletion(updated);setScr(null);setJournalDraft("");setPendingInquiry(null);setPendingReflection(null);}} onEntryChange={setJournalDraft} pendingInquiry={pendingInquiry} pendingReflection={pendingReflection} tendUnlocked={questActiveOrDone("healer","h_listen",classState?.questProgress||{},trialComplete)} releaseUnlocked={questActiveOrDone("healer","h_forgive",classState?.questProgress||{},trialComplete)} inquireUnlocked={!!(classState?.activeClass==="sage")}/>}
+        {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");setPendingInquiry(null);setPendingReflection(null);}} onSave={e=>{const updated=[e,...jEnt];setJEnt(updated);awardJournalXP();awardEntryMasteryXP(e);if(e.tag==="inquire"&&e.question)recordInquiry(e.question);if(e.tag==="tend")checkTendQuestCompletion(updated);if(e.tag==="release")checkJournalEntryQuestCompletion(updated);setScr(null);setJournalDraft("");setPendingInquiry(null);setPendingReflection(null);}} onEntryChange={setJournalDraft} pendingInquiry={pendingInquiry} pendingReflection={pendingReflection} tendUnlocked={questActiveOrDone("healer","h_listen",classState?.questProgress||{},trialComplete)} releaseUnlocked={questActiveOrDone("healer","h_forgive",classState?.questProgress||{},trialComplete)} inquireUnlocked={!!((classState?.chosenClasses||[]).includes("sage") && trialComplete("sage"))}/>}
         {openChantQuest && (
           <Overlay title={CHANT_QUEST.title} onBack={()=>setOpenChantQuest(false)}>
             <div style={{...dsp("9px",C.sageB,400,"0.16em"),marginBottom:"14px"}}>FOUNDATION · VOICE</div>
@@ -9749,7 +9819,7 @@ export default function AscendApp(){
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
         {scr==="path"&&pathView&&<PathPortal classId={pathView} classState={classState} sessions={sessions} jEnt={jEnt} activities={activities} onBack={()=>setScr(null)}/>}
         {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} timerVisibility={timerVisibility} setTimerVisibility={setTimerVisibility} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onDeleteCloud={handleDeleteCloud} onSignOut={handleSignOut} onVerified={handleVerified} autoCloudSync={autoCloudSync} setAutoCloudSync={setAutoCloudSync}/>}
-        {anch&&<AnchorPortal sessionTitle={sessionPath?`CULTIVATE ${sessionPath.toUpperCase()}`:"CULTIVATE"} onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={[...activities, ...practiceActivities]} initialActIds={anchPractice?[anchPractice]:[]} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchStartType || (["sitting","standing","walking"].includes(anchInitType) ? anchInitType : "sitting")} reflectUnlocked={!!classState?.questProgress?.s_reflect || (classState?.activeClass==="sage" && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={classState?.activeClass||null} unlocks={anchPractice ? {...anchorUnlocks(completedChapters), activities:true} : anchorUnlocks(completedChapters)} guideCues={!anchPractice && !anchorUnlocks(completedChapters).modifiers ? [
+        {anch&&<AnchorPortal sessionTitle={sessionPath?`CULTIVATE ${sessionPath.toUpperCase()}`:"CULTIVATE"} onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={[...activities, ...practiceActivities]} initialActIds={anchPractice?[anchPractice]:[]} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchStartType || (["sitting","standing","walking"].includes(anchInitType) ? anchInitType : "sitting")} reflectUnlocked={!!classState?.questProgress?.s_reflect || ((classState?.chosenClasses||[]).includes("sage") && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={sessionClass||classState?.activeClass||null} unlocks={anchPractice ? {...anchorUnlocks(completedChapters), activities:true} : anchorUnlocks(completedChapters)} guideCues={!anchPractice && !anchorUnlocks(completedChapters).modifiers ? [
           {s:0,  e:5,  text:"Sit comfortably."},
           {s:5,  e:10, text:"Let your eyes soften or close."},
           {s:10, e:50, text:"This is your time to simply be here, breathing, for as long as feels right."},
