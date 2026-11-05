@@ -220,6 +220,9 @@ const weekKey = (d=new Date()) => {
   const t=new Date(d); const day=(t.getDay()+6)%7; t.setDate(t.getDate()-day);
   return localDateStr(t);
 };
+/* Chant is hidden for now (quest text overhaul). All data and code stay; flip
+   to true to bring the Voice quest line back. */
+const CHANT_ENABLED = false;
 const CHANT_UNLOCK_CHAPTER = 5; // unlocks after "The Living World"
 
 /* Chant — a universal voice modifier, foundational, not class-gated.
@@ -345,7 +348,7 @@ const QUEST_CHAINS = {
       id: "w_trial",
       title: "Warrior Trial",
       isTrial: true,
-      myth: "Every path begins the same way: not with a technique, but with a vow.\n\nBefore you train, before you strike, before you learn anything that looks like power — you sit, you stand, you walk. Three minutes each. The body has its own way of agreeing to a thing, deeper than the mind's. This is that agreement, spoken in the only language the body trusts: presence, held on purpose.\n\nBut this trial asks one thing more. As you practice each form, bring your attention to a specific place in the body — and on the Ascend screen, after the timer, choose that center as where your awareness landed.\n\nSit, and rest your attention in the belly — the seat of vitality, the fire that fuels all effort.\nStand, and bring it to the root — the legs, the ground, the base of all strength.\nWalk, and let it settle in the solar plexus — the seat of will, the engine of forward motion.\n\nThree forms. Three centers. One vow. Walk through it, and the path of the Warrior opens.",
+      myth: "Prepare for the path of the Warrior.\n\nSit with attention on the belly, the seat of vitality and energy. To use it you must first feel it.\nStand and focus on your root: your legs, your feet, and the ground supporting you. This is the foundation of your strength.\nWalk and be aware of your solar plexus, the seat of will, which propels you in motion.\n\nAfter your practice, select the center you focused on to complete the trial.",
       libId: "lib_w_trial",
       criteria: "Complete the Warrior Foundation Trial: 3-min Sit, Stand, Walk.",
       unlocks: [{ kind: "practiceType", practiceType: "train" }],
@@ -353,41 +356,49 @@ const QUEST_CHAINS = {
     {
       id: "w_strength",
       title: "Strength Training",
-      myth: "You have chosen the path of iron.\n\nThere is no shortcut here, no secret technique waiting to spare you the work. The Warrior is not made in a single trial — they are forged, the way iron is forged: heated, struck, cooled, struck again, until what was soft becomes something that holds its shape under pressure. Discipline is the fire. Repetition is the hammer. What you build today, you will need tomorrow.\n\nThe body remembers what the mind forgets.\n\nThree movements. No equipment. No excuse.\n\nPushups. Squats. Core.\n\nForm first. Speed later. A hundred sloppy reps teach the body nothing but sloppiness. Perfect practice makes perfect — not just practice.",
+      myth: "Welcome to the way of the Warrior.\n\nIt is now time to forge the body.\n\nThree exercises: Pushups, Squats, Core.\n\nRemember the principles: align, relax, and breathe, as these principles are what allow you to build depth and mastery into your training.",
       libId: "lib_w_strength",
       criteria: "Accumulate 100 pushups, 100 squats, and complete Core sessions.",
       unlocks: [
-        { kind: "activity", practiceType: "train", name: "Pushups", stat: "str", target: 100, unit: "reps", category: "w_arms" },
-        { kind: "activity", practiceType: "train", name: "Squats",  stat: "str", target: 100, unit: "reps", category: "w_legs" },
-        { kind: "activity", practiceType: "train", name: "Core",    stat: "vit", target: 50, unit: "reps", category: "w_core" },
+        { kind: "activity", practiceType: "train", name: "Pushups", stat: "str", target: 100, unit: "reps", category: "w_strengthen" },
+        { kind: "activity", practiceType: "train", name: "Squats",  stat: "str", target: 100, unit: "reps", category: "w_strengthen" },
+        { kind: "activity", practiceType: "train", name: "Core",    stat: "vit", target: 50, unit: "reps", category: "w_strengthen" },
       ],
     },
     {
       id: "w_run",
       title: "Light Footed",
-      myth: "Iron that does not move is only weight.\n\nThe Warrior trains not just to be strong, but to carry that strength somewhere — and nothing reveals the will faster than the road. Long before the legs give out, the mind asks to stop. This is the secret runners learn and few others ever discover: the body rarely quits first. It is given permission.\n\nRunning is the truest test the Warrior has. No opponent, no weight, no technique to hide behind — only you, the ground, and the question of how far you're willing to go before you let yourself stop.\n\nTen kilometers. Not all at once — earn it in pieces, one stretch of ground at a time, until the distance is behind you.\n\nRun unlocked, under Endure. Find it in your Train practice.",
+      myth: "Run 10 km.",
       libId: "lib_w_run",
       criteria: "Accumulate 10 km of running.",
       unlocks: [{ kind: "activity", practiceType: "train", name: "Run", stat: "wil", target: 10, unit: "km", category: "w_endure" }],
     },
     {
+      id: "w_stretch",
+      title: "Stretch",
+      myth: "Stretch for 15 minutes. Use stretches from the library or do your own.",
+      libId: "lib_w_stretch",
+      criteria: "Accumulate 15 minutes of Stretch.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Stretch", stat: "vit", target: 15, unit: "minutes", category: "w_stretch" }],
+    },
+    {
       id: "w_measure",
       title: "The Measure",
-      myth: "You have trained. Now find out where you actually stand.\n\nOne honest test of each Fundamental: your biggest set of Arms, of Legs, of Core, and your longest Endure. Not a performance and not a competition. A mark on the doorframe, so that months from now you can stand against it again and see how far you've grown.\n\nGo to your edge, not past it. Write down what's true.\n\nThis is your baseline. Everything after is measured against you.",
+      myth: "Record your continuous maximum.",
       libId: "lib_w_measure",
-      criteria: "Log a test of each Fundamental: Arms, Legs, Core and Endure.",
+      criteria: "Log a continuous max for each: Pushups, Squats, Core and Run.",
       unlocks: [{ kind: "groups", scope: "since", recordBaseline: true, groups: [
-        { label: "Arms",   names: ["Arms","Pushups"], cat: "w_arms" },
-        { label: "Legs",   names: ["Legs","Squats"], cat: "w_legs" },
-        { label: "Core",   names: ["Core"], cat: "w_core" },
-        { label: "Endure", names: ["Endure","Run"], cat: "w_endure" },
+        { label: "Pushups", names: ["Pushups","Arms"] },
+        { label: "Squats",  names: ["Squats","Legs"] },
+        { label: "Core",    names: ["Core"] },
+        { label: "Run",     names: ["Run","Endure"], cat: "w_endure" },
       ] }],
     },
     {
       id: "w_cold",
       title: "Cold Exposure",
       minMastery: 1,
-      myth: "You have built the body. Now you are given something harder: presence with nothing to do.\n\nEvery skill before this asked you to generate something — a rep, a stride, a strike. Cold asks the opposite. It asks you to stay, while something difficult happens to you, and not flee. This is the final face of \"presence under pressure\" — not power, but stillness inside discomfort.\n\nCold Exposure is a condition you can carry into any practice — sit in it, stand in it, walk in it. Seek it where you can find it: a cold shower, an early swim, the morning air.",
+      myth: "Enter the cold. Swim, shower, cold air: expand your comfort zone.",
       libId: "lib_w_cold",
       criteria: "Practice Cold Exposure, then mark it complete.",
       unlocks: [{ kind: "activity", practiceType: "any", name: "Cold Exposure", stat: "wil" }],
@@ -397,14 +408,14 @@ const QUEST_CHAINS = {
       title: "The Proving",
       minMastery: 2,
       isCapstone: true,
-      myth: "Four Fundamentals, trained apart, day after day. Now they meet.\n\nIn one session, train them all: Arms, Legs, Core, and Endure. Not as four exercises in a row, but as one body that has become capable — pushing, carrying, holding, going the distance.\n\nIf you can, take it up a mountain. Climb, and train at the top.\n\nThe Warrior's path was never about strength for its own sake. It was about a body you can trust. This is where you find out you have one.",
+      myth: "Record your continuous max for each exercise in one session.\n\nGolden completion for training on top of a mountain or hill and pinning it on your map.",
       libId: "lib_w_proving",
-      criteria: "Train all four Fundamentals in a single session.",
+      criteria: "Log a continuous max for Pushups, Squats, Core and Run in a single session.",
       unlocks: [{ kind: "groups", scope: "single", groups: [
-        { label: "Arms",   names: ["Arms","Pushups"], cat: "w_arms" },
-        { label: "Legs",   names: ["Legs","Squats"], cat: "w_legs" },
-        { label: "Core",   names: ["Core"], cat: "w_core" },
-        { label: "Endure", names: ["Endure","Run"], cat: "w_endure" },
+        { label: "Pushups", names: ["Pushups","Arms"] },
+        { label: "Squats",  names: ["Squats","Legs"] },
+        { label: "Core",    names: ["Core"] },
+        { label: "Run",     names: ["Run","Endure"], cat: "w_endure" },
       ] }],
     },
   ],
@@ -414,7 +425,7 @@ const QUEST_CHAINS = {
       id: "h_trial",
       title: "Healer Trial",
       isTrial: true,
-      myth: "Every path begins the same way: not with a technique, but with a vow.\n\nBefore you tend, before you listen, before you offer anything to anyone — you sit, you stand, you walk. Three minutes each. The body has its own way of agreeing to a thing, deeper than the mind's. This is that agreement, spoken in the only language the body trusts: presence, held on purpose.\n\nBut this trial asks one thing more. As you practice each form, bring your attention to a specific place in the body — and on the Ascend screen, after the timer, choose that center as where your awareness landed.\n\nSit, and rest your attention in the chest — the heart, the seat of compassion and connection.\nStand, and bring it to the throat — the voice, the channel through which care reaches others.\nWalk, and let it settle in the solar plexus — the will, the resolve to keep showing up.\n\nThree forms. Three centers. One vow. Walk through it, and the path of the Healer opens.",
+      myth: "Prepare for the path of the Healer.\n\nSit with attention on your heart, the seat of compassion and connection.\nStand and focus on your throat: the voice and channel for communication.\nWalk and be aware of your solar plexus, the seat of will, which propels you in motion.\n\nAfter your practice, select the center you focused on to complete the trial.",
       libId: "lib_h_trial",
       criteria: "Complete the Healer Foundation Trial: 3-min Sit, Stand, Walk.",
       unlocks: [{ kind: "practiceType", practiceType: "restore" }],
@@ -422,28 +433,38 @@ const QUEST_CHAINS = {
     {
       id: "h_heart",
       title: "Heart Listening",
-      myth: "You have chosen the path of the open heart.\n\nThere is an old truth, found in nearly every healing tradition that has ever existed: the healer is not someone untouched by pain. It is someone who has been touched by it, and turned toward it instead of away. The ones who can sit beside another's grief without flinching are, almost always, the ones who have grieved. The wound is not what disqualifies you from this path. It is what qualifies you.\n\nEvery healer carries a wound. Not as failure. Not as something to hide until it's fixed. The wound is where the listening begins — because a heart that has never ached has nothing to recognize when it meets someone else's ache.\n\nThis path does not ask you to heal yourself first, then help others. It asks something stranger: that you turn toward your own heart with the same attention you would one day offer someone in pain. Listen to what's there. Not to fix it. Not yet. Just to hear it, fully, the way you'd want to be heard.\n\nYou cannot offer a presence you've never once given yourself.",
+      myth: "You've taken your first steps as a healer, the path of the open heart.\n\nTo open, we must first feel.\n\nListen to your heart. Look under the Restore practice.",
       libId: "lib_h_heart",
       criteria: "Accumulate 15 minutes practicing Heart Listening.",
       unlocks: [{ kind: "activity", practiceType: "restore", name: "Heart Listening", stat: "hrt", target: 15, unit: "minutes" }],
     },
     {
       id: "h_forgive",
-      title: "Forgiveness & Gratitude",
-      myth: "You listened, and you found something. Maybe an old hurt. Maybe a grudge you didn't know you were still carrying. Maybe anger at someone who never apologized, or at yourself, for something you've never once let yourself off the hook for.\n\nListening alone does not release it. You can hear a wound clearly for years and still carry it. Something more is needed — not forgetting, not pretending the harm didn't happen, but a deliberate act of setting the weight down. Forgiveness does not excuse what happened. It simply refuses to keep paying for it twice.\n\nAnd there is a reason gratitude belongs beside it, not after it. Across nearly every tradition that has ever practiced forgiveness, the same second movement appears: once the weight is set down, attention turns toward what remains. What is still good. What was never taken. Release without gratitude is only half the work — an emptying with nothing to fill the space it leaves behind.\n\nName what you're releasing. Then name what you're grateful for. Let both be true in the same breath.",
+      title: "Forgiveness",
+      myth: "Now that you can feel, it's time to let go. Find an old wound and forgive, either yourself or another. The more you can forgive, the more pain you can let go.\n\nPractice and journal under Restore.",
       libId: "lib_h_forgive",
-      criteria: "Accumulate 15 minutes practicing Forgiveness & Gratitude, and write one Release entry for each in your journal.",
+      criteria: "Accumulate 8 minutes practicing Forgiveness, and write one Forgiveness entry in Restore.",
       unlocks: [
-        { kind: "activity", practiceType: "restore", name: "Forgiveness & Gratitude", stat: "hrt", target: 15, unit: "minutes" },
+        { kind: "activity", practiceType: "restore", name: "Forgiveness", stat: "hrt", target: 8, unit: "minutes" },
         { kind: "journal", feature: "release" },
         { kind: "journalEntry", entryKind: "Forgiveness" },
+      ],
+    },
+    {
+      id: "h_gratitude",
+      title: "Gratitude",
+      myth: "After forgiveness, we can fill our hearts with gratitude. This also is a practice with infinite depth. The more practiced and skilled we are, the richer and more powerful gratitude becomes, and it shows in our lives.\n\nPractice and journal under Restore.",
+      libId: "lib_h_gratitude",
+      criteria: "Accumulate 8 minutes practicing Gratitude, and write one Gratitude entry in Restore.",
+      unlocks: [
+        { kind: "activity", practiceType: "restore", name: "Gratitude", stat: "hrt", target: 8, unit: "minutes" },
         { kind: "journalEntry", entryKind: "Gratitude" },
       ],
     },
     {
       id: "h_tension",
       title: "Tension Release",
-      myth: "Some of what the body carries was never yours to begin with. The shoulders that climbed toward the ears, the jaw clenched in your sleep — these often started as a grudge, a hurt, a held breath, long before they became habit. Now that you've begun setting some of that weight down, the body has room to follow.\n\nThree doors into the same room. Breath, slow and deliberate, telling the nervous system it's safe to stand down. Stretch, lengthening what's grown tight from years of bracing. Massage, a hand returning to a sore place, asking the muscle to soften rather than guard. None of them complicated. None of them requiring expertise — only attention, and a willingness to be slow.\n\nYou cannot release what you have never once noticed you were holding. Find the knot. Breathe into it, stretch around it, or press gently into it — whichever door is open today.",
+      myth: "In order to fill the vessel with healing qualities, we must release the destructive ones.\n\nIn this practice, we feel tension in the body and release it.\n\nBreath, massage, stretch: whichever method works best for you.",
       libId: "lib_h_tension",
       criteria: "Accumulate 30 minutes practicing Tension Release.",
       unlocks: [{ kind: "activity", practiceType: "restore", name: "Tension Release", stat: "vit", target: 30, unit: "minutes" }],
@@ -451,7 +472,7 @@ const QUEST_CHAINS = {
     {
       id: "h_voice",
       title: "Voice Work",
-      myth: "The weight has been set down. The body has begun to soften. Something in you is lighter than it was a few quests ago — and lightness, like grief, wants a way out into the air.\n\nHum. Not to perform, not to sound a certain way — simply to let a tone rise and feel where it lands. The voice travels further than most people realize. It moves down through the throat, into the chest, out through the ear and back to the part of you that governs calm. What forgiveness released in silence, the voice can finish releasing out loud.\n\nThis is the truth strange enough to be ancient: there is hardly a tradition on earth that did not, at some point, discover that the human voice itself heals. Long before instruments. Long before words had meaning, there was breath, finding a tone, and a body that listened.\n\nHum. Chant. Let a single sound rise and see what it touches.",
+      myth: "It's time to find the magic in your voice. This is not a performance. It is a tool to increase your internal sensitivity and freedom.\n\nAs you hum, chant, and sound, use different parts of your body to resonate the sound. Use the vibrations like sonar to feel and release what's happening inside you.",
       libId: "lib_h_voice",
       criteria: "Accumulate 20 minutes practicing Voice Work.",
       unlocks: [{ kind: "activity", practiceType: "restore", name: "Voice Work", stat: "voi", target: 20, unit: "minutes" }],
@@ -459,7 +480,7 @@ const QUEST_CHAINS = {
     {
       id: "h_commune",
       title: "Commune",
-      myth: "Every tradition that has ever produced a healer has, at some point, produced this same gesture: a person turning toward something larger than themselves and speaking, then falling silent to listen for what comes back. Shamans, sangomas, curanderas, healers under a hundred different names across every continent — the details differ, but the shape repeats too consistently to be coincidence. Whatever else a healer does, they are rarely only a technician. They are, almost always, also someone who communes.\n\nThere is no name precise enough for what's on the other end — call it the divine, call it the field, call it the simple fact that nothing alive exists alone. You do not have to name it. You only have to stop insisting you are separate from it, long enough to actually speak and actually listen.\n\nThis is the concrete shape of it: say what's true in your heart right now — aloud or silently, doesn't matter. Not a performance, not the words you think you should say. Whatever's actually there. Then stop. Go quiet. Don't fill the silence with your own analysis of what you just said. Simply wait, and notice what arises in the space that's left.\n\nYou may get something back that feels like an answer. You may get nothing at all but the quality of the silence itself. Both are real outcomes of this practice. The communing is in the asking and the waiting — not in what, if anything, replies.",
+      myth: "Connect with something larger than yourself: the divine, the field, the universe, God, the source… A healer heals from a place of abundant love.\n\nConnect and share all of yourself: your desires, your worries, your questions. Share, and then listen. In any good conversation there is a two-way dialogue.",
       libId: "lib_h_commune",
       criteria: "Accumulate 30 minutes practicing Commune.",
       unlocks: [{ kind: "activity", practiceType: "restore", name: "Commune", stat: "ali", target: 30, unit: "minutes" }],
@@ -467,9 +488,9 @@ const QUEST_CHAINS = {
     {
       id: "h_listen",
       title: "Deep Listening",
-      myth: "Everything so far has been practiced alone. This is the first time it's asked of you with someone else in the room.\n\nThe instinct will be to fix. Someone shares their pain, and something in you reaches for a solution, a reassurance, anything to close the gap before it grows uncomfortable. Resist it. No one in pain is asking to be repaired. They are asking to be heard — fully, without your own thoughts crowding the space meant for theirs.\n\nThis is why the path began with you, and why it asked you to release what you were carrying before it asked you to hold someone else's. A heart still gripping its own grievance will flinch at someone else's, or worse, make it about its own. Empty yourself. Leave space. Let their words land before you decide what they mean.\n\nYou already practiced this when no one was watching. Now you'll discover whether it was real.\n\nTend unlocked. Mark it in your journal whenever you hold space for someone, with how long it lasted.",
+      myth: "People carry pain, and sometimes it's hard to just listen. We often try to deflect, defend, fix, or escape, without just being there and really listening and feeling what the person is sharing.\n\nThis practice is to do just that: listen deeply.\n\nWrite your experience in the journal under Deep Listening.",
       libId: "lib_h_listen",
-      criteria: "Accumulate 30 minutes of Deep Listening, logged in Tend.",
+      criteria: "Accumulate 30 minutes of Deep Listening, logged in Restore.",
       unlocks: [
         { kind: "journal", feature: "tend" },
         { kind: "tend", tendKind: "Deep Listening", target: 30, unit: "minutes" },
@@ -479,9 +500,9 @@ const QUEST_CHAINS = {
       id: "h_service",
       title: "Service",
       isCapstone: true,
-      myth: "Heart Listening turned you toward yourself. Tension Release and Voice Work tended what you found there. Commune turned attention toward something larger than yourself. Deep Listening turned that same attention toward someone else. This is the last turn, and it asks for hands, not just presence — when listening isn't enough, and something in the world actually needs doing.\n\nThere's an old question worth asking honestly: is any service truly selfless? You will likely feel something when you help — lighter, more useful, closer to the person you're becoming. That isn't a flaw in the act. It's simply true, and pretending otherwise helps no one. The danger isn't feeling good when you serve. The danger is needing someone else's need in order to feel good about yourself at all. Serve because it's needed, not because you require it to feel whole.\n\nEverything this path has built — the heart that listens, the weight set down, the voice that releases, the silence that communes — was never meant to end in a feeling. It was meant to end in your hands, doing something real for someone who actually needed it.\n\nMark each act in your Tend journal, with how long it took.",
+      myth: "Help others without expectation of reward.",
       libId: "lib_h_service",
-      criteria: "Accumulate 45 minutes of Service, logged in Tend.",
+      criteria: "Accumulate 45 minutes of Service, logged in Restore.",
       unlocks: [
         { kind: "tend", tendKind: "Service", target: 45, unit: "minutes" },
       ],
@@ -997,7 +1018,7 @@ function migrateActivityMetadata(activities){
       if(u.kind==="activity") unlockByName[u.name]=u;
     }));
   });
-  const RETIRED_FUND = ["fund_w_arms","fund_w_legs","fund_w_core","fund_w_endure"];
+  const RETIRED_FUND = ["fund_w_arms","fund_w_legs","fund_w_core","fund_w_endure","fund_h_body","fund_h_heart","fund_h_rel","fund_h_world"];
   return activities.filter(a=>!(a && RETIRED_FUND.includes(a.id))).map(a=>{
     /* One-time rename: "Communion" was renamed to "Commune" — anyone who
        already has the old-named activity gets it renamed in place (id and
@@ -1005,6 +1026,14 @@ function migrateActivityMetadata(activities){
        up with an orphaned old activity AND a fresh duplicate at count 0. */
     if(a.name==="Communion"){
       a = {...a, id:"cls_commune", name:"Commune"};
+    }
+    /* Fundamentals redesign: Arms/Legs/Core merged into Strengthen; the
+       Healer's "Forgiveness & Gratitude" became Forgiveness (id and count kept). */
+    if(a.category==="w_arms"||a.category==="w_legs"||a.category==="w_core"){
+      a = {...a, category:"w_strengthen"};
+    }
+    if(a.name==="Forgiveness & Gratitude"){
+      a = {...a, name:"Forgiveness"};
     }
     if(a.id==="bonus_w_cold" && a.masteryBonus){
       const { masteryBonus, bonusPath, ...rest } = a;
@@ -1049,6 +1078,19 @@ function migrateClassState(cs){
     const legacyDone = OLD_WARRIOR.every(id=>q2[id]);
     out = { ...out, warriorRestructured:true,
       questProgress: legacyDone ? { ...q2, w_measure:true, w_cold:true, w_proving:true } : q2 };
+  }
+  /* Stretch (Warrior) and Gratitude (Healer) were added to their chains:
+     anyone already past the quest just before them is credited, so nobody is
+     pushed back behind a quest they have effectively outgrown. */
+  if(!out.warriorStretchAdded){
+    const q3 = out.questProgress || {};
+    out = { ...out, warriorStretchAdded:true,
+      questProgress: (q3.w_measure && !q3.w_stretch) ? { ...q3, w_stretch:true } : q3 };
+  }
+  if(!out.healerGratitudeAdded){
+    const q4 = out.questProgress || {};
+    out = { ...out, healerGratitudeAdded:true,
+      questProgress: (q4.h_forgive && !q4.h_gratitude) ? { ...q4, h_gratitude:true } : q4 };
   }
   return out;
 }
@@ -1106,16 +1148,14 @@ const FUNDAMENTALS = {
     /* Categories, not activities: each holds its exercises (Pushups under
        Arms…) and whatever the player adds. `legacy` names count old history
        logged under the category's own name. */
-    { id:"w_arms",   name:"Arms",   activity:false, category:true, unit:"reps",    stat:"str", practiceType:"train", variations:"Pushups, rows, chin-ups, hangs", sources:["Pushups"], legacy:["Arms"],   unlockQuest:"w_strength" },
-    { id:"w_legs",   name:"Legs",   activity:false, category:true, unit:"reps",    stat:"str", practiceType:"train", variations:"Squats, lunges, step-ups",       sources:["Squats"],  legacy:["Legs"],   unlockQuest:"w_strength" },
-    { id:"w_core",   name:"Core",   activity:false, category:true, unit:"reps",    stat:"vit", practiceType:"train", variations:"Sit-ups, planks, leg raises",    sources:["Core"],    legacy:[],         unlockQuest:"w_strength" },
-    { id:"w_endure", name:"Endure", activity:false, category:true, unit:"minutes", stat:"wil", practiceType:"train", variations:"Run, hike, swim, cycle",         sources:["Run"],     legacy:["Endure"], unlockQuest:"w_run" },
+    { id:"w_strengthen", name:"Strengthen", activity:false, category:true, unit:"reps",    stat:"str", practiceType:"train", variations:"Pushups, squats, core, chin-ups, lunges", sources:["Pushups","Squats","Core"], legacy:["Arms","Legs"], unlockQuest:"w_strength" },
+    { id:"w_stretch",   name:"Stretch",    activity:false, category:true, unit:"minutes", stat:"vit", practiceType:"train", variations:"Chest, hips, hamstrings, calves, spine",   sources:["Stretch"],                  legacy:[],               unlockQuest:"w_stretch" },
+    { id:"w_endure",    name:"Endure",     activity:false, category:true, unit:"minutes", stat:"wil", practiceType:"train", variations:"Run, hike, swim, cycle",                   sources:["Run"],                      legacy:["Endure"],       unlockQuest:"w_run" },
   ],
   healer: [
-    { id:"h_body",  name:"Body",          unit:"minutes", stat:"vit", practiceType:"any", variations:"Release, breath, rest, toning",          sources:["Tension Release","Voice Work"] },
-    { id:"h_heart", name:"Heart",         unit:"minutes", stat:"hrt", practiceType:"any", variations:"Heart listening, forgiveness, gratitude", sources:["Heart Listening","Forgiveness & Gratitude"], journal:[{tag:"release"}] },
-    { id:"h_rel",   name:"Relationships", unit:"minutes", stat:"hrt", practiceType:"any", variations:"Deep listening, kind speech, repair",     sources:[], journal:[{tag:"tend", tendKind:"Deep Listening"}] },
-    { id:"h_world", name:"World",         unit:"minutes", stat:"wil", practiceType:"any", variations:"Service, tending people and places",     sources:[], journal:[{tag:"tend", tendKind:"Service"}] },
+    { id:"h_feel",    name:"Feel",    unit:"minutes", stat:"hrt", practiceType:"any", variations:"Heart listening, commune, deep listening", sources:["Heart Listening","Commune"], legacy:["Heart","Relationships"], journal:[{tag:"tend", tendKind:"Deep Listening"}] },
+    { id:"h_release", name:"Release", unit:"minutes", stat:"vit", practiceType:"any", variations:"Tension release, voice work, forgiveness", sources:["Tension Release","Voice Work","Forgiveness"], legacy:["Forgiveness & Gratitude","Body"], journal:[{tag:"release", releaseKind:"Forgiveness"}] },
+    { id:"h_nourish", name:"Nourish", unit:"minutes", stat:"hrt", practiceType:"any", variations:"Gratitude, service, tending people and places", sources:["Gratitude"], legacy:["World"], journal:[{tag:"release", releaseKind:"Gratitude"},{tag:"tend", tendKind:"Service"}] },
   ],
   sage: [
     { id:"s_observe", name:"Observe", unit:"minutes", stat:"wis", practiceType:"sitting", variations:"Sound, thought, emotion, body, attention", sources:["Observe Sound","Observe Thought","Observe Emotion","Observe Body","Observe Attention"], unlockQuest:"s_sound" },
@@ -1141,7 +1181,7 @@ const FUNDAMENTALS = {
   ],
 };
 const FUND_MARKS = [7, 21, 49, 108, 216, 365, 1000];
-/* category id → its path, e.g. w_arms → warrior */
+/* category id → its path, e.g. w_strengthen → warrior */
 const FUND_OWNER = Object.fromEntries(Object.entries(FUNDAMENTALS).flatMap(([cid,fs])=>fs.map(f=>[f.id,cid])));
 const fundMatches = (f, a) => a && (a.name===f.name && f.activity!==false || (f.sources||[]).includes(a.name) || (f.legacy||[]).includes(a.name) || (f.category && a.category===f.id));
 
@@ -1852,7 +1892,7 @@ function playGong(ctx){
   }catch(e){}
 }
 
-function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting", reflectUnlocked=false, unlockedPracticeTypes=[], unlocks={modifiers:true,pause:true,pin:true,practiceType:true,activities:true,centers:true}, guideCues=null, activeClassId=null, timerVisibility="reveal", initialActIds=[] }){
+function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting", reflectUnlocked=false, unlockedPracticeTypes=[], unlocks={modifiers:true,pause:true,pin:true,practiceType:true,activities:true,centers:true}, guideCues=null, activeClassId=null, timerVisibility="reveal", initialActIds=[], requireCenter=false }){
   const [phase,setPhase]       = useState("active");
   const [running,setRunning]   = useState(startImmediately);
   const [t,setT]               = useState(0);
@@ -2386,6 +2426,7 @@ function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, librar
                 );
               })}
             </div>
+            {requireCenter && awarenessLanding.length===0 && <div style={{...body("10px",C.gold),fontStyle:"italic",marginTop:"7px",textAlign:"center"}}>Select the center you focused on to complete this trial step.</div>}
             {awarenessLanding.length>0&&<div style={{...body("10px",C.dim),fontStyle:"italic",marginTop:"7px",textAlign:"center"}}>30% redirected to {awarenessLanding.length===1?awarenessLanding[0]:`${awarenessLanding.length} centers`}</div>}
           </div>
           )}
@@ -3561,9 +3602,21 @@ const LIBRARY_ENTRIES = [
     practice:"10 minutes without a destination or device. Establish alignment before you begin walking. Let the pace be slower than normal. Feel the contact of each step. Notice when the mind leaves and return to the body each time." },
 
   /* ── PATH SKILLS (barebone stubs — fill detailed instruction later) ── */
+  { id:"lib_w_stretch", unlock:0, section:"Path Skills", pathId:"warrior", pathName:"Warrior", skillUnlockQuest:"w_stretch",
+    title:"Stretch", sub:"Warrior", sc:"vit",
+    body:[
+      "Stretching keeps the muscles you train long, strong and free of strain. Strength built without length turns into stiffness; a stretch after training is how the work settles in.",
+      "How to stretch: hold each position about 30 seconds. Breathe slowly, and let the exhale soften you a little deeper. Never bounce, and never push into pain. Stop at a strong, even pull.",
+      "For Pushups: doorway chest stretch, cross-body shoulder stretch, wrist stretch (palm out, fingers pointing down).",
+      "For Squats: standing quad stretch, standing hamstring reach, calf stretch against a wall, figure-four glute stretch.",
+      "For Core: cat-cow, child's pose, low-lunge hip flexor stretch, seated twist.",
+      "For Running: the calf, quad, hamstring and hip flexor stretches above."
+    ],
+    practice:"Pick three stretches, hold each for 30 seconds per side, and repeat the round until 15 minutes are done. Or use your own." },
+
   CHANT_LIBRARY_STUB,
   ...Object.entries(QUEST_CHAINS).filter(([cid])=>cid!=="healer"&&cid!=="mystic").flatMap(([cid,chain]) =>
-    chain.filter(q=>!q.isTrial).map(q=>({
+    chain.filter(q=>!q.isTrial && q.libId!=="lib_w_stretch").map(q=>({
       id:q.libId, unlock:0, section:"Path Skills",
       pathId:cid, pathName:(CLASS_BY_ID[cid]?.name)||"",
       skillUnlockQuest:q.id,
@@ -3586,13 +3639,21 @@ const LIBRARY_ENTRIES = [
     practice:"During a Sit, rest attention in the chest. When a feeling arises, name it quietly ('this is sadness,' 'this is relief') without elaborating on why. Stay with it for a few breaths before letting it go." },
 
   { id:"lib_h_forgive", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_forgive",
-    title:"Forgiveness & Gratitude", sub:"Healer", sc:"hrt",
+    title:"Forgiveness", sub:"Healer", sc:"hrt",
     body:[
-      "This practice pairs two deliberate acts. First, naming something you're ready to set down — a grudge, a disappointment, a way you've held yourself accountable for too long. Second, naming something genuinely good that's still true, right now, regardless of the first thing.",
-      "Forgiveness here doesn't mean deciding the harm didn't matter, or owing anyone an apology on their behalf. It means refusing to keep paying for something twice — once when it happened, and again, every day since, by carrying it. You can release the weight without rewriting the facts.",
-      "Gratitude isn't tacked on as a nicety. It's the second half of the same motion: once a hand opens to let something go, it has room to hold something else. Naming what's still good isn't denial of what was hard — it's simply true, at the same time, and worth saying out loud."
+      "Forgiveness is a deliberate act of naming something you're ready to set down: a grudge, a disappointment, a way you've held yourself accountable for too long.",
+      "It doesn't mean deciding the harm didn't matter, or owing anyone an apology on their behalf. It means refusing to keep paying for something twice, once when it happened, and again every day since by carrying it. You can release the weight without rewriting the facts.",
+      "It can be aimed at another person or at yourself. The more you can forgive, the more pain you can let go."
     ],
-    practice:"Speak or write one sentence naming what you're releasing, and one sentence naming something you're grateful for, in the same sitting. Once both feel real, put each into its own Release entry in the journal — one tagged Forgiveness, one tagged Gratitude — to complete the quest alongside your 15 minutes of practice." },
+    practice:"Speak or write one sentence naming what you're releasing. Stay with it until something loosens. Then open Restore in the journal, select Forgiveness, and write your entry to complete the quest alongside your 8 minutes of practice." },
+
+  { id:"lib_h_gratitude", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_gratitude",
+    title:"Gratitude", sub:"Healer", sc:"hrt",
+    body:[
+      "Gratitude is the second half of the same motion as forgiveness: once a hand opens to let something go, it has room to hold something else.",
+      "Naming what's still good isn't denial of what was hard. It's simply true, at the same time, and worth saying out loud. Like every practice on this path it has infinite depth. The more practiced and skilled you are, the richer and more powerful it becomes, and it shows in your life."
+    ],
+    practice:"Bring to mind something genuinely good that is still true right now, and let yourself feel it rather than just list it. Then open Restore in the journal, select Gratitude, and write your entry to complete the quest alongside your 8 minutes of practice." },
 
   { id:"lib_h_tension", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_tension",
     title:"Tension Release", sub:"Healer", sc:"vit",
@@ -3608,27 +3669,27 @@ const LIBRARY_ENTRIES = [
     body:[
       "Voice Work uses sustained sound — humming, toning, a single repeated note — as a way to finish releasing what breath and stillness loosen but don't always carry all the way out. The voice moves through the chest and throat in a way silence doesn't reach.",
       "This isn't singing, and there's no note to get right. Let a tone rise from wherever it wants to, hold it as long as a breath allows, and notice where it resonates — chest, throat, the bones of the face. Some traditions call this toning; the mechanism is simple: sustained vocal vibration is a real, felt sensation that pulls attention out of the head and into the body.",
-      "Because Voice Work is genuinely active rather than meditative, it tends to ask more of you per minute than a quiet sit — which is part of why it counts for more. Real practice here is unmistakable: your throat will know the difference between a held tone and a mumble."
+      "Because Voice Work is genuinely active rather than meditative, it tends to ask more of you per minute than a quiet sit. Real practice here is unmistakable: your throat will know the difference between a held tone and a mumble."
     ],
     practice:"Take a full breath and let out a low, sustained hum until the breath runs out, several times in a row. Notice where you feel it most — chest, throat, skull — without trying to control the pitch." },
 
   { id:"lib_h_listen", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_listen",
     title:"Deep Listening", sub:"Healer", sc:"hrt",
     body:[
-      "Deep Listening happens with someone else present, which is why it doesn't live in a timed session — it lives in your Tend journal, logged afterward with however long it actually lasted. The skill is the same one Heart Listening built, now turned outward.",
+      "Deep Listening happens with someone else present, which is why it doesn't live in a timed session — it lives in your Restore journal, logged afterward with however long it actually lasted. The skill is the same one Heart Listening built, now turned outward.",
       "The instinct to fix is the thing to resist hardest. Someone in pain is usually not asking for a solution — they're asking to be heard without your own reactions, advice, or discomfort crowding the space meant for theirs. Empty yourself first. Let their words land fully before deciding what they mean.",
       "A real Deep Listening session usually runs somewhere between 10 and 30 minutes — long enough that performing presence gives way to actually holding it. Log the real length afterward; the honesty of that number is part of the practice. Across a few real instances, this adds up — 30 minutes total is well within reach without inflating anything."
     ],
-    practice:"After holding space for someone, open Tend in the journal, select Deep Listening, and log roughly how long it lasted. Write only what you're moved to write — the duration matters more than the word count." },
+    practice:"After holding space for someone, open Restore in the journal, select Deep Listening, and log roughly how long it lasted. Write only what you're moved to write — the duration matters more than the word count." },
 
   { id:"lib_h_service", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_service",
     title:"Service", sub:"Healer", sc:"wil",
     body:[
-      "Service is the same chain made physical — listening turned into hands actually doing something. Like Deep Listening, it happens in the world rather than in a session, and gets logged afterward in Tend with however long it took.",
+      "Service is the same chain made physical — listening turned into hands actually doing something. Like Deep Listening, it happens in the world rather than in a session, and gets logged afterward in Restore with however long it took.",
       "It doesn't need to be large. A genuine act that actually helped someone who actually needed it — that's the whole bar. The act doesn't need witnesses, and it doesn't need to feel selfless to count; feeling lighter after helping is human, not a flaw to suppress.",
       "The only real test: did this serve someone else's need, or did it mainly serve your need to feel useful? Both can be true at once, and that's fine — the practice is doing it because it was needed, not because you required it. As the path's final ask, this one accumulates across however many real acts it takes — 45 minutes total, however that's reached."
     ],
-    practice:"After a genuine act of service, open Tend, select Service, and log roughly how long it took. No need to describe it in detail unless something about it is worth keeping." },
+    practice:"After a genuine act of service, open Restore in the journal, select Service, and log roughly how long it took. No need to describe it in detail unless something about it is worth keeping." },
 
   { id:"lib_h_commune", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_commune",
     title:"Commune", sub:"Healer", sc:"ali",
@@ -3834,7 +3895,7 @@ const CM_ICONS = {
 };
 /* Planned paths: on the map, no quest chain yet. */
 const CM_COMING = [
-  { id:"sword",     name:"Sword Saint", parents:["healer","warrior"], accent:"#8FD0D6", blurb:"Healer and Warrior, joined." },
+  { id:"sword",     name:"Sword Saint", parents:["healer","warrior"], accent:"#8FD0D6", blurb:"Healer and Warrior, joined.", foundations:["Divine Sword","Intent Action","Feel Future"] },
   { id:"wizard",    name:"Wizard",      parents:["sage"],             accent:"#9FB4F2", blurb:"A path that grows from Sage." },
   { id:"herbalist", name:"Herbalist",   parents:["healer"],           accent:"#A8C66C", blurb:"Healing through plants and preparations." },
 ];
@@ -3918,7 +3979,7 @@ function fundamentalDetail(f, sessions=[], jEnt=[], activities=[]){
   });
   const journalRows=[];
   (f.journal||[]).forEach(j=>{
-    const label = j.tag==="tend" ? `Tend · ${j.tendKind}` : j.tag==="release" ? "Release entries" : j.tag==="inquire" ? "Inquiries" : j.tag;
+    const label = j.tag==="tend" ? `Restore · ${j.tendKind}` : j.tag==="release" ? (j.releaseKind?`${j.releaseKind} entries`:"Release entries") : j.tag==="inquire" ? "Inquiries" : j.tag;
     const row={name:label, journal:true, days:new Set(), total:0, unit:j.tag==="tend"?"min":"entries"};
     (jEnt||[]).forEach(e=>{
       if(!(e.tag===j.tag && (!j.tendKind||e.tendKind===j.tendKind) && (!j.releaseKind||e.releaseKind===j.releaseKind))) return;
@@ -4372,7 +4433,14 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
                 <div key={x} style={{...body("15px",C.cream),padding:"9px 0",borderBottom:`0.5px solid ${C.bord}`}}>{x}</div>
               ))}
             </div>
-          ) : !selNode.real ? null : st.chosen && !trialDone ? (
+          ) : !selNode.real ? (selNode.foundations ? (
+            <div>
+              <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"6px 0 4px"}}>FOUNDATIONS</div>
+              {selNode.foundations.map(x=>(
+                <div key={x} style={{...body("15px",C.cream),padding:"9px 0",borderBottom:`0.5px solid ${C.bord}`}}>{x}</div>
+              ))}
+            </div>
+          ) : null) : st.chosen && !trialDone ? (
             <TrialSteps cls={CLASS_BY_ID[selNode.id]} classState={classState} devMode={devMode} onDevSkipTrial={onDevSkipTrial}/>
           ) : st.chosen && !celebrated ? (
             <TrialCompleteScreen classId={selNode.id} onContinue={()=>onAcknowledgeTrial(selNode.id)}/>
@@ -5025,7 +5093,7 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
         </div>
       ) : hasTendTargets ? (
         <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
-          {tendsMet ? "Logged enough — completing…" : "Log each real instance in your Tend journal to track progress."}
+          {tendsMet ? "Logged enough — completing…" : "Log each real instance in Restore to track progress."}
         </div>
       ) : groupUnlock ? (
         <div>
@@ -7654,17 +7722,21 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
   );
 }
 
-function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, pendingReflection=null, tendUnlocked=false, inquireUnlocked=false, releaseUnlocked=false }){
+function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, pendingReflection=null, restoreKinds=[], inquireUnlocked=false }){
   const [mood,setMood]=useState(null),[bdy,setBdy]=useState(null),[entry,setEntry]=useState(""),[saved,setSaved]=useState(false);
-  /* mode: "normal" | "inquire" | "tend" | "reflect". Release (Forgiveness/Gratitude)
-     is an optional tag within normal Entry, not its own mode. "reflect" is a
+  /* mode: "normal" | "inquire" | "restore" | "reflect". Restore holds the
+     Healer's journaled practices: Forgiveness, Gratitude (release entries),
+     Deep Listening and Service (timed "tend" entries). Each kind appears once
+     its quest is active. "reflect" is a
      guided reflection — an Act quest step: the chapter asks, you answer once.
      (Distinct from Inquire, which is the Sage's returnable living practice.) */
   const [mode,setMode]=useState(pendingReflection?"reflect":pendingInquiry?"inquire":"normal");
   const [question,setQuestion]=useState(pendingInquiry||"");
-  const [tendKind,setTendKind]=useState(null); // "Deep Listening" | "Service"
+  const [restoreKind,setRestoreKind]=useState(null); // "Forgiveness" | "Gratitude" | "Deep Listening" | "Service"
   const [tendMins,setTendMins]=useState("");
-  const [releaseKind,setReleaseKind]=useState(null); // null | "Forgiveness" | "Gratitude"
+  const kind = mode==="restore" ? (restoreKinds.includes(restoreKind)?restoreKind:restoreKinds[0]||null) : null;
+  const isRelease = kind==="Forgiveness" || kind==="Gratitude";
+  const isTimed = kind==="Deep Listening" || kind==="Service";
   useEffect(()=>{ if(pendingInquiry){ setMode("inquire"); setQuestion(pendingInquiry); } },[pendingInquiry]);
   useEffect(()=>{ if(pendingReflection){ setMode("reflect"); } },[pendingReflection]);
 
@@ -7675,16 +7747,16 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, pen
     const e={text:entry.trim(),mood,body:bdy,date};
     if(mode==="inquire"){ e.tag="inquire"; e.question=question.trim(); }
     else if(mode==="reflect" && pendingReflection){ e.tag="reflection"; e.refId=pendingReflection.refId; e.prompt=pendingReflection.prompt; }
-    else if(mode==="tend"){ e.tag="tend"; e.tendKind=tendKind||"Deep Listening"; const m=parseFloat(tendMins); if(!isNaN(m)&&m>0) e.tendMinutes=m; }
-    else if(mode==="normal" && releaseKind){ e.tag="release"; e.releaseKind=releaseKind; }
+    else if(mode==="restore" && isTimed){ e.tag="tend"; e.tendKind=kind; const m=parseFloat(tendMins); if(!isNaN(m)&&m>0) e.tendMinutes=m; }
+    else if(mode==="restore" && isRelease){ e.tag="release"; e.releaseKind=kind; }
     onSave(e);
     setSaved(true);
-    setTimeout(()=>{setEntry("");setMood(null);setBdy(null);setSaved(false);setTendMins("");setReleaseKind(null);},1100);
+    setTimeout(()=>{setEntry("");setMood(null);setBdy(null);setSaved(false);setTendMins("");},1100);
   };
 
   const modeTabs=[["normal","Entry"]];
   if(inquireUnlocked) modeTabs.push(["inquire","Inquire"]);
-  if(tendUnlocked) modeTabs.push(["tend","Restore"]);
+  if(restoreKinds.length) modeTabs.push(["restore","Restore"]);
 
   return (
     <Overlay title={mode==="reflect"?"Reflection":"Journal"} onBack={onBack}>
@@ -7710,37 +7782,33 @@ function JournalScreen({ onBack, onSave, onEntryChange, pendingInquiry=null, pen
         </div>
       )}
 
-      {mode==="tend" && (
+      {mode==="restore" && (
         <div style={{marginBottom:"16px"}}>
-          <div style={{...body("12px",C.muted),marginBottom:"7px"}}>What kind of moment?</div>
-          <Chips opts={["Deep Listening","Service"]} sel={tendKind} onSel={setTendKind}/>
-          <div style={{...body("12px",C.muted),marginTop:"14px",marginBottom:"7px"}}>About how long did it last?</div>
-          <input type="number" min="0" inputMode="decimal" value={tendMins} onChange={e=>setTendMins(e.target.value)} placeholder="minutes"
-            style={{width:"120px",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.cream,...body("15px"),padding:"9px 12px",boxSizing:"border-box",outline:"none",caretColor:C.sageB}}/>
+          <div style={{...body("12px",C.muted),marginBottom:"7px"}}>What are you recording?</div>
+          <Chips opts={restoreKinds} sel={kind} onSel={setRestoreKind}/>
+          {isTimed && <>
+            <div style={{...body("12px",C.muted),marginTop:"14px",marginBottom:"7px"}}>About how long did it last?</div>
+            <input type="number" min="0" inputMode="decimal" value={tendMins} onChange={e=>setTendMins(e.target.value)} placeholder="minutes"
+              style={{width:"120px",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.cream,...body("15px"),padding:"9px 12px",boxSizing:"border-box",outline:"none",caretColor:C.sageB}}/>
+          </>}
         </div>
       )}
 
       {mode==="normal" && <>
-        {releaseUnlocked && (
-          <div style={{marginBottom:"16px"}}>
-            <div style={{...body("12px",C.muted),marginBottom:"7px"}}>Tag this entry (optional)</div>
-            <Chips opts={["Forgiveness","Gratitude"]} sel={releaseKind} onSel={k=>setReleaseKind(p=>p===k?null:k)}/>
-          </div>
-        )}
         <SL title="How are you right now?"/>
         <div style={{marginBottom:"14px"}}><div style={{...body("12px",C.muted),marginBottom:"7px"}}>Mood</div><Chips opts={MOODS} sel={mood} onSel={setMood}/></div>
         <div style={{marginBottom:"22px"}}><div style={{...body("12px",C.muted),marginBottom:"7px"}}>Body</div><Chips opts={BODY} sel={bdy} onSel={setBdy}/></div>
       </>}
 
-      <SL title={mode==="inquire"?"Sit with it. Then answer.":mode==="tend"?"Reflect":releaseKind==="Gratitude"?"What's still good?":releaseKind==="Forgiveness"?"What are you setting down?":"Entry"}/>
-      <textarea value={entry} onChange={e=>{setEntry(e.target.value);setSaved(false);onEntryChange&&onEntryChange(e.target.value);}} placeholder={mode==="inquire"?"Let the question work on you before you work on it…":mode==="reflect"?"Begin wherever it starts.":mode==="tend"?"What happened? What did you notice?":releaseKind==="Gratitude"?"What's still true, still good, never taken?":releaseKind==="Forgiveness"?"Name it. You don't have to excuse it, just set it down.":"What do you notice right now?"} rows={7} style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("15px"),padding:"12px",resize:"none",boxSizing:"border-box",outline:"none",lineHeight:"1.7",caretColor:C.sageB}}/>
+      <SL title={mode==="inquire"?"Sit with it. Then answer.":mode==="restore"?(kind==="Gratitude"?"What's still good?":kind==="Forgiveness"?"What are you setting down?":"Reflect"):"Entry"}/>
+      <textarea value={entry} onChange={e=>{setEntry(e.target.value);setSaved(false);onEntryChange&&onEntryChange(e.target.value);}} placeholder={mode==="inquire"?"Let the question work on you before you work on it…":mode==="reflect"?"Begin wherever it starts.":mode==="restore"?(kind==="Gratitude"?"What's still true, still good, never taken?":kind==="Forgiveness"?"Name it. You don't have to excuse it, just set it down.":"What happened? What did you notice?"):"What do you notice right now?"} rows={7} style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("15px"),padding:"12px",resize:"none",boxSizing:"border-box",outline:"none",lineHeight:"1.7",caretColor:C.sageB}}/>
       <button onClick={save} style={{marginTop:"10px",padding:"10px 20px",background:canSave&&!saved?`rgba(${C.sageRGB},0.12)`:"transparent",border:`0.5px solid ${canSave&&!saved?C.sageB:C.bord}`,...dsp("9px",canSave&&!saved?C.sageB:C.muted,400,"0.14em"),cursor:"pointer",borderRadius:"6px"}}>{saved?"✓ SAVED":"SAVE ENTRY"}</button>
     </Overlay>
   );
 }
 
 function LogsScreen({ onBack, sessions, jEntries }){
-  const [tab,setTab]=useState("timeline"),[exp,setExp]=useState(null);
+  const [tab,setTab]=useState("charts"),[exp,setExp]=useState(null);
   const [range,setRange]=useState("week"); // "week" | "month" | "3months" — charts tab only
   const TC={"Sit":C.gold,"Stand":C.sage,"Walk":C.slate,"Move":"#b06a52","Train":"#9b8550","Create":"#6b9e8e","Serve":"#b8834a","Anchor":`rgba(${C.sageRGB},0.55)`};
   const todayISO=new Date().toISOString().slice(0,10);
@@ -8857,7 +8925,7 @@ export default function AscendApp(){
   /* The nav's Cultivate button is gold while the class map is the screen in view
      (or a session it started is running), grey everywhere else. */
   const cultOn = (tab==="cultivate" && !scr) || anch;
-  const chantGateOpen = devMode || completedChapters.includes(CHANT_UNLOCK_CHAPTER);
+  const chantGateOpen = CHANT_ENABLED && (devMode || completedChapters.includes(CHANT_UNLOCK_CHAPTER));
 
   /* Apply a quest's unlocks (activities, journal features, practice types)
      immediately — this is called the moment a quest becomes ACTIVE, not when
@@ -9306,7 +9374,10 @@ export default function AscendApp(){
     /* Foundation Trial: a qualifying ≥3-min sit/stand/walk advances the active
        class's trial while it's still in progress. */
     const trialFor = sessionClass && (classState.chosenClasses||[]).includes(sessionClass) && !trialComplete(sessionClass) ? sessionClass : classState.activeClass;
-    if(!isA && trialFor && (elapsedSecs||0)>=180 &&
+    /* Trial steps also require choosing the center you focused on (once the
+       center selector is available), as the trial text asks. */
+    const centerOk = lands.length>0 || !controlUnlocked("centers", completedChapters);
+    if(!isA && trialFor && (elapsedSecs||0)>=180 && centerOk &&
        ["sitting","standing","walking"].includes(typeId)){
       const ac=trialFor;
       if(!trialComplete(ac)){
@@ -9367,6 +9438,10 @@ export default function AscendApp(){
     if(onboarding==="intro"){ const t=setTimeout(()=>setObFade(true),80); return ()=>clearTimeout(t); }
   },[onboarding]);
 
+  useEffect(()=>{
+    if(onboarding==="brand") setOnboarding(storyForged(way)?"intro":"start");
+  },[onboarding, way]);
+
   // Fade-in sequence for "Who are you, really?" section
   useEffect(()=>{
     if(!nameInput.trim()){ setOb1FadeStep(0); return; }
@@ -9419,29 +9494,11 @@ export default function AscendApp(){
 
   FONT_SCALE = fontScale; // apply at render time so all body()/dsp() calls reflect current scale
 
-  /* ── BRAND SCREEN ── */
+  /* The old brand splash is gone: a new user lands straight on the Forge start
+     page. "brand" is kept only as a transient value (fresh install, reset,
+     cloud load) that the effect above routes on to the right screen. */
   if(onboarding==="brand"){
-    const devSkip = () => {
-      if(!devMode) enableDevMode(); // enter dev mode as a true blank slate
-      setOnboarding("done");
-    };
-    return (
-      <div style={outerWrap}>
-        <style>{`body{margin:0;padding:0;background:${C.bg};} html{background:${C.bg};}`}</style>
-        <div style={phoneStyle}>
-          {/* Dev skip — tiny, top-center */}
-          <button onClick={devSkip} style={{position:"absolute",top:"10px",left:"50%",transform:"translateX(-50%)",zIndex:10,background:"transparent",border:"none",cursor:"pointer",padding:"4px 6px",opacity:0.18}}>
-            <span style={{fontSize:"8px",color:"#fff",fontFamily:"monospace",letterSpacing:"0.05em"}}>DEV</span>
-          </button>
-          <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"40px 30px",textAlign:"center"}}>
-            <SplashLogo size={270} onLoad={()=>setSplashImgLoaded(true)}/>
-            {!splashImgLoaded && <div style={{textAlign:"center",marginTop:"22px"}}><div style={{...dsp("30px",C.gold,500,"0.28em")}}>ASCEND</div><div style={{...dsp("10px",C.muted,400,"0.32em"),marginTop:"8px"}}>INFINITE POTENTIAL</div></div>}
-            <div style={{...body("15px",C.muted),marginTop:"16px",lineHeight:"1.7",fontStyle:"italic"}}>Presence. Embodiment.<br/>Participation.</div>
-            <button onClick={()=>setOnboarding(storyForged(way)?"intro":"start")} style={{marginTop:"48px",padding:"13px 44px",background:"linear-gradient(rgba(163,192,137,0.16),rgba(163,192,137,0.06))",border:`0.5px solid ${C.sageB}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",C.sageB,400,"0.22em")}}>BEGIN THE CLIMB</button>
-          </div>
-        </div>
-      </div>
-    );
+    return <div style={outerWrap}><style>{`body{margin:0;padding:0;background:${C.bg};} html{background:${C.bg};}`}</style></div>;
   }
   /* ── START PAGE + THE FORGE — before the Crucible ── */
   if(onboarding==="start" || onboarding==="forge"){
@@ -9449,6 +9506,10 @@ export default function AscendApp(){
       <div style={outerWrap}>
         <style>{`body{margin:0;padding:0;background:${C.bg};} html{background:${C.bg};}`}</style>
         <div style={phoneStyle}>
+          {/* Dev skip — tiny, top-center */}
+          {onboarding==="start" && <button onClick={()=>{ if(!devMode) enableDevMode(); setOnboarding("done"); }} style={{position:"absolute",top:"10px",left:"50%",transform:"translateX(-50%)",zIndex:10,background:"transparent",border:"none",cursor:"pointer",padding:"4px 6px",opacity:0.18}}>
+            <span style={{fontSize:"8px",color:"#fff",fontFamily:"monospace",letterSpacing:"0.05em"}}>DEV</span>
+          </button>}
           {onboarding==="start" ? <PotentialStart onBegin={()=>setOnboarding("forge")}/> : (
             <div style={{flex:1,overflowY:"auto",padding:"38px 24px 40px"}}>
               <ForgeStoryFlow onCancel={()=>setOnboarding("start")}
@@ -9755,7 +9816,7 @@ export default function AscendApp(){
             </div>
           </div>
         )}
-        {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");setPendingInquiry(null);setPendingReflection(null);}} onSave={e=>{const updated=[e,...jEnt];setJEnt(updated);awardJournalXP();awardEntryMasteryXP(e);if(e.tag==="inquire"&&e.question)recordInquiry(e.question);if(e.tag==="tend")checkTendQuestCompletion(updated);if(e.tag==="release")checkJournalEntryQuestCompletion(updated);setScr(null);setJournalDraft("");setPendingInquiry(null);setPendingReflection(null);}} onEntryChange={setJournalDraft} pendingInquiry={pendingInquiry} pendingReflection={pendingReflection} tendUnlocked={questActiveOrDone("healer","h_listen",classState?.questProgress||{},trialComplete)} releaseUnlocked={questActiveOrDone("healer","h_forgive",classState?.questProgress||{},trialComplete)} inquireUnlocked={!!((classState?.chosenClasses||[]).includes("sage") && trialComplete("sage"))}/>}
+        {scr==="journal"&&<JournalScreen onBack={()=>{setScr(null);setJournalDraft("");setPendingInquiry(null);setPendingReflection(null);}} onSave={e=>{const updated=[e,...jEnt];setJEnt(updated);awardJournalXP();awardEntryMasteryXP(e);if(e.tag==="inquire"&&e.question)recordInquiry(e.question);if(e.tag==="tend")checkTendQuestCompletion(updated);if(e.tag==="release")checkJournalEntryQuestCompletion(updated);setScr(null);setJournalDraft("");setPendingInquiry(null);setPendingReflection(null);}} onEntryChange={setJournalDraft} pendingInquiry={pendingInquiry} pendingReflection={pendingReflection} restoreKinds={[["Forgiveness","h_forgive"],["Gratitude","h_gratitude"],["Deep Listening","h_listen"],["Service","h_service"]].filter(([,q])=>questActiveOrDone("healer",q,classState?.questProgress||{},trialComplete)).map(([k])=>k)} inquireUnlocked={!!((classState?.chosenClasses||[]).includes("sage") && trialComplete("sage"))}/>}
         {openChantQuest && (
           <Overlay title={CHANT_QUEST.title} onBack={()=>setOpenChantQuest(false)}>
             <div style={{...dsp("9px",C.sageB,400,"0.16em"),marginBottom:"14px"}}>FOUNDATION · VOICE</div>
@@ -9819,7 +9880,7 @@ export default function AscendApp(){
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
         {scr==="path"&&pathView&&<PathPortal classId={pathView} classState={classState} sessions={sessions} jEnt={jEnt} activities={activities} onBack={()=>setScr(null)}/>}
         {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} timerVisibility={timerVisibility} setTimerVisibility={setTimerVisibility} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onDeleteCloud={handleDeleteCloud} onSignOut={handleSignOut} onVerified={handleVerified} autoCloudSync={autoCloudSync} setAutoCloudSync={setAutoCloudSync}/>}
-        {anch&&<AnchorPortal sessionTitle={sessionPath?`CULTIVATE ${sessionPath.toUpperCase()}`:"CULTIVATE"} onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={[...activities, ...practiceActivities]} initialActIds={anchPractice?[anchPractice]:[]} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchStartType || (["sitting","standing","walking"].includes(anchInitType) ? anchInitType : "sitting")} reflectUnlocked={!!classState?.questProgress?.s_reflect || ((classState?.chosenClasses||[]).includes("sage") && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={sessionClass||classState?.activeClass||null} unlocks={anchPractice ? {...anchorUnlocks(completedChapters), activities:true} : anchorUnlocks(completedChapters)} guideCues={!anchPractice && !anchorUnlocks(completedChapters).modifiers ? [
+        {anch&&<AnchorPortal sessionTitle={sessionPath?`CULTIVATE ${sessionPath.toUpperCase()}`:"CULTIVATE"} onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={[...activities, ...practiceActivities]} initialActIds={anchPractice?[anchPractice]:[]} requireCenter={(()=>{const ac=sessionClass||classState?.activeClass; return !!(ac && (classState?.chosenClasses||[]).includes(ac) && !trialComplete(ac));})()} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchStartType || (["sitting","standing","walking"].includes(anchInitType) ? anchInitType : "sitting")} reflectUnlocked={!!classState?.questProgress?.s_reflect || ((classState?.chosenClasses||[]).includes("sage") && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={sessionClass||classState?.activeClass||null} unlocks={anchPractice ? {...anchorUnlocks(completedChapters), activities:true} : anchorUnlocks(completedChapters)} guideCues={!anchPractice && !anchorUnlocks(completedChapters).modifiers ? [
           {s:0,  e:5,  text:"Sit comfortably."},
           {s:5,  e:10, text:"Let your eyes soften or close."},
           {s:10, e:50, text:"This is your time to simply be here, breathing, for as long as feels right."},
