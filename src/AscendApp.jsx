@@ -3820,23 +3820,52 @@ const CHAPTER_QUESTS = {
    their mastery (or chain progress while still learning); foundation paths
    not yet chosen sit faint; advanced paths appear only once their gate opens.
    Tapping a walked path opens its portal: one screen, mostly numbers. */
-/* Mastery / Presence ring: one concentric band per 10 levels. Inside the
-   current band the ring thickens with every level (1.6px at the band's first
-   level up to 7px at its tenth); finished bands stay full width, and level 11
-   opens a new band outside them. Drawn as stacked box-shadow spreads so it
-   sits around a node without changing its layout. Returns the shadow list
-   and how far the rings reach past the node's edge. */
-function levelRings(level, ringColor, gapColor){
-  const L=Math.max(0, Math.floor(level||0));
-  if(!L) return { shadows:[], extent:0 };
-  const bands=Math.ceil(L/10), shadows=[];
-  let off=0;
-  for(let i=0;i<bands;i++){
-    const m = i<bands-1 ? 10 : ((L-1)%10)+1;
-    if(i>0){ off += 2; shadows.push(`0 0 0 ${off}px ${gapColor}`); }  // gap only BETWEEN bands; band 1 sits flush on the node border, so one band reads as one ring
-    off += 1+0.6*m;        shadows.push(`0 0 0 ${off}px ${ringColor}`);
+/* Mastery / Presence stars: one tiny star per level, drifting in slow orbits
+   around the node like dust. Placement and size are seeded from the node's id,
+   so the same level always looks the same. The more stars there are, the
+   smaller each one gets (so 100 still reads as a fine cloud, not a clump), and
+   they spread across more orbit lanes as the count grows. Lanes turn at
+   different speeds and in alternating directions; reduced-motion keeps them
+   still. r0 = the node's radius; the stars live just outside its ring. */
+function starSeed(str){ let h=1779033703^str.length; for(let i=0;i<str.length;i++){ h=Math.imul(h^str.charCodeAt(i),3432918353); h=h<<13|h>>>19; } return h>>>0; }
+function seededRand(seed){ let a=seed>>>0; return ()=>{ a=(a+0x6D2B79F5)>>>0; let t=Math.imul(a^a>>>15,1|a); t=(t+Math.imul(t^t>>>7,61|t))^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function starLayout(level, r0, seedStr){
+  const n=Math.min(300, Math.max(0, Math.floor(level||0)));
+  if(!n) return { lanes:[], reach:0 };
+  const rnd=seededRand(starSeed(seedStr));
+  const laneCount=Math.min(6, 1+Math.floor((n-1)/12));
+  const base=r0+9, gap=4.5;
+  const lanes=Array.from({length:laneCount},(_,i)=>({ R:base+i*gap, dur:46+i*17, dir:i%2?-1:1, stars:[] }));
+  const scale=4.4/(1+n/44);                 // shrinks as the count grows
+  for(let i=0;i<n;i++){
+    const lane=lanes[i%laneCount];
+    const size=Math.max(1.4, Math.min(3.4, scale*(0.4+rnd()*1.6)));
+    lane.stars.push({ ang:rnd()*Math.PI*2, off:(rnd()-0.5)*3.2, size, op:0.45+rnd()*0.55, spark:size>=2.4 });
   }
-  return { shadows, extent:off };
+  return { lanes, reach: base+(laneCount-1)*gap+3 };
+}
+function MasteryStars({ level, color, r0, seed }){
+  const lay=useMemo(()=>starLayout(level, r0, seed),[level, r0, seed]);
+  if(!lay.lanes.length) return null;
+  return (
+    <>
+      {lay.lanes.map((ln,li)=>{
+        const S=(ln.R+4)*2, c=S/2;
+        return (
+          <svg key={li} aria-hidden="true" className="asc-star-lane" width={S} height={S} viewBox={`0 0 ${S} ${S}`}
+            style={{position:"absolute",left:"50%",top:"50%",marginLeft:-c,marginTop:-c,pointerEvents:"none",overflow:"visible",
+              animation:`ascStarSpin ${ln.dur}s linear infinite ${ln.dir<0?"reverse":"normal"}`}}>
+            {ln.stars.map((st,i)=>{
+              const rr=ln.R+st.off, x=c+Math.cos(st.ang)*rr, y=c+Math.sin(st.ang)*rr, z=st.size;
+              return st.spark
+                ? <path key={i} d={`M${x} ${y-z*1.5} L${x+z*0.4} ${y-z*0.4} L${x+z*1.5} ${y} L${x+z*0.4} ${y+z*0.4} L${x} ${y+z*1.5} L${x-z*0.4} ${y+z*0.4} L${x-z*1.5} ${y} L${x-z*0.4} ${y-z*0.4}Z`} fill={color} opacity={st.op}/>
+                : <circle key={i} cx={x} cy={y} r={z*0.5} fill={color} opacity={st.op}/>;
+            })}
+          </svg>
+        );
+      })}
+    </>
+  );
 }
 function classBadgeState(cid, classState){
   const chosen=(classState?.chosenClasses||[]).includes(cid);
@@ -4347,6 +4376,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
 
   return (
     <div ref={wrapRef} style={{position:"relative",height:"100%",minHeight:"420px"}}>
+      <style>{`@keyframes ascStarSpin{to{transform:rotate(360deg)}} @media (prefers-reduced-motion: reduce){.asc-star-lane{animation:none !important}}`}</style>
       {/* Map */}
       <div onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onWheel={onWheel}
         style={{position:"absolute",left:0,top:0,width:"100%",height:`${mapH}px`,overflow:"hidden",touchAction:"none",cursor:"grab"}}>
@@ -4368,10 +4398,11 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
         </svg>
         <button type="button" aria-label={mine?story.name:"Presence"} aria-pressed={centerOn} onClick={()=>{ onSelect("center"); glide(0,0); }}
           style={{position:"absolute",left:tx-(mine?38:32),top:ty-(mine?38:32),width:mine?76:64,height:mine?76:64,borderRadius:"50%",padding:0,cursor:"pointer",border:`1.5px solid ${C.gold}`,
-            background:centerOn?`rgba(${C.goldRGB},0.16)`:`rgba(${C.goldRGB},0.06)`,boxShadow:(()=>{ const r=levelRings(presenceLevel, C.gold, C.surf); const glow=centerOn?[`0 0 0 ${r.extent+5}px rgba(${C.goldRGB},0.18)`]:[]; const all=[...r.shadows,...glow]; return all.length?all.join(", "):"none"; })(),display:"flex",alignItems:"center",justifyContent:"center"}}>
+            background:centerOn?`rgba(${C.goldRGB},0.16)`:`rgba(${C.goldRGB},0.06)`,boxShadow:centerOn?`0 0 0 5px rgba(${C.goldRGB},0.18)`:"none",display:"flex",alignItems:"center",justifyContent:"center"}}>
           {mine ? (()=>{ const longest=Math.max(...story.name.split(/\s+/).map(w=>w.length)); const fs=Math.max(6.5,Math.min(11,62/(Math.max(1,longest)*0.8)));
             return <span style={{...dsp(`${fs}px`,C.gold,400,"0.06em"),textAlign:"center",lineHeight:1.2,padding:"0 5px",overflow:"hidden",maxHeight:"44px"}}>{story.name.toUpperCase()}</span>; })()
             : <span style={{...dsp("7.5px",C.gold,400,"0.14em")}}>PRESENCE</span>}
+          <MasteryStars level={presenceLevel} color={C.gold} r0={mine?38:32} seed="presence"/>
         </button>
         {mine && shown.map(n=>{
           const on=sel===n.id || (selNode?.kind==="practice" && selNode.value===n.value), val=n.kind==="value";
@@ -4399,7 +4430,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
           /* The three foundation paths stay grey until they are activated (chosen). */
           const dormant = !locked && !n.parents && n.real && !chosen;
           const ac = locked || dormant ? C.dim : AC(n.accent);
-          const rings = mastered ? levelRings(bs.level, ac, C.surf) : { shadows:[], extent:0 };
+          const starReach = mastered ? starLayout(bs.level, 24, n.id).reach : 0;
           /* Ring is grey until the path is mastered; the logo keeps its color. */
           const ringGrey = !locked && !dormant && chosen && !mastered;
           const edge = ringGrey ? C.muted : ac;
@@ -4409,12 +4440,13 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
               <div style={{position:"relative",width:48,height:48,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",color:ac,
                 border:`${chosen?2:1.5}px ${locked||(n.parents&&!chosen)?"dashed":"solid"} ${edge}`,
                 background:on?`${ac}2e`:C.surf,
-                boxShadow:mastered ? [...rings.shadows, ...(on?[`0 0 0 ${rings.extent+5}px ${AC(n.accent)}33`]:[]), `0 0 14px ${AC(n.accent)}59`].join(", ") : on?`0 0 0 5px ${ac}33`:"none",
+                boxShadow:mastered ? `0 0 0 3px ${C.surf}, 0 0 0 4.5px ${AC(n.accent)}${on?`, 0 0 0 9px ${AC(n.accent)}33`:""}, 0 0 14px ${AC(n.accent)}59` : on?`0 0 0 5px ${ac}33`:"none",
                 opacity:locked?0.55:1}}>
                 {CM_ICONS[n.id] ? <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={CM_ICONS[n.id]}/></svg>
                   : <span style={{...dsp("19px",ac)}}>{n.name[0]}</span>}
+                {mastered && <MasteryStars level={bs.level} color={AC(n.accent)} r0={24} seed={n.id}/>}
               </div>
-              <span style={{...body("12.5px",on?C.cream:locked?C.dim:C.muted),lineHeight:"14px",textShadow:`0 0 6px ${C.bg}`,marginTop:rings.extent}}>{n.name}</span>
+              <span style={{...body("12.5px",on?C.cream:locked?C.dim:C.muted),lineHeight:"14px",textShadow:`0 0 6px ${C.bg}`,marginTop:Math.max(0,starReach-27)}}>{n.name}</span>
             </button>
           );
         })}
