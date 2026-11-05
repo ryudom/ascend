@@ -304,7 +304,7 @@ const CLASSES = [
    directed by Sage's attention, held by the heart. */
 CLASSES.push({
   id: "martial",
-  name: "Martial Arts",
+  name: "Martial Artist",
   verb: "Form",
   blurb: "Cultivate stance, movement, and technique: power given form.",
   primaryStats: ["str", "wil", "wis"],
@@ -657,11 +657,11 @@ const QUEST_CHAINS = {
   martial: [
     {
       id: "ma_trial",
-      title: "Martial Arts Trial",
+      title: "Martial Artist Trial",
       isTrial: true,
-      myth: "The Warrior built a body you can trust. This path asks what that body can do with intention.\n\nBefore any technique, the vow: sit, stand, walk, three minutes each, attention placed at a center each time — and on the Ascend screen, after the timer, choose that center as where your awareness landed.\n\nStand, and sink your attention into the legs — the root every technique grows from.\nSit, and gather it in the belly — the center every movement returns to.\nWalk, and lift it to the head — the clarity that sees before it moves.\n\nThree forms. Three centers. One vow. Walk through it, and the path of Martial Arts opens.",
+      myth: "The Warrior built a body you can trust. This path asks what that body can do with intention.\n\nBefore any technique, the vow: sit, stand, walk, three minutes each, attention placed at a center each time — and on the Ascend screen, after the timer, choose that center as where your awareness landed.\n\nStand, and sink your attention into the legs — the root every technique grows from.\nSit, and gather it in the belly — the center every movement returns to.\nWalk, and lift it to the head — the clarity that sees before it moves.\n\nThree forms. Three centers. One vow. Walk through it, and the path of the Martial Artist opens.",
       libId: "lib_ma_trial",
-      criteria: "Complete the Martial Arts Foundation Trial: 3-min Stand, Sit, Walk.",
+      criteria: "Complete the Martial Artist Foundation Trial: 3-min Stand, Sit, Walk.",
       unlocks: [],
     },
     {
@@ -3820,6 +3820,24 @@ const CHAPTER_QUESTS = {
    their mastery (or chain progress while still learning); foundation paths
    not yet chosen sit faint; advanced paths appear only once their gate opens.
    Tapping a walked path opens its portal: one screen, mostly numbers. */
+/* Mastery / Presence ring: one concentric band per 10 levels. Inside the
+   current band the ring thickens with every level (1.6px at the band's first
+   level up to 7px at its tenth); finished bands stay full width, and level 11
+   opens a new band outside them. Drawn as stacked box-shadow spreads so it
+   sits around a node without changing its layout. Returns the shadow list
+   and how far the rings reach past the node's edge. */
+function levelRings(level, ringColor, gapColor){
+  const L=Math.max(0, Math.floor(level||0));
+  if(!L) return { shadows:[], extent:0 };
+  const bands=Math.ceil(L/10), shadows=[];
+  let off=0;
+  for(let i=0;i<bands;i++){
+    const m = i<bands-1 ? 10 : ((L-1)%10)+1;
+    if(i>0){ off += 2; shadows.push(`0 0 0 ${off}px ${gapColor}`); }  // gap only BETWEEN bands; band 1 sits flush on the node border, so one band reads as one ring
+    off += 1+0.6*m;        shadows.push(`0 0 0 ${off}px ${ringColor}`);
+  }
+  return { shadows, extent:off };
+}
 function classBadgeState(cid, classState){
   const chosen=(classState?.chosenClasses||[]).includes(cid);
   const qp=classState?.questProgress||{};
@@ -4212,7 +4230,7 @@ function CategoryAddForm({ f, taken=[], onAdd, onCancel }){
 function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pathSel="center", onSelect:onPathSelect=()=>{}, onOpenPath=()=>{}, onChoosePath=()=>{},
   activities=[], onAddCategoryItem=()=>{}, onRemoveActivity=()=>{},
   onOpenClassQuest=()=>{}, onOpenLib=()=>{}, onAcknowledgeTrial=()=>{}, devMode=false, onDevSkipTrial=()=>{},
-  story=null, mode="paths", onMode=()=>{}, mySel="center", onMySel=()=>{}, onStoryChange=()=>{}, practiceModes=["sitting","standing","walking"], onOpenForge=()=>{} }){
+  story=null, mode="paths", onMode=()=>{}, mySel="center", onMySel=()=>{}, onStoryChange=()=>{}, practiceModes=["sitting","standing","walking"], onOpenForge=()=>{}, presenceLevel=1 }){
   const hasStory=!!(story && story.name && story.values?.length);
   const mine = mode==="mine" && hasStory;
   const pathNodes=useMemo(cmNodes,[]);
@@ -4350,7 +4368,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
         </svg>
         <button type="button" aria-label={mine?story.name:"Presence"} aria-pressed={centerOn} onClick={()=>{ onSelect("center"); glide(0,0); }}
           style={{position:"absolute",left:tx-(mine?38:32),top:ty-(mine?38:32),width:mine?76:64,height:mine?76:64,borderRadius:"50%",padding:0,cursor:"pointer",border:`1.5px solid ${C.gold}`,
-            background:centerOn?`rgba(${C.goldRGB},0.16)`:`rgba(${C.goldRGB},0.06)`,boxShadow:centerOn?`0 0 0 5px rgba(${C.goldRGB},0.18)`:"none",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            background:centerOn?`rgba(${C.goldRGB},0.16)`:`rgba(${C.goldRGB},0.06)`,boxShadow:(()=>{ const r=levelRings(presenceLevel, C.gold, C.surf); const glow=centerOn?[`0 0 0 ${r.extent+5}px rgba(${C.goldRGB},0.18)`]:[]; const all=[...r.shadows,...glow]; return all.length?all.join(", "):"none"; })(),display:"flex",alignItems:"center",justifyContent:"center"}}>
           {mine ? (()=>{ const longest=Math.max(...story.name.split(/\s+/).map(w=>w.length)); const fs=Math.max(6.5,Math.min(11,62/(Math.max(1,longest)*0.8)));
             return <span style={{...dsp(`${fs}px`,C.gold,400,"0.06em"),textAlign:"center",lineHeight:1.2,padding:"0 5px",overflow:"hidden",maxHeight:"44px"}}>{story.name.toUpperCase()}</span>; })()
             : <span style={{...dsp("7.5px",C.gold,400,"0.14em")}}>PRESENCE</span>}
@@ -4378,25 +4396,25 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
           const locked=!openIds.has(n.id);
           const bs=n.real ? classBadgeState(n.id, classState) : null;
           const mastered=!!(bs && bs.chosen && bs.complete);
-          const ac = locked ? C.dim : AC(n.accent);
+          /* The three foundation paths stay grey until they are activated (chosen). */
+          const dormant = !locked && !n.parents && n.real && !chosen;
+          const ac = locked || dormant ? C.dim : AC(n.accent);
+          const rings = mastered ? levelRings(bs.level, ac, C.surf) : { shadows:[], extent:0 };
+          /* Ring is grey until the path is mastered; the logo keeps its color. */
+          const ringGrey = !locked && !dormant && chosen && !mastered;
+          const edge = ringGrey ? C.muted : ac;
           return (
-            <button key={n.id} type="button" aria-pressed={on} aria-label={`${n.name}${locked?", locked":mastered?`, mastery level ${bs.level}`:""}`} onClick={()=>{ onSelect(n.id); glide(n.pos.x,n.pos.y); }}
+            <button key={n.id} type="button" aria-pressed={on} aria-label={`${n.name}${locked?", locked":dormant?", not yet chosen":mastered?`, mastery level ${bs.level}`:""}`} onClick={()=>{ onSelect(n.id); glide(n.pos.x,n.pos.y); }}
               style={{position:"absolute",left:X(n.pos.x)-44,top:Y(n.pos.y)-24,width:88,padding:0,background:"none",border:0,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
               <div style={{position:"relative",width:48,height:48,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",color:ac,
-                border:`${chosen?2:1.5}px ${locked||(n.parents&&!chosen)?"dashed":"solid"} ${ac}`,
+                border:`${chosen?2:1.5}px ${locked||(n.parents&&!chosen)?"dashed":"solid"} ${edge}`,
                 background:on?`${ac}2e`:C.surf,
-                boxShadow:mastered ? `0 0 0 3px ${C.surf}, 0 0 0 4.5px ${C.gold}${on?`, 0 0 0 9px ${AC(n.accent)}33`:""}, 0 0 14px rgba(${C.goldRGB},0.35)` : on?`0 0 0 5px ${ac}33`:"none",
+                boxShadow:mastered ? [...rings.shadows, ...(on?[`0 0 0 ${rings.extent+5}px ${AC(n.accent)}33`]:[]), `0 0 14px ${AC(n.accent)}59`].join(", ") : on?`0 0 0 5px ${ac}33`:"none",
                 opacity:locked?0.55:1}}>
                 {CM_ICONS[n.id] ? <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={CM_ICONS[n.id]}/></svg>
                   : <span style={{...dsp("19px",ac)}}>{n.name[0]}</span>}
               </div>
-              {mastered && (
-                <span aria-hidden="true" style={{position:"absolute",left:"55px",top:"-7px",minWidth:20,height:20,padding:"0 3px",boxSizing:"border-box",borderRadius:"10px",background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",gap:"1px"}}>
-                  <svg width="9" height="9" viewBox="0 0 24 24" fill={C.bg}><path d="M12 2l3 7 7 .6-5.3 4.6 1.6 7.1L12 17.6 5.7 21.3l1.6-7.1L2 9.6 9 9z"/></svg>
-                  <span style={{...dsp("8px",C.bg,500,"0")}}>{bs.level}</span>
-                </span>
-              )}
-              <span style={{...body("12.5px",on?C.cream:locked?C.dim:C.muted),lineHeight:"14px",textShadow:`0 0 6px ${C.bg}`}}>{n.name}</span>
+              <span style={{...body("12.5px",on?C.cream:locked?C.dim:C.muted),lineHeight:"14px",textShadow:`0 0 6px ${C.bg}`,marginTop:rings.extent}}>{n.name}</span>
             </button>
           );
         })}
@@ -9704,7 +9722,7 @@ export default function AscendApp(){
           <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
             classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid,cid)=>setOpenClassQuest({classId:cid||classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}
             onOpenMyPath={()=>{ setCultMode("mine"); setMySel("center"); setTab("cultivate"); }} lineReq={questLineReq}/></div>
-          <div style={{display:tab==="cultivate"?"block":"none",height:"100%"}}><CultivateTab classState={classState} sessions={sessions} jEnt={jEnt} gateOpen={classGateOpen}
+          <div style={{display:tab==="cultivate"?"block":"none",height:"100%"}}><CultivateTab classState={classState} presenceLevel={presenceLevel} sessions={sessions} jEnt={jEnt} gateOpen={classGateOpen}
             sel={cultSel} onSelect={setCultSel} onOpenPath={cid=>{setPathView(cid);setScr("path");}}
             onChoosePath={cid=>chooseClass(cid)}
             onOpenClassQuest={(cid,qid)=>setOpenClassQuest({classId:cid,questId:qid})} onOpenLib={(id)=>{setTab("library");setLibOpenId(id);}}
