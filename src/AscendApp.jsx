@@ -677,8 +677,8 @@ const QUEST_CHAINS = {
       title: "Footwork",
       myth: "After learning to stand you must learn to move.\n\nDevelop accuracy, control, and stability, and the ability to strike at any moment.",
       libId: "lib_w_footwork",
-      criteria: "Accumulate 15 minutes of Footwork.",
-      unlocks: [{ kind: "activity", practiceType: "train", name: "Footwork", stat: "wil", target: 15, unit: "minutes" }],
+      criteria: "Accumulate 5 minutes of Footwork.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Footwork", stat: "wil", target: 5, unit: "minutes" }],
     },
     {
       id: "w_punch",
@@ -3637,7 +3637,7 @@ const LIBRARY_ENTRIES = [
       "The basic steps are forward, back, and sideways. In each, the back foot pushes and the front foot lands, and the stance never collapses into a narrow line. Slow, accurate steps build the control that speed is made from.",
       "Accuracy first, then control, then stability, then speed. A step you can place exactly where you meant to is worth more than a fast one you cannot."
     ],
-    practice:"Choose a line on the floor. Step forward along it five times, then back five times, keeping your height and your weight shifts smooth. Do the same sideways. Rest when form slips, and repeat until 15 minutes of Footwork are done." },
+    practice:"Choose a line on the floor. Step forward along it five times, then back five times, keeping your height and your weight shifts smooth. Do the same sideways. Rest when form slips, and repeat until 5 minutes of Footwork are done." },
 
   { id:"lib_w_stretch", unlock:0, section:"Path Skills", pathId:"warrior", pathName:"Warrior", skillUnlockQuest:"w_stretch",
     title:"Stretch", sub:"Warrior", sc:"vit",
@@ -4296,7 +4296,7 @@ function CategoryAddForm({ f, taken=[], onAdd, onCancel }){
 function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pathSel="center", onSelect:onPathSelect=()=>{}, onOpenPath=()=>{}, onChoosePath=()=>{},
   activities=[], onAddCategoryItem=()=>{}, onRemoveActivity=()=>{},
   onOpenClassQuest=()=>{}, onOpenLib=()=>{}, onAcknowledgeTrial=()=>{}, devMode=false, onDevSkipTrial=()=>{},
-  story=null, mode="paths", onMode=()=>{}, mySel="center", onMySel=()=>{}, onStoryChange=()=>{}, practiceModes=["sitting","standing","walking"], onOpenForge=()=>{}, presenceLevel=1, onDevSetMastery=()=>{}, onDevSetPresence=()=>{} }){
+  story=null, mode="paths", onMode=()=>{}, mySel="center", onMySel=()=>{}, onStoryChange=()=>{}, practiceModes=["sitting","standing","walking"], onOpenForge=()=>{}, presenceLevel=1, onDevSetMastery=()=>{}, onDevSetPresence=()=>{}, onGoQuests=()=>{} }){
   const hasStory=!!(story && story.name && story.values?.length);
   const mine = mode==="mine" && hasStory;
   const pathNodes=useMemo(cmNodes,[]);
@@ -4394,7 +4394,8 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
   useEffect(()=>{ setOpenFund(null); setAddingTo(null); setSheetTab(null); },[sel]);
   const celebrated = st&&st.chosen&&trialDone ? (!!classState?.trialCelebrated?.[selNode.id] || (QUEST_CHAINS[selNode.id]||[]).some(q=>classState?.questProgress?.[q.id])) : true;
   const showTabs = !!(st && st.chosen && trialDone && celebrated);
-  const tabNow = sheetTab || (st && st.complete ? "fundamentals" : "quests");
+  /* The sheet itself always shows Fundamentals; "Quests" opens the Quest tab full screen. */
+  const tabNow = "fundamentals";
   const myPr = mine && selNode?.kind==="practice" ? selNode.practice : null;
   const hint = mine ? (centerOn ? "Press Cultivate to practice: Sit, Stand or Walk."
       : myPr ? `Press Cultivate to practice ${myPr.name} · ${modeLabel(myPr.mode)}.`
@@ -4556,7 +4557,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
             {showTabs && (
               <div role="tablist" style={{display:"flex",gap:"6px",margin:"4px 0 10px"}}>
                 {[["quests","Quests"],["fundamentals","Fundamentals"]].map(([id,l])=>{ const on=tabNow===id; return (
-                  <button key={id} role="tab" aria-selected={on} onClick={()=>setSheetTab(id)} style={{flex:1,padding:"8px",borderRadius:"6px",cursor:"pointer",
+                  <button key={id} role="tab" aria-selected={on} onClick={()=>{ if(id==="quests") onGoQuests(selNode.id); else setSheetTab(id); }} style={{flex:1,padding:"8px",borderRadius:"6px",cursor:"pointer",
                     border:`0.5px solid ${on?accent:C.bord}`,background:on?`${accent}1f`:"transparent",...dsp("9px",on?C.cream:C.muted,400,"0.16em")}}>{l.toUpperCase()}</button>); })}
               </div>
             )}
@@ -5895,7 +5896,16 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   way=null, onWayChange=()=>{}, onOpenReflection=()=>{}, onAwardWayXP=()=>{}, onOpenMyPath=()=>{}, lineReq=null }){
   const [view,setView]               = useState("overview");
   const [questLine,setQuestLine]     = useState(()=>storyForged(way)?"main":"forge"); // "forge" | "main" (The Crucible) | "chant" | "path"
-  useEffect(()=>{ if(lineReq?.line){ setQuestLine(lineReq.line); setView("overview"); } },[lineReq]);
+  const [openClasses,setOpenClasses] = useState({}); // class accordions in the Class tab; all minimized by default
+  useEffect(()=>{
+    if(lineReq?.line){
+      setQuestLine(lineReq.line); setView("overview");
+      if(lineReq.classId){
+        setOpenClasses({[lineReq.classId]:true});
+        setTimeout(()=>{ try{ document.getElementById("class-sec-"+lineReq.classId)?.scrollIntoView({block:"start",behavior:"smooth"}); }catch(e){} },120);
+      }
+    }
+  },[lineReq]);
   const [autoSurfaced,setAutoSurfaced] = useState({}); // {chant:true, path:true} once auto-shown
   const [viewingChoice,setViewingChoice] = useState(false); // browsing path choice even with one active
   const lpTimerRef = useRef(null);
@@ -6288,16 +6298,16 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
       state: "active" },
     { id:"chant", label:"Voice", show: chantGateOpen && !chantUnlocked,
       state: chantNew ? "new" : "" },
-    { id:"path", label: pathActive ? (CLASS_BY_ID[classState.activeClass]?.name||"Path") : "Choose Your Path",
-      show: false, /* class quests live on the Cultivate map now */ state: pathNew ? "new" : "" },
+    { id:"path", label:"Class",
+      show: !!(classGateOpen && classState && (classState.chosenClasses||[]).length>0), state: "" },
   ].filter(x=>x.show);
 
   const heroTitle = questLine==="chant" ? "Voice"
-    : questLine==="path" ? (pathActive ? (CLASS_BY_ID[classState.activeClass]?.name+" Path") : "Choose Your Path")
+    : questLine==="path" ? "Your Classes"
     : questLine==="forge" ? (storyForged(way) ? way.story.name : "The Forge")
     : "The Crucible";
   const heroSub = questLine==="chant" ? "The oldest practice"
-    : questLine==="path" ? (pathActive ? CLASS_BY_ID[classState.activeClass]?.verb : "Your direction of cultivation")
+    : questLine==="path" ? "Active paths"
     : questLine==="forge" ? (storyForged(way) ? "The Forge · Your story" : "Your story")
     : crucibleDone ? "The Crucible · Complete" : `The Crucible · Chapter ${activeN}`;
 
@@ -6507,33 +6517,70 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
           </div>
         )}
 
-        {/* ── PATH — its own questline view, full tab ── */}
+        {/* ── CLASS — every active class, each minimized until opened ── */}
         {questLine==="path" && classGateOpen && classState && (
           <div style={{paddingTop:"4px"}}>
-            {(!classState.activeClass || viewingChoice) ? (
+            {((classState.chosenClasses||[]).length===0 || viewingChoice) ? (
               <ClassChoiceScreen
-                onChoose={(cid)=>{ onChooseClass(cid); setViewingChoice(false); }}
+                onChoose={(cid)=>{ onChooseClass(cid); setViewingChoice(false); setOpenClasses({[cid]:true}); }}
                 onReturn={()=>setViewingChoice(false)}
                 alreadyChosen={classState.chosenClasses||[]}
                 activeClass={classState.activeClass}
                 questProgress={classState.questProgress||{}}
                 trialComplete={trialComplete}
                 mastery={classState.mastery||{}}/>
-            ) : !trialComplete(classState.activeClass) ? (
-              <FoundationTrial classId={classState.activeClass} trialProgress={classState.trialProgress}
-                onOpenTrial={(t)=>onOpenAnchor(t)} devMode={devMode} onDevSkipTrial={onDevSkipTrial}
-                onBackToChoice={()=>setViewingChoice(true)}/>
-            ) : !classState.trialCelebrated?.[classState.activeClass] &&
-                !(QUEST_CHAINS[classState.activeClass]||[]).some(q=>classState.questProgress?.[q.id]) ? (
-              <TrialCompleteScreen classId={classState.activeClass}
-                onContinue={()=>onAcknowledgeTrial(classState.activeClass)}/>
             ) : (
               <>
-                <button onClick={()=>setViewingChoice(true)} style={{background:"none",border:"none",cursor:"pointer",...body("12px",C.dim),marginBottom:"14px",padding:0}}>← Walk a different path</button>
-                <ClassQuestSection classId={classState.activeClass} questProgress={classState.questProgress}
-                  inquireAnswered={classState.inquireAnswered} epilogueRevealed={classState.epilogueRevealed}
-                  masteryXP={classState.mastery?.[classState.activeClass]?.xp||0} isActivePath={true}
-                  activities={activities} jEnt={jEnt} ascents={classState.ascents||{}} onOpenQuest={onOpenClassQuest} onOpenLib={onGoToLib}/>
+                {(classState.chosenClasses||[]).map(cid=>{
+                  const cls=CLASS_BY_ID[cid]; if(!cls) return null;
+                  const acc=AC(cls.accent)||C.sageB;
+                  const open=!!openClasses[cid];
+                  const isActive=classState.activeClass===cid;
+                  const chain=(QUEST_CHAINS[cid]||[]).filter(isChainQuest);
+                  const doneN=chain.filter(q=>classState.questProgress?.[q.id]).length;
+                  const trialDone=trialComplete(cid);
+                  const bs=classBadgeState(cid, classState);
+                  const sub = !trialDone ? "Trial" : `${doneN} / ${chain.length} quests${bs.complete&&bs.level?` · Mastery ${bs.level}`:""}`;
+                  const celebrated = !!classState.trialCelebrated?.[cid] || (QUEST_CHAINS[cid]||[]).some(q=>classState.questProgress?.[q.id]);
+                  return (
+                    <div key={cid} id={"class-sec-"+cid} style={{marginBottom:"10px",border:`0.5px solid ${open?acc:C.bord}`,borderRadius:"8px",background:C.surf,overflow:"hidden"}}>
+                      <button onClick={()=>setOpenClasses(o=>({...o,[cid]:!o[cid]}))} aria-expanded={open}
+                        style={{width:"100%",display:"flex",alignItems:"center",gap:"12px",padding:"13px 14px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
+                        <span style={{width:"9px",height:"9px",borderRadius:"50%",background:acc,flexShrink:0}}/>
+                        <span style={{flex:1}}>
+                          <span style={{...dsp("12px",C.cream,400,"0.1em"),display:"block"}}>{cls.name.toUpperCase()}</span>
+                          <span style={{...body("11px",C.dim),display:"block",marginTop:"2px"}}>{sub}{isActive?" · active":""}</span>
+                        </span>
+                        <span style={{...body("14px",C.muted),transform:open?"rotate(90deg)":"none",transition:"transform 0.2s"}}>›</span>
+                      </button>
+                      {open && (
+                        <div style={{padding:"4px 14px 16px"}}>
+                          {!trialDone ? (
+                            isActive ? (
+                              <FoundationTrial classId={cid} trialProgress={classState.trialProgress}
+                                onOpenTrial={(t)=>onOpenAnchor(t)} devMode={devMode} onDevSkipTrial={onDevSkipTrial}
+                                onBackToChoice={()=>setViewingChoice(true)}/>
+                            ) : (
+                              <button onClick={()=>onChooseClass(cid)}
+                                style={{width:"100%",padding:"11px",background:"none",border:`0.5px solid ${acc}`,borderRadius:"6px",cursor:"pointer",...dsp("10px",acc,400,"0.14em")}}>
+                                MAKE THIS YOUR ACTIVE PATH
+                              </button>
+                            )
+                          ) : !celebrated ? (
+                            <TrialCompleteScreen classId={cid} onContinue={()=>onAcknowledgeTrial(cid)}/>
+                          ) : (
+                            <ClassQuestSection classId={cid} questProgress={classState.questProgress}
+                              inquireAnswered={classState.inquireAnswered} epilogueRevealed={classState.epilogueRevealed}
+                              masteryXP={classState.mastery?.[cid]?.xp||0} isActivePath={true}
+                              activities={activities} jEnt={jEnt} ascents={classState.ascents||{}}
+                              onOpenQuest={(qid)=>onOpenClassQuest(qid, cid)} onOpenLib={onGoToLib}/>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <button onClick={()=>setViewingChoice(true)} style={{background:"none",border:"none",cursor:"pointer",...body("12px",C.dim),marginTop:"6px",padding:0}}>+ Walk another path</button>
               </>
             )}
           </div>
@@ -9813,7 +9860,7 @@ export default function AscendApp(){
           <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
             classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid,cid)=>setOpenClassQuest({classId:cid||classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}
             onOpenMyPath={()=>{ setCultMode("mine"); setMySel("center"); setTab("cultivate"); }} lineReq={questLineReq}/></div>
-          <div style={{display:tab==="cultivate"?"block":"none",height:"100%"}}><CultivateTab classState={classState} presenceLevel={presenceLevel} onDevSetPresence={L=>setCh(p=>({...p,totalXP:totalXPForLevel(L)}))} onDevSetMastery={(cid,L)=>setClassState(cs=>{
+          <div style={{display:tab==="cultivate"?"block":"none",height:"100%"}}><CultivateTab classState={classState} presenceLevel={presenceLevel} onGoQuests={(cid)=>{ setTab("quest"); setQuestLineReq({line:"path", classId:cid, n:Date.now()}); }} onDevSetPresence={L=>setCh(p=>({...p,totalXP:totalXPForLevel(L)}))} onDevSetMastery={(cid,L)=>setClassState(cs=>{
               /* Dev only: choose the path, finish its trial and chain, then set the level. */
               const cls=CLASS_BY_ID[cid]; if(!cls) return cs;
               const prog={}; cls.trial.forEach(st=>{ prog[st.type]=true; });
