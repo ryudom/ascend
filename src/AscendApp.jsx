@@ -309,10 +309,10 @@ CLASSES.push({
   blurb: "Cultivate stance, movement, and technique: power given form.",
   primaryStats: ["str", "wil", "wis"],
   accent: "#9a6f3e",
+  /* One long Stand: attention moves from the crown to the ground; both centers
+     must be selected afterward. (`centers` = center ids required on the review screen.) */
   trial: [
-    { type: "standing", label: "Stand", minutes: 3, stat: "str" },
-    { type: "sitting",  label: "Sit",   minutes: 3, stat: "vit" },
-    { type: "walking",  label: "Walk",  minutes: 3, stat: "wis" },
+    { type: "standing", label: "Stand", minutes: 10, stat: "str", centers: ["top","root"] },
   ],
 });
 CLASSES.push({
@@ -514,7 +514,7 @@ const QUEST_CHAINS = {
       id: "s_trial",
       title: "Sage Trial",
       isTrial: true,
-      myth: "Every path begins the same way: not with a technique, but with a vow.\n\nBefore you observe, before you inquire, before you see anything clearly — you sit, you stand, you walk. Three minutes each. The body has its own way of agreeing to a thing, deeper than the mind's. This is that agreement, spoken in the only language the body trusts: presence, held on purpose.\n\nBut this trial asks one thing more. As you practice each form, bring your attention to a specific place — and on the Ascend screen, after the timer, choose that center as where your awareness landed.\n\nSit, and rest your attention in the head — the seat of clarity, where seeing begins.\nStand, and bring it to the crown — alignment, the still point above the noise.\nWalk, and let it settle in the throat — the voice, where inner understanding meets the world.\n\nThree forms. Three centers. One vow. Walk through it, and the path of the Sage opens.",
+      myth: "This trial will initiate you into the path of the Sage.\n\nSit and focus on the tip of your nose to develop one-pointed concentration.\n\nStand and feel the top of your head, imagine a golden thread setting your alignment.\n\nWalk and feel your throat, surrendering knowledge to the wisdom of the body.\n\nAfter cultivating, select the part of the body you focused on to complete the trial.",
       libId: "lib_s_trial",
       criteria: "Complete the Sage Foundation Trial: 3-min Sit, Stand, Walk.",
       unlocks: [{ kind: "reflect" }],
@@ -522,7 +522,7 @@ const QUEST_CHAINS = {
     {
       id: "s_reflect",
       title: "Reflect",
-      myth: "You have chosen the path of the open question.\n\nThere is an inscription carved above an ancient temple, older than most of what still stands: know thyself. Not \"master the world.\" Not \"win the argument.\" Just this — turn toward your own experience and actually look. It has been called the beginning of wisdom for a reason nobody has improved on in over two thousand years. Wisdom doesn't start with answers. It starts here, with a question pointed inward, and the humility to admit you don't already know what it will find.\n\nHere is the strange part: you have already been doing this, or you're about to start. Every time you return from stillness and someone asks what you noticed, you'll be practicing the Sage's first and oldest skill. The path doesn't begin with mastering something new. It begins with a question, asked sincerely, after every return.\n\nWhat did you notice? Don't rush to answer. Let the question sit a moment before you reach for words.",
+      myth: "Know thyself.\n\nSit, observe, and reflect on your experience.\n\nAnswer in the Reflect box after your sit.",
       libId: "lib_s_reflect",
       criteria: "Sit for at least 5 minutes, then write a Reflect entry.",
       unlocks: [{ kind: "reflect", minDuration: 5 }],
@@ -530,7 +530,7 @@ const QUEST_CHAINS = {
     {
       id: "s_sound",
       title: "Observe Sound",
-      myth: "Sound arrives whether you ask for it or not. A car passing. A door somewhere closing. The hum beneath the silence that's never quite silent. This is hearing, and it happens to you automatically, the same way breathing does.\n\nListening is different. Listening is a choice.\n\nHere is the strange discovery waiting at the end of this practice: sound itself carries no meaning. A voice raised in anger and a voice raised in joy are, for a fraction of a second, simply waves moving through air — identical in kind, different only in what your mind does with them afterward. The meaning isn't in the sound. It's added, quietly, between your ear and your understanding, by everything you already believe.\n\nSit. Let your ears open to whatever is actually here — not the sounds you expect, the ones that are. Notice how each one arrives, holds its shape briefly, and passes. Nothing stays. Not even the loudest thing in the room.\n\nObserve Sound unlocked. Find it in your Sitting practice.",
+      myth: "Open your ears to what is actually happening: not the meaning of words, or the names of sounds, but the vibration of everything happening in and around you.\n\nObserve Sound unlocked. Find it under Sit.",
       libId: "lib_s_sound",
       criteria: "Sit with Observe Sound for 10 minutes in one session.",
       unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Sound", stat: "wis", target: 10, unit: "minutes", singleSession: true }],
@@ -538,7 +538,7 @@ const QUEST_CHAINS = {
     {
       id: "s_thought",
       title: "Observe Thought",
-      myth: "A thought arrives, fully formed, demanding to be believed. This is normal. It is also optional.\n\nThinking is participation — climbing into the thought, letting it carry you wherever it's going. Observing is something else entirely: stepping back, becoming an audience to the mind's own theater, watching the thought the way you'd watch a wave rise and fall, without climbing in to ride it.\n\nHere is the proof, if proof is needed: the mind can only hold one thought at a time, one word following another, like a single voice speaking in a small room. But you can take in a hundred things at once — every sound, every color, the weight of your own body, all of it simultaneous. Whatever is doing that noticing is larger than any single thought passing through it. You are not the voice in the small room. You are the much larger thing listening to it.\n\nLet a thought arise. Don't follow it. Just watch it appear, and watch it go.\n\nObserve Thought unlocked. Find it in your Sitting practice.",
+      myth: "Observe your thoughts.",
       libId: "lib_s_thought",
       criteria: "Sit with Observe Thought for 12 minutes in one session.",
       unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Thought", stat: "wis", target: 12, unit: "minutes", singleSession: true }],
@@ -546,7 +546,7 @@ const QUEST_CHAINS = {
     {
       id: "s_emotion",
       title: "Observe Emotion",
-      myth: "A feeling arrives. So far, nothing has gone wrong. Feelings arriving is simply what it means to be alive.\n\nWhat usually happens next is this: on top of the first feeling, a second one gets added — judgment about the feeling, fear that it will never end, the belief that you shouldn't be feeling it at all. The first arrow is the emotion itself. The second arrow, the one that does most of the damage, is everything you throw at yourself afterward for having felt it.\n\nThere is a small shift in language that does real work here. Not \"I am angry,\" but \"I am feeling anger.\" The second phrasing makes room — it names the feeling without becoming it, the same way you've already learned to watch a thought without climbing inside it. Try this, and something strange happens: the feeling that seemed unbearable starts to move. Resisted, it stays. Witnessed plainly, it passes, the way every wave eventually does.\n\nLet a feeling rise. Name it without flinching. Watch what it does when nobody fights it.\n\nObserve Emotion unlocked. Find it in your Sitting practice.",
+      myth: "Observe your emotions.",
       libId: "lib_s_emotion",
       criteria: "Sit with Observe Emotion for 15 minutes in one session.",
       unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Emotion", stat: "wis", target: 15, unit: "minutes", singleSession: true }],
@@ -554,7 +554,7 @@ const QUEST_CHAINS = {
     {
       id: "s_body",
       title: "Observe Body",
-      myth: "There is another way to meet a held breath, a tight shoulder, a stomach in knots — one that asks nothing of you but attention.\n\nHealer's path teaches you to release tension. This is different, and worth knowing the difference: not loosening, not softening, not asking the body to do anything at all. Just noticing exactly what's there, with the same curiosity you'd bring to weather passing overhead. A tight jaw. A flutter in the chest. Cold feet. None of it needs fixing right now. It only needs to be seen clearly.\n\nSomething strange tends to happen when a sensation is met this way, with nothing demanded of it. Sometimes it shifts on its own, the way drowsiness can loosen its grip the moment you actually look at it instead of fighting to stay awake. Sometimes it simply stays, and that's fine too. Every sensation in the body rises and falls in its own time. None of them are permanent, even the ones that feel like they will last forever.\n\nScan slowly. Notice what's there. Change nothing. Just see.\n\nObserve Body unlocked. Find it in your Sitting practice.",
+      myth: "Feel your body.\n\nPain, tension, anything you feel.\n\nScan from top to bottom, then bottom to top.\n\nObserve Body unlocked.",
       libId: "lib_s_body",
       criteria: "Sit with Observe Body for 15 minutes in one session.",
       unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Body", stat: "wis", target: 15, unit: "minutes", singleSession: true }],
@@ -562,7 +562,7 @@ const QUEST_CHAINS = {
     {
       id: "s_attention",
       title: "Observe Attention",
-      myth: "Sound, thought, emotion, body. Four objects, four practices, and through all of them, one thing has remained constant: something was doing the watching.\n\nNow turn that same attention toward itself. Not toward a new object this time — toward the noticing itself. Who is aware? Where does this awareness seem to live? Don't search for an answer. There isn't one waiting to be found, only the strange, quiet fact of being conscious at all, met directly instead of taken for granted.\n\nBe careful here. The mind will try to make a thing out of the watcher — a self standing behind the self, then another behind that one, a hall of mirrors with no end. This is not the practice. The practice is simpler and stranger: just notice that noticing is happening, the way you'd notice an unmoved sky behind clouds that never stop moving. The clouds change constantly. The sky has never once moved.\n\nDon't try to find the watcher. Just notice that something is watching.\n\nObserve Attention unlocked. Find it in your Sitting practice.",
+      myth: "Now we turn to attention itself.\n\nWhere is it? How is it moving? What shape does attention have?\n\nObserve your attention for 20 minutes.",
       libId: "lib_s_attention",
       criteria: "Sit with Observe Attention for 20 minutes in one session.",
       unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Attention", stat: "ali", target: 20, unit: "minutes", singleSession: true }],
@@ -571,7 +571,7 @@ const QUEST_CHAINS = {
       id: "s_inquire",
       title: "Inquire",
       isCapstone: true,
-      myth: "Six practices, six lenses. Sound. Thought. Emotion. Body. Attention. Reflection on each. None of them, on their own, asked you to conclude anything. They only asked you to look.\n\nThis is different. Inquiry takes everything you've learned to notice and turns it into a question sharp enough to cut. Not \"what did I notice\" — that was Reflect, gentle and open. This is closer to a blade, used carefully, on yourself.\n\nFive questions to begin. Sit with one at a time. Don't rush to answer — let the question work on you before you try to work on it.\n\nThese are not solved once and set aside. They are returned to — today, and again in a month, and again in a year, when the same question will likely show you something new. Each one you sit with marks itself differently in your journal from now on, set apart from the rest, a thread you can pull at any time and follow back through everything you've sat with.\n\nInquire unlocked. Find your new Inquiry entries in the journal.",
+      myth: "Questions direct our mind to places previously not possible. Inquire is the shovel with which we may dig into reality.\n\nBelow are 5 questions to help you get started.",
       libId: "lib_s_inquire",
       criteria: "Answer all five Inquiry questions in the journal.",
       /* Inquire's quest completes only when all five seed questions answered. */
@@ -659,51 +659,51 @@ const QUEST_CHAINS = {
       id: "ma_trial",
       title: "Martial Artist Trial",
       isTrial: true,
-      myth: "The Warrior built a body you can trust. This path asks what that body can do with intention.\n\nBefore any technique, the vow: sit, stand, walk, three minutes each, attention placed at a center each time — and on the Ascend screen, after the timer, choose that center as where your awareness landed.\n\nStand, and sink your attention into the legs — the root every technique grows from.\nSit, and gather it in the belly — the center every movement returns to.\nWalk, and lift it to the head — the clarity that sees before it moves.\n\nThree forms. Three centers. One vow. Walk through it, and the path of the Martial Artist opens.",
+      myth: "You stand before the trial of the Martial Artist. Before you strike, you must stand.\n\nStand while moving your attention from the top of your head to the ground beneath your feet.\n\nSelect both centers after your standing meditation to complete the trial.",
       libId: "lib_ma_trial",
-      criteria: "Complete the Martial Artist Foundation Trial: 3-min Stand, Sit, Walk.",
+      criteria: "Complete the Martial Artist Trial: Stand for 10 minutes, then select Crown and Ground.",
       unlocks: [],
     },
     {
       id: "w_horse",
       title: "Stance",
-      myth: "The tree does not rise by growing tall first.\n\nIt rises because it rooted first — deep, unseen, patient — and only then did the trunk dare to climb. Horse Stance is the Warrior's root. Before the punch, before the kick, before any form takes shape, there is this: legs bent, spine still, weight sunk into the earth like something that has always belonged there.\n\nPower does not begin at the fist. It begins at the feet, and travels up through a body that has learned to stand its ground. A strike thrown from a shaking stance is a strike thrown from nowhere. Hold the root, and everything built on top of it — every punch, every kick, every form still to come — inherits that strength.\n\nThis is the quietest trial yet. No motion. No reps. Only stillness, and the discipline to stay in it.\n\nHorse Stance unlocked. Find it in your Standing practice.",
+      myth: "Horse Stance develops the foundation for deep stability and power.\n\nIn days of old, practitioners practiced only Horse Stance for months or years before learning a single technique.",
       libId: "lib_w_horse",
-      criteria: "Accumulate held time in Horse Stance.",
-      unlocks: [{ kind: "activity", practiceType: "standing", name: "Horse Stance", stat: "str" }],
+      criteria: "Accumulate 10 minutes of Horse Stance.",
+      unlocks: [{ kind: "activity", practiceType: "standing", name: "Horse Stance", stat: "str", target: 10, unit: "minutes" }],
     },
     {
       id: "w_footwork",
       title: "Footwork",
-      myth: "Until now, the root has held still. Now it must learn to move without ever leaving.\n\nThere is an old saying: stillness in movement, movement in stillness. The beginner believes these are opposites — that to move, you must give up your ground, and to hold your ground, you must stay still. The Warrior learns otherwise. True footwork loses nothing. The root does not empty when the foot lifts. It simply moves to where it is needed next.\n\nAnother saying: one leg full, the other empty — learn to tell them apart, always. At every moment, one leg carries the weight and one is free to move. Confuse the two, and you are unstable no matter how still you appear. Know them clearly, and you can move through anything without ever losing your footing.\n\nThe old masters who could not be pushed were not simply heavy or strong. Even mid-stride, they remained an extension of the ground beneath them, not something standing apart from it.\n\nThis is not stillness traded for speed. It is stillness that has learned to travel.",
+      myth: "After learning to stand you must learn to move.\n\nDevelop accuracy, control, and stability, and the ability to strike at any moment.",
       libId: "lib_w_footwork",
-      criteria: "Complete Footwork training.",
-      unlocks: [{ kind: "activity", practiceType: "train", name: "Footwork", stat: "wil" }],
+      criteria: "Accumulate 15 minutes of Footwork.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Footwork", stat: "wil", target: 15, unit: "minutes" }],
     },
     {
       id: "w_punch",
       title: "Punch",
-      myth: "The root holds. Now it speaks.\n\nEverything Horse Stance built lives in this moment — the legs that learned to sink, the spine that learned to stand. A punch is not thrown by the arm. The arm is only where the power finally arrives, after traveling up through ground, through legs, through hips that turn like a door swinging open. Hit with the arm alone, and you hit with nothing. Hit with the whole body behind it, and even a small fist carries the weight of everything beneath it.\n\nThis is why the stance came first. A strike thrown from a shaking root is a strike thrown from nowhere.\n\nForm first. Speed later. The fist that lands clean is built long before it ever moves.",
+      myth: "Punch 100 times.",
       libId: "lib_w_punch",
-      criteria: "Complete Punch training.",
-      unlocks: [{ kind: "activity", practiceType: "train", name: "Punch", stat: "str" }],
+      criteria: "Punch 100 times.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Punch", stat: "str", target: 100, unit: "reps" }],
     },
     {
       id: "w_kick",
       title: "Kick",
-      myth: "The root learned to speak through the fist. Now it must speak standing on one leg.\n\nA kick asks more of the root than a punch ever did. Half the base is gone — one leg lifted, balance narrowed to a single point of contact with the earth — and still the power must travel the same path: up from the ground, through the hip, out through the limb. Chamber the knee before you fire. The more it bends, the more it gathers, the way a bow gathers force before the string is loosed.\n\nFlexibility is not decoration here. A tight hip is a closed door — the kick that should travel in a full arc becomes a tap, all that gathered power with nowhere to go. Open the hip, and the same leg that nearly stumbled becomes the most honest test of the root yet: can it hold, even when there's almost nothing left to stand on?",
+      myth: "Kick 100 times.",
       libId: "lib_w_kick",
-      criteria: "Complete Kick training.",
-      unlocks: [{ kind: "activity", practiceType: "train", name: "Kick", stat: "str" }],
+      criteria: "Kick 100 times.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Kick", stat: "str", target: 100, unit: "reps" }],
     },
     {
       id: "w_flow",
       title: "Martial Flow",
       isCapstone: true,
-      myth: "Punch. Kick. Footwork. Three things, learned one at a time, each its own small mountain.\n\nNow they stop being three things.\n\nThere is a word for what happens next: Mushin. No mind. Not the absence of thought, but the absence of the gap between thought and action — the moment a strike no longer needs to be decided before it's thrown. The body already knows. It has known since the first sloppy pushup, the first hundred meters, the first held breath in Horse Stance. All of it was leading here, even when none of it looked like this.\n\nThis is strange: the deeper the flow, the quieter the body becomes. Heartbeat slows. The face softens. What looks, from outside, like power, feels, from inside, like rest.\n\nYou cannot force this. You can only become someone it's willing to happen to.",
+      myth: "Combine it all together.\n\nShadowbox with kicks, perform Martial Flow for 15 minutes.\n\nMusic is great here.",
       libId: "lib_w_flow",
-      criteria: "Complete Martial Flow sessions.",
-      unlocks: [{ kind: "activity", practiceType: "train", name: "Martial Flow", stat: "wil" }],
+      criteria: "Accumulate 15 minutes of Martial Flow.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Martial Flow", stat: "wil", target: 15, unit: "minutes" }],
     },
   ],
   battlemage: [
@@ -1170,7 +1170,7 @@ const FUNDAMENTALS = {
   martial: [
     { id:"ma_stance",   name:"Stance",       activity:false, unit:"minutes", stat:"str", variations:"Horse stance and the stances of your art",  sources:["Horse Stance"] },
     { id:"ma_footwork", name:"Footwork",     unit:"minutes", stat:"wil", practiceType:"train", variations:"Stepping, shifting, angles, distance",  sources:[], unlockQuest:"w_footwork" },
-    { id:"ma_strike",   name:"Strike",       activity:false, unit:"minutes", stat:"str", variations:"Punches, kicks, elbows, knees",  sources:["Punch","Kick"] },
+    { id:"ma_strike",   name:"Strike",       activity:false, unit:"reps", stat:"str", variations:"Punches, kicks, elbows, knees",  sources:["Punch","Kick"] },
     { id:"ma_throw",    name:"Throw",        unit:"minutes", stat:"str", practiceType:"train", variations:"Grips, off-balancing, throws, takedowns", sources:[], minMastery:2 },
     { id:"ma_flow",     name:"Martial Flow", unit:"minutes", stat:"wil", practiceType:"train", variations:"Forms, shadow work, free movement",  sources:[], unlockQuest:"w_flow" },
   ],
@@ -1364,7 +1364,10 @@ function migrateCh(ch){
 }
 
 const AWARENESS_STAT={root:"str",belly:"vit",solar_plexus:"wil",chest:"hrt",throat:"voi",head:"wis",top:"ali"};
-/* Redirects 30% of every OTHER stat's gain into whichever awareness center(s)
+/* Share of every OTHER stat's gain redirected into the selected awareness
+   center(s): 50% for one, 60% for two, 70% for three... capped at 100%. */
+function awarenessRedirectFraction(n){ return n<=0 ? 0 : Math.min(1, 0.4 + 0.1*n); }
+/* Redirects that share of every OTHER stat's gain into whichever awareness center(s)
    were selected. Pure and shared — called from BOTH the live review screen
    (so the displayed stat badges are honest about what's about to be saved)
    AND the actual save path in handleDone, so the two can never diverge. */
@@ -1374,8 +1377,9 @@ function applyAwarenessSiphon(sg, awarenessLanding){
   const selStats=[...new Set(lands.map(r=>AWARENESS_STAT[r]).filter(Boolean))];
   if(selStats.length===0) return sg;
   const out = {...sg};
+  const frac = awarenessRedirectFraction(selStats.length);
   const siphon=Object.keys(out).filter(k=>!selStats.includes(k)).reduce((sum,k)=>{
-    const amt=Math.round(out[k]*0.30); out[k]-=amt; return sum+amt;
+    const amt=Math.round(out[k]*frac); out[k]-=amt; return sum+amt;
   },0);
   const perStat=Math.round(siphon/selStats.length);
   selStats.forEach(sk=>{ out[sk]=(out[sk]||0)+perStat; });
@@ -2426,8 +2430,8 @@ function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, librar
                 );
               })}
             </div>
-            {requireCenter && awarenessLanding.length===0 && <div style={{...body("10px",C.gold),fontStyle:"italic",marginTop:"7px",textAlign:"center"}}>Select the center you focused on to complete this trial step.</div>}
-            {awarenessLanding.length>0&&<div style={{...body("10px",C.dim),fontStyle:"italic",marginTop:"7px",textAlign:"center"}}>30% redirected to {awarenessLanding.length===1?awarenessLanding[0]:`${awarenessLanding.length} centers`}</div>}
+            {requireCenter && (typeof requireCenter==="object" ? !requireCenter.ids.every(c=>awarenessLanding.includes(c)) : awarenessLanding.length===0) && <div style={{...body("10px",C.gold),fontStyle:"italic",marginTop:"7px",textAlign:"center"}}>{typeof requireCenter==="object" ? requireCenter.msg : "Select the center you focused on to complete this trial step."}</div>}
+            {awarenessLanding.length>0&&<div style={{...body("10px",C.dim),fontStyle:"italic",marginTop:"7px",textAlign:"center"}}>{Math.round(awarenessRedirectFraction(awarenessLanding.length)*100)}% redirected to {awarenessLanding.length===1?awarenessLanding[0]:`${awarenessLanding.length} centers`}</div>}
           </div>
           )}
 
@@ -3602,6 +3606,39 @@ const LIBRARY_ENTRIES = [
     practice:"10 minutes without a destination or device. Establish alignment before you begin walking. Let the pace be slower than normal. Feel the contact of each step. Notice when the mind leaves and return to the body each time." },
 
   /* ── PATH SKILLS (barebone stubs — fill detailed instruction later) ── */
+  { id:"lib_w_kick", unlock:0, section:"Path Skills", pathId:"martial", pathName:"Martial Artist", skillUnlockQuest:"w_kick",
+    title:"Kick", sub:"Martial Artist", sc:"str",
+    body:[
+      "A kick asks more of the root than a punch. One leg leaves the ground, so your balance narrows to a single point, and the power still has to travel the same path: up from the ground, through the hip, and out through the leg.",
+      "Start with the front kick. From your stance, lift the knee of the kicking leg up and forward. This is the chamber, and the more it bends, the more it gathers. Then extend the lower leg, strike with the ball of the foot, and bring the leg back along the same line before putting the foot down.",
+      "Stand tall on the supporting leg with the knee soft, and keep your hands up and your spine upright. If you lean back to get the leg up, lower the kick. A lower, balanced kick is better than a high, wobbly one.",
+      "Tight hips shorten a kick into a tap. Warm up first, and stretch the hips, hamstrings and quads afterward. The Stretch practice in the Warrior path is a good place to start.",
+      "Form first, height later. Slow, controlled kicks build the balance and hip control that power is made from. Switch legs often so both sides learn equally."
+    ],
+    practice:"Kick the air in front of you, slowly, alternating legs. Keep going until you reach 100 kicks, resting whenever your balance or form slips." },
+
+  { id:"lib_w_punch", unlock:0, section:"Path Skills", pathId:"martial", pathName:"Martial Artist", skillUnlockQuest:"w_punch",
+    title:"Punch", sub:"Martial Artist", sc:"str",
+    body:[
+      "A punch is not thrown by the arm. The power starts at the ground, travels up through the legs, turns through the hips and waist, and only arrives at the fist at the end. The arm is where it lands.",
+      "Stand in your stance with knees soft and spine tall. Keep your guard up, with the non-punching hand near your chin. Start the punch from the back foot pushing into the floor, then turn the hips, then let the shoulder and arm follow.",
+      "Keep the wrist straight in line with the forearm, and make a firm fist with the thumb wrapped outside the fingers. Aim to land on the first two knuckles. Stay relaxed while it travels, and tighten only at the moment of impact.",
+      "Return the fist along the same line it went out, as quickly as it left, and never drop your guard. Keep your head up and your balance centered over the legs the whole time.",
+      "Form first, speed later. A slow, clean punch builds the path that speed is later made from. Stop and reset if you notice yourself leaning, reaching, or punching with the arm alone."
+    ],
+    practice:"Punch the air in front of you, slowly, alternating hands. Count only the punches that started from the ground. Keep going until you reach 100 punches, resting whenever the form slips." },
+
+  { id:"lib_w_footwork", unlock:0, section:"Path Skills", pathId:"martial", pathName:"Martial Artist", skillUnlockQuest:"w_footwork",
+    title:"Footwork", sub:"Martial Artist", sc:"wil",
+    body:[
+      "Footwork is how the root moves. Horse Stance taught you to stand your ground. Footwork keeps that ground with you while you step, turn and shift, so you stay stable and ready to strike at any moment.",
+      "Start from a stance a little wider than your shoulders, knees soft, spine tall. Keep your head at the same height as you move. If it bobs up and down, you are lifting out of your root.",
+      "At every moment one leg carries the weight and the other is free. Learn to feel which is which. Shift the weight first, then step with the free leg. Step with the heel or the whole foot landing softly, and never cross your feet.",
+      "The basic steps are forward, back, and sideways. In each, the back foot pushes and the front foot lands, and the stance never collapses into a narrow line. Slow, accurate steps build the control that speed is made from.",
+      "Accuracy first, then control, then stability, then speed. A step you can place exactly where you meant to is worth more than a fast one you cannot."
+    ],
+    practice:"Choose a line on the floor. Step forward along it five times, then back five times, keeping your height and your weight shifts smooth. Do the same sideways. Rest when form slips, and repeat until 15 minutes of Footwork are done." },
+
   { id:"lib_w_stretch", unlock:0, section:"Path Skills", pathId:"warrior", pathName:"Warrior", skillUnlockQuest:"w_stretch",
     title:"Stretch", sub:"Warrior", sc:"vit",
     body:[
@@ -3616,7 +3653,7 @@ const LIBRARY_ENTRIES = [
 
   CHANT_LIBRARY_STUB,
   ...Object.entries(QUEST_CHAINS).filter(([cid])=>cid!=="healer"&&cid!=="mystic").flatMap(([cid,chain]) =>
-    chain.filter(q=>!q.isTrial && q.libId!=="lib_w_stretch").map(q=>({
+    chain.filter(q=>!q.isTrial && q.libId!=="lib_w_stretch" && q.libId!=="lib_w_footwork" && q.libId!=="lib_w_punch" && q.libId!=="lib_w_kick").map(q=>({
       id:q.libId, unlock:0, section:"Path Skills",
       pathId:cid, pathName:(CLASS_BY_ID[cid]?.name)||"",
       skillUnlockQuest:q.id,
@@ -4218,7 +4255,7 @@ function TrialSteps({ cls, classState, devMode=false, onDevSkipTrial=()=>{} }){
             border:`1px solid ${done?C.sageB:isNext?AC(cls.accent):C.dim}`,background:done?`rgba(${C.sageRGB},0.12)`:"transparent"}}>
             {done && <span style={{color:C.sageB,fontSize:"12px"}}>✓</span>}
           </div>
-          <span style={{...body("15px",done?C.muted:C.cream),flex:1}}>{step.label} · 3 min</span>
+          <span style={{...body("15px",done?C.muted:C.cream),flex:1}}>{step.label} · {step.minutes||3} min</span>
           {isNext && <span style={{...dsp("8px",AC(cls.accent),400,"0.16em")}}>NEXT</span>}
         </div>); })}
       {trialQuest && (
@@ -4259,7 +4296,7 @@ function CategoryAddForm({ f, taken=[], onAdd, onCancel }){
 function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pathSel="center", onSelect:onPathSelect=()=>{}, onOpenPath=()=>{}, onChoosePath=()=>{},
   activities=[], onAddCategoryItem=()=>{}, onRemoveActivity=()=>{},
   onOpenClassQuest=()=>{}, onOpenLib=()=>{}, onAcknowledgeTrial=()=>{}, devMode=false, onDevSkipTrial=()=>{},
-  story=null, mode="paths", onMode=()=>{}, mySel="center", onMySel=()=>{}, onStoryChange=()=>{}, practiceModes=["sitting","standing","walking"], onOpenForge=()=>{}, presenceLevel=1 }){
+  story=null, mode="paths", onMode=()=>{}, mySel="center", onMySel=()=>{}, onStoryChange=()=>{}, practiceModes=["sitting","standing","walking"], onOpenForge=()=>{}, presenceLevel=1, onDevSetMastery=()=>{}, onDevSetPresence=()=>{} }){
   const hasStory=!!(story && story.name && story.values?.length);
   const mine = mode==="mine" && hasStory;
   const pathNodes=useMemo(cmNodes,[]);
@@ -4365,7 +4402,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
     : centerOn ? "Press Cultivate to practice: Sit, Stand or Walk."
     : selLocked ? cmUnlockText(selNode, classState, gateOpen)
     : !st.chosen ? "Open to you. Choose it to begin its trial."
-    : !trialDone ? `Trial: Sit, Stand and Walk, three minutes each. Press Cultivate for your ${nextTrialStep(classState, selNode.id)?.label||"next"}.`
+    : !trialDone ? (CLASS_BY_ID[selNode.id]?.trial?.length===1 ? `Trial: ${CLASS_BY_ID[selNode.id].trial[0].label} for ${CLASS_BY_ID[selNode.id].trial[0].minutes} minutes. Press Cultivate to begin.` : `Trial: Sit, Stand and Walk, three minutes each. Press Cultivate for your ${nextTrialStep(classState, selNode.id)?.label||"next"}.`)
     : `Press Cultivate to practice ${selNode.name} · ${MODE_LABEL[cMode]||"Practice"}.`;
   const accent = mine ? (myPr ? practiceAccent(myPr) : C.gold) : selLocked ? C.muted : selNode ? AC(selNode.accent) : C.gold;
   const eyebrow = mine ? (centerOn ? "MY PATH" : myPr ? `SERVES ${myPr.value.toUpperCase()}${myPr.stat?` · ${statLabel(myPr.stat).toUpperCase()}`:""}` : "VALUE")
@@ -4384,6 +4421,22 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
           <div style={{...dsp("8px",C.muted,400,"0.24em")}}>ASCEND: INFINITE POTENTIAL</div>
           <div style={{...dsp("15px",C.cream,400,"0.14em"),marginTop:"3px"}}>CULTIVATE</div>
         </div>
+        {devMode && !mine && (centerOn || (selNode?.real && openIds.has(selNode.id))) && (()=>{
+          const lv = centerOn ? presenceLevel : masteryLevelFromXP(selNode.id, classState?.mastery?.[selNode.id]?.xp||0);
+          const col = centerOn ? C.gold : AC(selNode.accent);
+          return (
+            <div onPointerDown={e=>e.stopPropagation()} style={{position:"absolute",left:"20px",top:"54px",width:"110px",zIndex:2}}>
+              <div style={{display:"flex",alignItems:"center",gap:"4px",marginBottom:"3px"}}>
+                <span style={{...dsp("7.5px",col,400,"0.1em")}}>{centerOn?"PRESENCE":selNode.name.toUpperCase()} LVL</span>
+                <span style={{...body("10px",col),marginLeft:"auto"}}>{lv}</span>
+              </div>
+              <input type="range" min="1" max="100" value={lv} className="dev-slider"
+                onChange={e=>{ const L=parseInt(e.target.value); if(centerOn) onDevSetPresence(L); else onDevSetMastery(selNode.id, L); }}
+                style={{width:"100%",height:"3px",display:"block",margin:0,padding:0,borderRadius:"2px",
+                  background:`linear-gradient(to right,${col} 0%,${col} ${lv}%,${C.bord} ${lv}%,${C.bord} 100%)`}}/>
+            </div>
+          );
+        })()}
         {hasStory && (
           <div role="group" aria-label="Map" onPointerDown={e=>e.stopPropagation()} style={{position:"absolute",right:"14px",top:"14px",zIndex:2,display:"flex",border:`0.5px solid ${C.bord}`,borderRadius:"16px",overflow:"hidden",background:C.surf}}>
             {[["paths","Paths"],["mine","My Path"]].map(([id,l])=>{ const on=(id==="mine")===mine; return (
@@ -4396,13 +4449,18 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
           <path d={dashed} stroke={INK(0.3)} strokeWidth="1.4" strokeDasharray="4 5"/>
           <path d={faint} stroke={INK(0.13)} strokeWidth="1.2" strokeDasharray="3 6"/>
         </svg>
+        {/* Star dust lives on its own layer UNDER every circle, so a neighbour's stars never show on a node. */}
+        <div aria-hidden="true" style={{position:"absolute",left:0,top:0,width:0,height:0,pointerEvents:"none"}}>
+          <div style={{position:"absolute",left:tx,top:ty,width:0,height:0}}><MasteryStars level={presenceLevel} color={C.gold} r0={mine?38:32} seed="presence"/></div>
+          {!mine && visible.map(n=>{ if(!n.real) return null; const b=classBadgeState(n.id, classState); if(!(b.chosen&&b.complete&&openIds.has(n.id))) return null;
+            return <div key={n.id} style={{position:"absolute",left:X(n.pos.x),top:Y(n.pos.y),width:0,height:0}}><MasteryStars level={b.level} color={AC(n.accent)} r0={24} seed={n.id}/></div>; })}
+        </div>
         <button type="button" aria-label={mine?story.name:"Presence"} aria-pressed={centerOn} onClick={()=>{ onSelect("center"); glide(0,0); }}
-          style={{position:"absolute",left:tx-(mine?38:32),top:ty-(mine?38:32),width:mine?76:64,height:mine?76:64,borderRadius:"50%",padding:0,cursor:"pointer",border:`1.5px solid ${C.gold}`,
-            background:centerOn?`rgba(${C.goldRGB},0.16)`:`rgba(${C.goldRGB},0.06)`,boxShadow:centerOn?`0 0 0 5px rgba(${C.goldRGB},0.18)`:"none",display:"flex",alignItems:"center",justifyContent:"center"}}>
+          style={{position:"absolute",zIndex:2,left:tx-(mine?38:32),top:ty-(mine?38:32),width:mine?76:64,height:mine?76:64,borderRadius:"50%",padding:0,cursor:"pointer",border:`1.5px solid ${C.gold}`,
+            background:`linear-gradient(${centerOn?`rgba(${C.goldRGB},0.16)`:`rgba(${C.goldRGB},0.06)`},${centerOn?`rgba(${C.goldRGB},0.16)`:`rgba(${C.goldRGB},0.06)`}), ${C.bg}`,boxShadow:centerOn?`0 0 14px rgba(${C.goldRGB},0.45)`:"none",display:"flex",alignItems:"center",justifyContent:"center"}}>
           {mine ? (()=>{ const longest=Math.max(...story.name.split(/\s+/).map(w=>w.length)); const fs=Math.max(6.5,Math.min(11,62/(Math.max(1,longest)*0.8)));
             return <span style={{...dsp(`${fs}px`,C.gold,400,"0.06em"),textAlign:"center",lineHeight:1.2,padding:"0 5px",overflow:"hidden",maxHeight:"44px"}}>{story.name.toUpperCase()}</span>; })()
             : <span style={{...dsp("7.5px",C.gold,400,"0.14em")}}>PRESENCE</span>}
-          <MasteryStars level={presenceLevel} color={C.gold} r0={mine?38:32} seed="presence"/>
         </button>
         {mine && shown.map(n=>{
           const on=sel===n.id || (selNode?.kind==="practice" && selNode.value===n.value), val=n.kind==="value";
@@ -4427,9 +4485,9 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
           const locked=!openIds.has(n.id);
           const bs=n.real ? classBadgeState(n.id, classState) : null;
           const mastered=!!(bs && bs.chosen && bs.complete);
-          /* The three foundation paths stay grey until they are activated (chosen). */
-          const dormant = !locked && !n.parents && n.real && !chosen;
-          const ac = locked || dormant ? C.dim : AC(n.accent);
+          /* The three foundation paths are grey (locked) until the Crucible is complete, then take their color. */
+          const dormant = false;
+          const ac = locked ? C.dim : AC(n.accent);
           const starReach = mastered ? starLayout(bs.level, 24, n.id).reach : 0;
           /* Ring is grey until the path is mastered; the logo keeps its color. */
           const ringGrey = !locked && !dormant && chosen && !mastered;
@@ -4437,14 +4495,14 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
           return (
             <button key={n.id} type="button" aria-pressed={on} aria-label={`${n.name}${locked?", locked":dormant?", not yet chosen":mastered?`, mastery level ${bs.level}`:""}`} onClick={()=>{ onSelect(n.id); glide(n.pos.x,n.pos.y); }}
               style={{position:"absolute",left:X(n.pos.x)-44,top:Y(n.pos.y)-24,width:88,padding:0,background:"none",border:0,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
-              <div style={{position:"relative",width:48,height:48,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",color:ac,
+              <div style={{position:"relative",zIndex:2,width:48,height:48,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",color:ac,
                 border:`${chosen?2:1.5}px ${locked||(n.parents&&!chosen)?"dashed":"solid"} ${edge}`,
-                background:on?`${ac}2e`:C.surf,
-                boxShadow:mastered ? `0 0 0 3px ${C.surf}, 0 0 0 4.5px ${AC(n.accent)}${on?`, 0 0 0 9px ${AC(n.accent)}33`:""}, 0 0 14px ${AC(n.accent)}59` : on?`0 0 0 5px ${ac}33`:"none",
+                /* solid under the tint so nothing behind shows through, except on greyed-out (locked) paths */
+                background:locked ? (on?`${ac}2e`:C.surf) : `linear-gradient(${on?`${ac}2e`:C.surf},${on?`${ac}2e`:C.surf}), ${C.bg}`,
+                boxShadow:mastered ? `0 0 14px ${AC(n.accent)}${on?"88":"59"}` : on?`0 0 12px ${ac}66`:"none",
                 opacity:locked?0.55:1}}>
                 {CM_ICONS[n.id] ? <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={CM_ICONS[n.id]}/></svg>
                   : <span style={{...dsp("19px",ac)}}>{n.name[0]}</span>}
-                {mastered && <MasteryStars level={bs.level} color={AC(n.accent)} r0={24} seed={n.id}/>}
               </div>
               <span style={{...body("12.5px",on?C.cream:locked?C.dim:C.muted),lineHeight:"14px",textShadow:`0 0 6px ${C.bg}`,marginTop:Math.max(0,starReach-27)}}>{n.name}</span>
             </button>
@@ -4823,7 +4881,7 @@ function FoundationTrial({ classId, trialProgress={}, onOpenTrial, devMode=false
               {done?<span style={{color:C.sageB,fontSize:"13px"}}>✓</span>:<PresenceMark size={12} color={C.dim} sw={1}/>}
             </div>
             <div style={{flex:1}}>
-              <div style={{...body("14px",done?C.cream:C.muted)}}>{step.label} · 3 min</div>
+              <div style={{...body("14px",done?C.cream:C.muted)}}>{step.label} · {step.minutes||3} min</div>
               <div style={{...dsp("9px",done?cls.accent:C.dim,400,"0.1em")}}>{statMeta?.s}</div>
             </div>
             {!done && <span style={{...body("11px",AC(cls.accent))}}>Begin →</span>}
@@ -9426,14 +9484,15 @@ export default function AscendApp(){
     const trialFor = sessionClass && (classState.chosenClasses||[]).includes(sessionClass) && !trialComplete(sessionClass) ? sessionClass : classState.activeClass;
     /* Trial steps also require choosing the center you focused on (once the
        center selector is available), as the trial text asks. */
-    const centerOk = lands.length>0 || !controlUnlocked("centers", completedChapters);
-    if(!isA && trialFor && (elapsedSecs||0)>=180 && centerOk &&
-       ["sitting","standing","walking"].includes(typeId)){
+    const centersOn = controlUnlocked("centers", completedChapters);
+    if(!isA && trialFor && ["sitting","standing","walking"].includes(typeId)){
       const ac=trialFor;
       if(!trialComplete(ac)){
         const cls=CLASS_BY_ID[ac];
-        const needs=cls?.trial?.some(st=>st.type===typeId && !(classState.trialProgress[ac]||{})[st.type]);
-        if(needs) markTrialStep(ac, typeId);
+        const step=cls?.trial?.find(st=>st.type===typeId && !(classState.trialProgress[ac]||{})[st.type]);
+        const longEnough=(elapsedSecs||0) >= (step?.minutes||3)*60;
+        const centerOk = !centersOn || (step?.centers ? step.centers.every(c=>lands.includes(c)) : lands.length>0);
+        if(step && longEnough && centerOk) markTrialStep(ac, typeId);
       }
     }
     if(!hasAnchored && guidedSession) setGuidedSession(false); // auto-off after first session
@@ -9754,7 +9813,18 @@ export default function AscendApp(){
           <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
             classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid,cid)=>setOpenClassQuest({classId:cid||classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}
             onOpenMyPath={()=>{ setCultMode("mine"); setMySel("center"); setTab("cultivate"); }} lineReq={questLineReq}/></div>
-          <div style={{display:tab==="cultivate"?"block":"none",height:"100%"}}><CultivateTab classState={classState} presenceLevel={presenceLevel} sessions={sessions} jEnt={jEnt} gateOpen={classGateOpen}
+          <div style={{display:tab==="cultivate"?"block":"none",height:"100%"}}><CultivateTab classState={classState} presenceLevel={presenceLevel} onDevSetPresence={L=>setCh(p=>({...p,totalXP:totalXPForLevel(L)}))} onDevSetMastery={(cid,L)=>setClassState(cs=>{
+              /* Dev only: choose the path, finish its trial and chain, then set the level. */
+              const cls=CLASS_BY_ID[cid]; if(!cls) return cs;
+              const prog={}; cls.trial.forEach(st=>{ prog[st.type]=true; });
+              const qp={...(cs.questProgress||{})}; (QUEST_CHAINS[cid]||[]).filter(isChainQuest).forEach(q=>{ qp[q.id]=true; });
+              return {...cs, unlocked:true, activeClass:cs.activeClass||cid,
+                chosenClasses:(cs.chosenClasses||[]).includes(cid)?cs.chosenClasses:[...(cs.chosenClasses||[]),cid],
+                trialProgress:{...(cs.trialProgress||{}),[cid]:prog},
+                trialCelebrated:{...(cs.trialCelebrated||{}),[cid]:true},
+                questProgress:qp,
+                mastery:{...(cs.mastery||{}),[cid]:{...(cs.mastery?.[cid]||{}),xp:masteryTotalXPForLevel(cid,L)}}};
+            })} sessions={sessions} jEnt={jEnt} gateOpen={classGateOpen}
             sel={cultSel} onSelect={setCultSel} onOpenPath={cid=>{setPathView(cid);setScr("path");}}
             onChoosePath={cid=>chooseClass(cid)}
             onOpenClassQuest={(cid,qid)=>setOpenClassQuest({classId:cid,questId:qid})} onOpenLib={(id)=>{setTab("library");setLibOpenId(id);}}
@@ -9930,7 +10000,7 @@ export default function AscendApp(){
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
         {scr==="path"&&pathView&&<PathPortal classId={pathView} classState={classState} sessions={sessions} jEnt={jEnt} activities={activities} onBack={()=>setScr(null)}/>}
         {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} timerVisibility={timerVisibility} setTimerVisibility={setTimerVisibility} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onDeleteCloud={handleDeleteCloud} onSignOut={handleSignOut} onVerified={handleVerified} autoCloudSync={autoCloudSync} setAutoCloudSync={setAutoCloudSync}/>}
-        {anch&&<AnchorPortal sessionTitle={sessionPath?`CULTIVATE ${sessionPath.toUpperCase()}`:"CULTIVATE"} onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={[...activities, ...practiceActivities]} initialActIds={anchPractice?[anchPractice]:[]} requireCenter={(()=>{const ac=sessionClass||classState?.activeClass; return !!(ac && (classState?.chosenClasses||[]).includes(ac) && !trialComplete(ac));})()} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchStartType || (["sitting","standing","walking"].includes(anchInitType) ? anchInitType : "sitting")} reflectUnlocked={!!classState?.questProgress?.s_reflect || ((classState?.chosenClasses||[]).includes("sage") && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={sessionClass||classState?.activeClass||null} unlocks={anchPractice ? {...anchorUnlocks(completedChapters), activities:true} : anchorUnlocks(completedChapters)} guideCues={!anchPractice && !anchorUnlocks(completedChapters).modifiers ? [
+        {anch&&<AnchorPortal sessionTitle={sessionPath?`CULTIVATE ${sessionPath.toUpperCase()}`:"CULTIVATE"} onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={[...activities, ...practiceActivities]} initialActIds={anchPractice?[anchPractice]:[]} requireCenter={(()=>{const ac=sessionClass||classState?.activeClass; if(!(ac && (classState?.chosenClasses||[]).includes(ac) && !trialComplete(ac))) return false; const stp=nextTrialStep(classState, ac); return stp?.centers ? {ids:stp.centers, msg:"Select both centers, Crown and Ground, to complete this trial."} : true;})()} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchStartType || (["sitting","standing","walking"].includes(anchInitType) ? anchInitType : "sitting")} reflectUnlocked={!!classState?.questProgress?.s_reflect || ((classState?.chosenClasses||[]).includes("sage") && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={sessionClass||classState?.activeClass||null} unlocks={anchPractice ? {...anchorUnlocks(completedChapters), activities:true} : anchorUnlocks(completedChapters)} guideCues={!anchPractice && !anchorUnlocks(completedChapters).modifiers ? [
           {s:0,  e:5,  text:"Sit comfortably."},
           {s:5,  e:10, text:"Let your eyes soften or close."},
           {s:10, e:50, text:"This is your time to simply be here, breathing, for as long as feels right."},
