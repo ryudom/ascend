@@ -683,7 +683,7 @@ const QUEST_CHAINS = {
     {
       id: "w_punch",
       title: "Punch",
-      myth: "Punch 100 times.",
+      myth: "Punch 100 times.\n\nPunch unlocked. Find it under Strike.",
       libId: "lib_w_punch",
       criteria: "Punch 100 times.",
       unlocks: [{ kind: "activity", practiceType: "train", name: "Punch", stat: "str", target: 100, unit: "reps" }],
@@ -691,7 +691,7 @@ const QUEST_CHAINS = {
     {
       id: "w_kick",
       title: "Kick",
-      myth: "Kick 100 times.",
+      myth: "Kick 100 times.\n\nKick unlocked. Find it under Strike.",
       libId: "lib_w_kick",
       criteria: "Kick 100 times.",
       unlocks: [{ kind: "activity", practiceType: "train", name: "Kick", stat: "str", target: 100, unit: "reps" }],
@@ -1169,10 +1169,9 @@ const FUNDAMENTALS = {
   ],
   martial: [
     { id:"ma_stance",   name:"Stance",       activity:false, unit:"minutes", stat:"str", variations:"Horse stance and the stances of your art",  sources:["Horse Stance"] },
-    { id:"ma_footwork", name:"Footwork",     unit:"minutes", stat:"wil", practiceType:"train", variations:"Stepping, shifting, angles, distance",  sources:[], unlockQuest:"w_footwork" },
-    { id:"ma_strike",   name:"Strike",       activity:false, unit:"reps", stat:"str", variations:"Punches, kicks, elbows, knees",  sources:["Punch","Kick"] },
+    { id:"ma_strike",   name:"Strike",       activity:false, unit:"reps", stat:"str", variations:"Punches, kicks, elbows, knees",  sources:["Punch","Kick"], unlockQuest:"w_punch" },
     { id:"ma_throw",    name:"Throw",        unit:"minutes", stat:"str", practiceType:"train", variations:"Grips, off-balancing, throws, takedowns", sources:[], minMastery:2 },
-    { id:"ma_flow",     name:"Martial Flow", unit:"minutes", stat:"wil", practiceType:"train", variations:"Forms, shadow work, free movement",  sources:[], unlockQuest:"w_flow" },
+    { id:"ma_flow",     name:"Flow",         activity:false, unit:"minutes", stat:"wil", variations:"Footwork, forms, shadow work, free movement",  sources:["Footwork","Martial Flow"], legacy:["Martial Flow"], unlockQuest:"w_footwork" },
   ],
   battlemage: [
     { id:"b_stoke",   name:"Stoke the Furnace", unit:"minutes", stat:"vit", practiceType:"standing", variations:"Breath to the furnace, then movement from core", sources:["Move from Core","Core Flow"], unlockQuest:"b_stoke" },
@@ -1180,10 +1179,44 @@ const FUNDAMENTALS = {
     { id:"b_barrier", name:"Barrier",           unit:"minutes", stat:"hrt", practiceType:"standing", variations:"The field, in stillness and in the world",       sources:["The Shifting Field","The Proving Ground"], unlockQuest:"b_barrier" },
   ],
 };
+/* Which practices each class offers in the anchor picker (active class only).
+   Each foundation path owns one posture: Warrior=Stand, Healer=Walk, Sage=Sit.
+   A Fundamental listed here is itself a practice, holding its activities;
+   Train / Restore are catch-alls. */
+const CLASS_PRACTICES = {
+  warrior:    [{base:"standing"}, {base:"train"},   {fund:"w_strengthen"}, {fund:"w_stretch"}, {fund:"w_endure"}],
+  healer:     [{base:"walking"},  {base:"restore"}, {fund:"h_feel"}, {fund:"h_release"}, {fund:"h_nourish"}],
+  sage:       [{base:"sitting"},  {fund:"s_observe"}],
+  mystic:     [{base:"sitting"},  {fund:"m_devotion"}, {fund:"m_communion"}, {fund:"m_henosis"}],
+  martial:    [{base:"standing"}, {base:"train"},   {fund:"ma_strike"}, {fund:"ma_flow"}, {fund:"ma_throw"}],
+  battlemage: [{base:"standing"}, {base:"train"},   {fund:"b_stoke"}, {fund:"b_accel"}, {fund:"b_barrier"}],
+};
+const CLASS_DEFAULT_BASE = { warrior:"train", healer:"restore", sage:"sitting", mystic:"sitting", martial:"train", battlemage:"standing" };
+const PRACTICE_BASE_LABEL = { sitting:"Sit", standing:"Stand", walking:"Walk", train:"Train", restore:"Restore" };
+/* The picker list for one class, or null when the full Sit/Stand/Walk set should
+   show (no class, or its trial still running — every trial needs all three). */
+function classPracticeList(cid, classState, unlockedTypes=[]){
+  const cfg = CLASS_PRACTICES[cid];
+  if(!cfg || !classState || !(classState.chosenClasses||[]).includes(cid) || !classTrialDone(classState, cid)) return null;
+  const funds = FUNDAMENTALS[cid]||[];
+  const out = [];
+  cfg.forEach(e=>{
+    if(e.base){
+      if(["train","restore"].includes(e.base) && !unlockedTypes.includes(e.base)) return;
+      out.push({ id:e.base, base:e.base, label:PRACTICE_BASE_LABEL[e.base] });
+    } else {
+      const f = funds.find(x=>x.id===e.fund);
+      if(!f || !fundamentalUnlocked(f, cid, classState)) return;
+      const base = (f.practiceType && f.practiceType!=="any") ? f.practiceType : CLASS_DEFAULT_BASE[cid];
+      out.push({ id:"f:"+f.id, base, label:f.name, fundId:f.id, fund:f });
+    }
+  });
+  return out.length ? out : null;
+}
 const FUND_MARKS = [7, 21, 49, 108, 216, 365, 1000];
 /* category id → its path, e.g. w_strengthen → warrior */
 const FUND_OWNER = Object.fromEntries(Object.entries(FUNDAMENTALS).flatMap(([cid,fs])=>fs.map(f=>[f.id,cid])));
-const fundMatches = (f, a) => a && (a.name===f.name && f.activity!==false || (f.sources||[]).includes(a.name) || (f.legacy||[]).includes(a.name) || (f.category && a.category===f.id));
+const fundMatches = (f, a) => a && (a.name===f.name && f.activity!==false || (f.sources||[]).includes(a.name) || (f.legacy||[]).includes(a.name) || a.category===f.id);
 
 /* "groups" quests (The Measure, The Proving): each group is met by a session
    that used one of its activities for real — a logged count for counted
@@ -1896,7 +1929,7 @@ function playGong(ctx){
   }catch(e){}
 }
 
-function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting", reflectUnlocked=false, unlockedPracticeTypes=[], unlocks={modifiers:true,pause:true,pin:true,practiceType:true,activities:true,centers:true}, guideCues=null, activeClassId=null, timerVisibility="reveal", initialActIds=[], requireCenter=false }){
+function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting", reflectUnlocked=false, unlockedPracticeTypes=[], unlocks={modifiers:true,pause:true,pin:true,practiceType:true,activities:true,centers:true}, guideCues=null, activeClassId=null, timerVisibility="reveal", initialActIds=[], requireCenter=false, classPractices=null }){
   const [phase,setPhase]       = useState("active");
   const [running,setRunning]   = useState(startImmediately);
   const [t,setT]               = useState(0);
@@ -1918,6 +1951,7 @@ function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, librar
   const tBaseRef = useRef(0);
   const runStartRef = useRef(null);
   const [pType,setPType]       = useState(initialType);
+  const [pPractice,setPPractice] = useState(initialType); // which picker entry: a base type, a Fundamental ("f:<id>"), or a custom type id
   const [tags,setTags]         = useState([]);
   const [refl,setRefl]         = useState("");
   const [pinSession,setPinSession] = useState(false);
@@ -1969,9 +2003,21 @@ function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, librar
     ...types.filter(tp=>!isCore(tp.id) && !EXTRA_TYPES.some(e=>e.id===tp.id)),
   ];
 
+  /* Picker entries: the active class's own practices (plus the player's custom
+     ones), or the plain Sit/Stand/Walk set when no class list applies. */
+  const customTypes = types.filter(tp=>!isCore(tp.id) && !EXTRA_TYPES.some(e=>e.id===tp.id));
+  const practiceOptions = classPractices ? [...classPractices, ...customTypes.map(tp=>({id:tp.id,base:tp.id,label:tp.label}))]
+                                         : [...CORE, ...dropdownTypes].map(tp=>({id:tp.id,base:tp.id,label:tp.label}));
+  const curPractice = practiceOptions.find(o=>o.id===pPractice) || null;
+  const curFund = curPractice?.fund || null;
+  const pickPractice = (o) => { setPPractice(o.id); setPType(o.base); setDropdown(false); };
+  /* If the class list doesn't include the remembered practice, land on its first entry. */
+  useEffect(()=>{
+    if(classPractices && !practiceOptions.some(o=>o.id===pPractice)){ const o=practiceOptions[0]; if(o){ setPPractice(o.id); setPType(o.base); } }
+  },[classPractices]);
   const elapsed = Math.floor(t);
   const allTypes = [...CORE, ...dropdownTypes];
-  const typeLabel = (allTypes.find(tp=>tp.id===pType)||CORE[0]).label;
+  const typeLabel = curPractice?.label || (allTypes.find(tp=>tp.id===pType)||CORE[0]).label;
   const dur = Math.max(1,Math.floor(elapsed/60));
   const weightedSecsLive = weightedElapsedSeconds(multEventsRef.current, t, activities);
   const xp = Math.floor(weightedSecsLive / 10);  // 1 XP per 10 weighted s (multiplier-aware)
@@ -1982,6 +2028,7 @@ function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, librar
      forever, but only usable while you're actually walking that path. */
   const activityVisible = (a) => {
     if(a.masteryBonus && a.bonusPath!==activeClassId) return false;
+    if(curFund) return !!fundMatches(curFund, a);   // a Fundamental practice shows exactly its own activities
     if(a.practiceType==="core") return CORE.some(c=>c.id===pType);
     if(!a.practiceType || a.practiceType==="any") return true;
     return a.practiceType===pType;
@@ -2071,9 +2118,9 @@ function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, librar
   };
   const submitNew = () => {
     const nt=newType.trim(); if(!nt) return;
-    const id=addType(nt); setPType(id); setDropdown(false); setAdding(false); setNewType("");
+    const id=addType(nt); setPType(id); setPPractice(id); setDropdown(false); setAdding(false); setNewType("");
   };
-  const pickExtra = (id) => { setPType(id); setDropdown(false); };
+  const pickExtra = (id) => { setPType(id); setPPractice(id); setDropdown(false); };
 
   return (
     <div style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",background:`radial-gradient(ellipse at 50% 30%, ${C.surf2} 0%, ${C.bg} 65%), linear-gradient(${C.bg2},${C.bg})`,zIndex:300,display:"flex",flexDirection:"column"}}>
@@ -2206,9 +2253,9 @@ function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, librar
                 </button>
                 {dropdown && (
                   <div style={{position:"absolute",top:"100%",right:0,minWidth:"160px",background:C.surf2,border:`0.5px solid ${C.sageB}`,borderRadius:"8px",zIndex:10,padding:"6px 0",boxShadow:`0 8px 24px rgba(0,0,0,0.5)`,marginTop:"6px"}}>
-                    {[...CORE,...dropdownTypes].map(tp=>(
-                      <button key={tp.id} onClick={()=>{setPType(tp.id);setDropdown(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:"10px",padding:"10px 14px",background:pType===tp.id?`rgba(${C.sageRGB},0.1)`:"transparent",border:"none",cursor:"pointer",textAlign:"left"}}>
-                        <span style={{...body("13px",pType===tp.id?C.cream:C.txt)}}>{tp.label}</span>
+                    {practiceOptions.map(tp=>(
+                      <button key={tp.id} onClick={()=>pickPractice(tp)} style={{width:"100%",display:"flex",alignItems:"center",gap:"10px",padding:"10px 14px",background:pPractice===tp.id?`rgba(${C.sageRGB},0.1)`:"transparent",border:"none",cursor:"pointer",textAlign:"left"}}>
+                        <span style={{...body("13px",pPractice===tp.id?C.cream:C.txt)}}>{tp.label}</span>
                       </button>
                     ))}
                     <div style={{height:"0.5px",background:C.bord,margin:"6px 0"}}/>
@@ -2267,7 +2314,7 @@ function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, librar
                           );})}
                         </div>
                         <div style={{display:"flex",gap:"6px"}}>
-                          <button onClick={()=>{if(newActName.trim()){addActivity(newActName.trim(),newActStat,pType);}setCreatingAct(false);setNewActName("");setNewActStat("str");}} style={{flex:1,padding:"5px",background:`rgba(${C.sageRGB},0.1)`,border:`0.5px solid ${C.sageB}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.sageB,400,"0.1em")}}>SAVE</button>
+                          <button onClick={()=>{if(newActName.trim()){addActivity(newActName.trim(),newActStat,pType,curFund?curFund.id:undefined);}setCreatingAct(false);setNewActName("");setNewActStat("str");}} style={{flex:1,padding:"5px",background:`rgba(${C.sageRGB},0.1)`,border:`0.5px solid ${C.sageB}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.sageB,400,"0.1em")}}>SAVE</button>
                           <button onClick={()=>{setCreatingAct(false);setNewActName("");setNewActStat("str");}} style={{padding:"5px 10px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"4px",cursor:"pointer",...dsp("9px",C.muted,400,"0.1em")}}>✕</button>
                         </div>
                       </div>
@@ -2936,58 +2983,45 @@ const ONBOARDING_SCENE=[
   ]},
 ];
 const DRIFT_SCENES=[
-  {label:"i · the current",body:[
-    "Every age has its current. A direction that quietly pulls human attention.",
-    "For thousands of years it carried us upward. Into thought. Into language. Into imagination. We learned to plan, calculate, build, and dream. We created civilizations from ideas and transformed the world.",
-    "It worked. Everything around you is evidence of that success. But every current carries a danger. Travel too far in one direction and balance is lost.",
-    "Somewhere along the way, the body became secondary. Presence became rare. Many of us now spend more time in thought than in direct experience. And the current is still moving.",
+  {label:"i · the current situation",body:[
+    "Throughout the ages we have advanced rapidly.",
+    "Our evolutionary energy and focus have grown our intelligence significantly.",
   ]},
-  {label:"ii · the acceleration",body:[
-    "Attention is no longer leaving only the body. It is beginning to leave the mind as well. Into feeds. Into algorithms. Into machines that react faster than we can.",
-    "We increasingly outsource not only labor but attention itself. Not only effort, but noticing. Not only memory, but choice.",
-    "Follow that line far enough and a question emerges: What remains of a human being when they no longer direct their own awareness?",
+  {label:"ii · the direction",body:[
+    "Our consciousness as a species has gravitated to our heads.",
+    "Now that movement of evolutionary power is spilling outward, into screens and technology.",
+    "For what purpose? For whose gain?",
   ]},
-  {label:"iii · the deeper crisis",body:[
-    "But the greatest danger is not any single catastrophe. It is forgetting who we are.",
-    "You can feel it beneath the headlines. The anxiety that never fully leaves. The restlessness that cannot sit still. The loneliness of being connected to everyone while belonging nowhere.",
-    "A generation is growing up fluent in technology but uncertain of identity. Many people can tell you what they consume, what they believe, what they oppose — yet struggle to answer a simpler question:",
-    "Who am I?",
+  {label:"iii · the crisis",body:[
+    "Losing our center, losing our true identity, has been reflected in the outer world.",
+    "A thousand ways to apocalypse loom while mental health suffers and anxiety rises.",
   ]},
-  {label:"iv · the turning",body:[
-    "Every one of these challenges shares a common root. A species that has drifted from its center.",
-    "When attention scatters, clarity fades. When clarity fades, fear takes its place. And from fear come the fragile systems, desperate decisions, and unconscious habits that shape the world.",
-    "The outer world reflects the inner one. Which means the solution begins in the same place.",
-    "Reclaiming attention.\nReturning to direct experience.\nRemembering the true self.",
-  ]},
-  {label:"v · the climb",body:[
-    "So the movement changes direction. Down into the body. Into breath. Into presence. Into the living world.",
-    "A tree does not reach the sky by abandoning its roots. The deeper it grounds, the higher it can grow. The same is true of us.",
-    "The path begins with a simple act that has become strangely rare: bringing attention home.",
-    "This is the climb.",
+  {label:"iv · the return",body:[
+    "The outer reflects the inner, and the solution is found there.",
+    "Reclaim attention.\nReturn to the present.\nRemember your true self and purpose.",
+    "Before we climb, we must first stand: anchored in ourselves, in the here and now.",
   ]},
 ];
 const DOORWAY_SCENES=[
-  {label:"i · the sleeping power",body:[
-    "Where attention goes, energy flows. Not as metaphor. As fact — felt in the body, demonstrated across centuries of practice.",
+  {label:"i · the power of attention",body:[
+    "Where attention goes, energy flows.",
+    "Not as metaphor. As fact: felt in the body, demonstrated across centuries of practice.",
     "You carry a power you have barely touched. It has been waiting here the whole time.",
   ]},
-  {label:"ii · the house",body:[
-    "The body is not a machine. Not a problem to manage. It is a house — and most people have never been inside it.",
-    "Not because it is hidden. Because attention never learned the way in.",
-    "You have always been able to go in. You just forgot you could.",
+  {label:"ii · your home",body:[
+    "Your body is the home of your consciousness.",
+    "Most live outside, in the wilderness, full of predators, preferring the empty promises to cleaning up the mess inside. Little do they know, with some hard work and right intention, they can inhabit a glorious mansion, full of indescribable treasure.",
   ]},
-  {label:"iii · the three conditions",perPage:4,body:[
-    "The door does not open by force. It opens when three conditions are met.",
-    "Alignment — the body upright, the channel clear.",
-    "Release — unnecessary holding let go.",
-    "Breath — the current you follow down.",
-    "When all three are present, awareness lands. The dormant power stirs.",
+  {label:"iii · renovation method",perPage:4,body:[
+    "To restore your mansion, three primary conditions must be established.",
+    "Alignment: a proper foundation is essential for a good house.",
+    "Relaxation: this is cleaning the mess, which prevents freedom, flow, and wellbeing.",
+    "Breath: this is your workforce, vitality, and bliss.",
   ]},
-  {label:"iv · the return",body:[
-    "This practice does not end. It deepens.",
-    "What was hidden becomes revealed. The mysteries slowly unravel. The truth is not always easy to accept — but those who persevere find that the reward is eternal.",
-    "The Anchor is your doorway. Begin here. Begin now.",
-    "Most people live an entire life without finding this door. You just found it. That alone makes you someone different than the one who opened this chapter.",
+  {label:"iv · open the door",body:[
+    "It is time.",
+    "You will find many things inside.",
+    "Steel your intent, take courage, and open the door.",
   ]},
 ];
 const DRIFT_PRACTICES=[
@@ -2999,125 +3033,39 @@ const DRIFT_PRACTICES=[
 
 
 const MASTERY_SCENES=[
-  {label:"i · the hidden foundations",body:[
-    "Most people search for mastery in complexity. New techniques. New systems. New information.",
-    "But mastery rarely begins with what is complicated. It begins with what is fundamental.",
-    "Every human life unfolds through three forms: sitting, standing, and walking. You have spent thousands of hours in each of them already.",
-    "The question is not whether you know these forms. The question is whether you inhabit them consciously.",
-  ]},
-  {label:"ii · sitting — stillness and clarity",body:[
-    "When the body becomes still, something hidden begins to appear. Thoughts continue moving. Emotions continue moving. Restlessness reveals itself.",
-    "Then, gradually, the sediment begins to settle. The Sit is not an escape from life. It is an encounter with it.",
-    "The practitioner learns that peace is not something created. It is something uncovered when the unnecessary movement falls away. Clarity emerges.",
-  ]},
-  {label:"iii · standing — root and power",body:[
-    "A tree does not resist the wind by becoming rigid. It survives because it is rooted. The deeper the roots, the greater the strength above.",
-    "Standing is the art of discovering this principle in your own body. Crown rising. Weight dropping. Breath settling. The body becomes a bridge between earth and sky.",
-    "Over time, standing reveals a different kind of strength. Not force. Not tension. Power without struggle. The current still moves around you, but no longer carries you so easily.",
-  ]},
-  {label:"iv · walking — stillness in motion",body:[
-    "Anyone can feel peaceful in a quiet room. The true test begins when life starts moving again.",
-    "Walking is the practitioner entering the world. The same awareness discovered in stillness is carried into motion. Step by step. Breath by breath.",
-    "The world offers endless opportunities to become distracted. Walking becomes the art of remaining present anyway. A life lived from the same place you stand when everything else moves.",
-  ]},
-  {label:"v · the first mastery",body:[
-    "These forms appear simple because they are familiar. But they are the foundations beneath every higher practice.",
-    "To sit well is to learn stillness. To stand well is to learn power. To walk well is to learn integration.",
-    "Master these three forms and every other practice rests upon solid ground.",
-    "You have sat, stood, and walked every day of your life without once asking what those acts could become. From today, you are no longer moving through a body. You are inhabiting one.",
+  {label:"integration",body:[
+    "Now that you know the three methods of renovation, we can integrate them into life. We start with the most common activities.",
+    "Sit.\nStand.\nWalk.",
+    "Each is incredibly beneficial in its own way.\nEach contains endless depth of mastery and cultivation.",
   ]},
 ];
 
 const PLACED_SCENES=[
-  {label:"i · a place in the world",body:[
-    "Practice does not happen in theory. It happens somewhere. In a room. Beneath a tree. Beside a river. On a porch. On a mountain trail.",
-    "Every return leaves a trace. The body remembers places more deeply than the mind realizes.",
-    "There are locations where awareness settles more quickly, where the noise grows quieter, where the doorway feels closer. These places become part of the path.",
-  ]},
-  {label:"ii · claiming ground",body:[
-    "To practice repeatedly in a place is to cultivate more than yourself. The place begins to change as well.",
-    "Attention gathers there. Memory gathers there. Meaning gathers there. What was once an ordinary location becomes a point of return.",
-    "A small island of presence in the current.",
-  ]},
-  {label:"iii · the inner and outer map",body:[
-    "Most people move through the world without truly inhabiting it. They know where things are, but not where they are.",
-    "The practitioner begins to reverse this. Each place of practice becomes a marker on two maps at once — one map of the world, one map of the self.",
-    "Over time they become impossible to separate. The ground beneath your feet becomes part of who you are.",
+  {label:"claim your ground",body:[
+    "Anchor your cultivation session to the map to reveal the nature around you.",
   ]},
 ];
 
 const LIVING_WORLD_SCENES=[
-  {label:"i · the oldest teacher",body:[
+  {label:"the oldest teacher",body:[
     "Long before there were books, there were forests. Long before there were philosophies, there were mountains. Long before there were teachers, there was the wind moving through the trees.",
-    "The living world has been practicing far longer than any human tradition. It has much to teach those willing to listen.",
-  ]},
-  {label:"ii · remembering what you are",body:[
-    "Modern life often feels separate from nature. As though the world exists outside us and we observe it from a distance.",
-    "But your body was not assembled in opposition to the earth. It emerged from it. The minerals in your bones, the water in your blood, the breath in your lungs all belong to the same process that shapes rivers, forests, and oceans.",
-    "You are not standing apart from nature. You are one expression of it.",
-  ]},
-  {label:"iii · the slower current",body:[
-    "The current of modern life moves quickly. The living world moves differently. Seasons do not rush. Mountains do not hurry. Trees do not compare themselves to one another.",
-    "The practitioner who spends time in the living world begins to remember another rhythm. A deeper rhythm. One that existed long before the noise.",
-  ]},
-  {label:"iv · participation",body:[
-    "The goal is not to visit nature. The goal is to belong to it. To recognize yourself as part of a living world rather than a spectator standing outside it.",
-    "When this recognition deepens, gratitude follows. And from gratitude comes the desire to care for what sustains you.",
-    "The path widens. Presence becomes participation.",
+    "The living world has contained wisdom far longer than any human tradition. It has much to teach those willing to listen.",
   ]},
 ];
 
 const GROWING_SCENES=[
-  {label:"i · what has been growing",body:[
-    "You have been sitting. Standing. Walking. Returning. Again and again.",
-    "Each practice may seem small on its own. But life is shaped by what is repeated. Something has been growing beneath the surface.",
-  ]},
-  {label:"ii · the invisible harvest",body:[
-    "A seed does not become a tree in a single day. Growth happens quietly. Roots deepen before branches appear.",
-    "The same is true of cultivation. Most of what matters happens long before it becomes obvious. The practitioner learns patience — trusting the process before the results arrive.",
-  ]},
-  {label:"iii · capacities",body:[
-    "Every practice strengthens particular capacities. Some deepen clarity. Some strengthen will. Some increase sensitivity. Some awaken vitality.",
-    "The purpose is not to become someone else. The purpose is to become more fully yourself.",
-  ]},
-  {label:"iv · the shape emerging",body:[
-    "The capacities are not separate. Like roots, trunk, branches, leaves, and fruit, they support one another. Growth in one area strengthens the whole.",
-    "Over time a pattern begins to emerge. Not an ideal. Not a persona. A living expression of who you are becoming.",
-  ]},
-  {label:"v · the cultivation path",body:[
-    "The current pulls attention outward. Cultivation gathers it again.",
-    "The process is simple. Return. Practice. Grow. Repeat. This is how a life changes.",
-    "You may not feel different yet. Most growth is invisible from the inside until, one day, it isn't. But something in you has already begun making this its habit rather than its exception — and that, quietly, is the whole of what changes a life.",
+  {label:"directing attention",body:[
+    "Just as our attention has been gathering in our heads, we can direct it anywhere we choose in the body.",
+    "Here, we can track where we choose to rest our attention.",
   ]},
 ];
 
 const THREE_FIRES_SCENES=[
-  {label:"i · the ancient discovery",body:[
-    "Across cultures separated by oceans, languages, and centuries, the same discovery appears again and again. Human beings are not animated from a single place.",
-    "There are centers where life gathers. Places where awareness, energy, and intention become concentrated. Many traditions gave them different names. For now, we will call them the Three Fires.",
-  ]},
-  {label:"ii · the lower fire",body:[
-    "The first fire burns in the lower body. It is the fire of vitality, grounding, and will. The fire that allows a tree to root deeply enough to withstand the storm.",
-    "Without it, higher development has no foundation. This fire is cultivated through embodiment — through practice, through learning to stand on your own ground.",
-  ]},
-  {label:"iii · the heart fire",body:[
-    "The second fire burns within the chest. It is the fire of openness, courage, connection, and expression.",
-    "Many people protect this fire because they have been wounded. Yet every meaningful relationship depends upon it. A closed heart may feel safe. But it cannot truly participate in life.",
-  ]},
-  {label:"iv · the upper fire",body:[
-    "The third fire burns in the head. It is the fire of clarity, perception, and wisdom. Its purpose is not endless thinking. Its purpose is orientation.",
-    "To see clearly. To understand. To recognize what is true. When the upper fire burns cleanly, confusion gives way to insight.",
-  ]},
-  {label:"v · tending the fires",body:[
-    "Most people live with one fire overfed and the others neglected. The path seeks balance.",
-    "Grounding without wisdom becomes stagnation. Wisdom without grounding becomes fantasy. Connection without strength becomes fragility.",
-    "The practitioner learns to tend all three.",
-  ]},
-  {label:"vi · the journey ahead",body:[
-    "You have reclaimed attention from the current. You have entered the doorway. You have practiced the forms. You have claimed ground.",
-    "You have remembered the living world. You have begun cultivating your capacities. Now you discover that all of it has been feeding the same thing.",
-    "The fires are lit. The climb continues.",
-    "Notice what has actually changed. Not your circumstances — your relationship to them. You arrived at the first page of this Act as someone drifting, asking a question you couldn't quite finish. You leave it as someone who practices presence on purpose. That is not a small difference. It is the entire one.",
+  {label:"the three centers",body:[
+    "Three primary centers.",
+    "Upper-Wisdom (Head)\nMiddle-Heart (Chest)\nLower-Vitality (Belly)",
+    "These three centers appear again and again across cultures. Each is an entire realm within us, the three primary rooms of the mansion.",
+    "Light their fires.",
   ]},
 ];
 
@@ -3421,7 +3369,7 @@ const CHAPTER_REQUIREMENTS = {
       check: (ss,lr,pins,stats) => ["str","vit","wil","hrt","voi","wis","ali"].every(k=>(stats[k]||0)>=30) } },
   7: { needsRead:true,
       libRequired:["presence_ctr","heart_ctr","wisdom_ctr"],
-      practice:{ desc:"Read each Center in the Library. Complete one 10-minute session for each — with awareness landing on that center.",
+      practice:{ desc:"Read each Center in the Library. Complete one 5-minute session for each — with awareness landing on that center.",
         subChecks:[
           {label:"Vitality · Lower", centers:["root","belly","solar_plexus"], anchorType:"sitting"},
           {label:"Heart · Chest",    centers:["chest"],                        anchorType:"sitting"},
@@ -3429,7 +3377,7 @@ const CHAPTER_REQUIREMENTS = {
         ],
         check: ss => {
           const hasLand=(s,ids)=>{ const l=Array.isArray(s.awarenessLanding)?s.awarenessLanding:(s.awarenessLanding?[s.awarenessLanding]:[]); return ids.some(id=>l.includes(id)); };
-          return [["root","belly","solar_plexus"],["chest"],["head","top"]].every(ids=>ss.some(s=>hasLand(s,ids)&&(s.elapsed||0)>=600));
+          return [["root","belly","solar_plexus"],["chest"],["head","top"]].every(ids=>ss.some(s=>hasLand(s,ids)&&(s.elapsed||0)>=300));
         } } },
 
   /* ── Act II — reflection-based chapters. `reflections` render as journal
@@ -3840,7 +3788,7 @@ const CHAPTER_QUESTS = {
   4: { label:"The three gates",      desc:"Read each form. Practice Sit, Stand, and Walk — five minutes each." },
   5: { label:"Enter the world",      desc:"Take your practice outside. Complete one walking session in the living world." },
   6: { label:"Build the vessel",     desc:"Bring every capacity to 30 XP. Practice across all forms." },
-  7: { label:"Tend the fires",       desc:"Read each Center. Complete a 10-minute session in each — awareness landing on that center." },
+  7: { label:"Tend the fires",       desc:"Read each Center. Complete a 5-minute session in each — awareness landing on that center." },
   8: { label:"Write the story you are living", desc:"Read the script of your days — then write it down, and read it back as a stranger would." },
   9: { label:"The remembered contact", desc:"Find the moment when nothing was missing. Write it down while it is still warm. Then stand between earth and sky." },
   10:{ label:"String the instrument", desc:"Name what you are made of — near strings and great strings, their honest pitch. Then begin the tuning." },
@@ -4541,6 +4489,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
               {["Align","Relax","Breath","Attention"].map(x=>(
                 <div key={x} style={{...body("15px",C.cream),padding:"9px 0",borderBottom:`0.5px solid ${C.bord}`}}>{x}</div>
               ))}
+              <button onClick={()=>onGoQuests("presence")} style={{marginTop:"14px",padding:"8px 16px",background:"transparent",border:`0.5px solid ${C.gold}`,borderRadius:"6px",cursor:"pointer",...dsp("8.5px",C.gold,400,"0.16em")}}>THE CRUCIBLE ›</button>
             </div>
           ) : !selNode.real ? (selNode.foundations ? (
             <div>
@@ -5895,13 +5844,13 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   showActComplete=false, setShowActComplete=()=>{},
   way=null, onWayChange=()=>{}, onOpenReflection=()=>{}, onAwardWayXP=()=>{}, onOpenMyPath=()=>{}, lineReq=null }){
   const [view,setView]               = useState("overview");
-  const [questLine,setQuestLine]     = useState(()=>storyForged(way)?"main":"forge"); // "forge" | "main" (The Crucible) | "chant" | "path"
+  const [questLine,setQuestLine]     = useState(()=>storyForged(way)?"path":"forge"); // "forge" | "chant" | "path" (Presence + the classes)
   const [openClasses,setOpenClasses] = useState({}); // class accordions in the Class tab; all minimized by default
   useEffect(()=>{
     if(lineReq?.line){
       setQuestLine(lineReq.line); setView("overview");
       if(lineReq.classId){
-        setOpenClasses({[lineReq.classId]:true});
+        setOpenClasses({[lineReq.classId]:true, ...(lineReq.classId!=="presence"?{presence:false}:{})});
         setTimeout(()=>{ try{ document.getElementById("class-sec-"+lineReq.classId)?.scrollIntoView({block:"start",behavior:"smooth"}); }catch(e){} },120);
       }
     }
@@ -5930,7 +5879,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   /* Voice drops out of the switcher the moment it's unlocked — if the player
      is currently looking at it, return them to Main rather than stranding them. */
   useEffect(()=>{
-    if(questLine==="chant" && chantUnlocked) setQuestLine("main");
+    if(questLine==="chant" && chantUnlocked) setQuestLine("path");
   },[chantUnlocked, questLine]);
   const [scene,setScene]             = useState(0);
   const [paraPage,setParaPage]       = useState(0);
@@ -6188,9 +6137,9 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                         const done = sc.key
                           ? (chStats[sc.key]||0)>=sc.xpTarget
                           : sc.centers
-                          ? sessions.some(s=>hasLand(s,sc.centers)&&(s.elapsed||0)>=600)
+                          ? sessions.some(s=>hasLand(s,sc.centers)&&(s.elapsed||0)>=300)
                           : sc.center
-                          ? sessions.some(s=>hasLand(s,[sc.center])&&(s.elapsed||0)>=600)
+                          ? sessions.some(s=>hasLand(s,[sc.center])&&(s.elapsed||0)>=300)
                           : sessions.some(s=>s.typeId===sc.typeId&&(s.elapsed||0)>=300);
                         const statColor = sc.key ? (STAT_COLORS[sc.key]||SC.sageB) : SC.sageB;
                         const xp = sc.key ? Math.min(chStats[sc.key]||0, sc.xpTarget) : 0;
@@ -6294,83 +6243,21 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   const switcherItems = [
     { id:"forge", label:"Forge", icon:true, show:true,
       state: forgeNew ? "new" : "" },
-    { id:"main", label:"The Crucible", show:true,
-      state: "active" },
     { id:"chant", label:"Voice", show: chantGateOpen && !chantUnlocked,
       state: chantNew ? "new" : "" },
-    { id:"path", label:"Class",
-      show: !!(classGateOpen && classState && (classState.chosenClasses||[]).length>0), state: "" },
+    { id:"path", label:"Class", show:true, state: "" },
   ].filter(x=>x.show);
 
   const heroTitle = questLine==="chant" ? "Voice"
-    : questLine==="path" ? "Your Classes"
+    : questLine==="path" ? "Classes"
     : questLine==="forge" ? (storyForged(way) ? way.story.name : "The Forge")
     : "The Crucible";
   const heroSub = questLine==="chant" ? "The oldest practice"
-    : questLine==="path" ? "Active paths"
+    : questLine==="path" ? (crucibleDone ? "Presence · Crucible complete" : `Presence · Crucible, chapter ${activeN}`)
     : questLine==="forge" ? (storyForged(way) ? "The Forge · Your story" : "Your story")
     : crucibleDone ? "The Crucible · Complete" : `The Crucible · Chapter ${activeN}`;
 
-  return (
-    <div>
-      <div style={{position:"relative"}}>
-        <RidgelineScene h={190}/>
-        <div style={{position:"absolute",inset:0,background:`linear-gradient(to bottom, ${PANEL(0)} 35%, ${SC.bg} 100%)`}}/>
-        <div style={{position:"absolute",top:"14px",left:"20px"}}>
-          <span style={{...dsp("13px",SC.cream,400,"0.16em")}}>QUEST</span>
-        </div>
-        <div style={{position:"absolute",bottom:"14px",left:"20px",right:"20px"}}>
-          <div style={{...dsp("11px",SC.gold,400,"0.18em"),marginBottom:"4px"}}>{heroSub}</div>
-          <div style={{...dsp("22px",SC.cream,500,"0.04em"),textShadow:"0 2px 12px rgba(0,0,0,0.6)"}}>{questLine==="main"?activeMeta?.title:heroTitle}</div>
-        </div>
-      </div>
-
-      {/* ── Questline switcher ── */}
-      {switcherItems.length>1 && (
-        <div style={{display:"flex",gap:"8px",padding:"14px 20px 4px",flexWrap:"wrap"}}>
-          {switcherItems.map(it=>{
-            const sel=questLine===it.id;
-            const accent = it.id==="path"&&pathActive ? (AC(CLASS_BY_ID[classState.activeClass]?.accent)||C.sageB)
-              : it.id==="forge" ? "#d8783c" : C.sageB;
-            /* Forge pill — icon-only. Veiled: dim grey anvil; tap = a single
-               ember pulse, no navigation, no words. Lit: warm, selectable. */
-            if(it.icon){
-              return (
-                <button key={it.id}
-                  onClick={()=>setQuestLine(it.id)}
-                  style={{position:"relative",padding:"7px 12px",borderRadius:"7px",cursor:"pointer",gap:"7px",
-                    background:sel?`rgba(${C.goldRGB},0.12)`:C.surf,
-                    border:`0.5px solid ${sel?C.gold:C.bord}`,display:"flex",alignItems:"center"}}>
-                  <AnvilIcon size={14} color={sel?C.gold:C.muted} spark={sel}/>
-                  <span style={{...dsp("10px",sel?C.cream:C.muted,400,"0.08em")}}>{it.label}</span>
-                  {it.state==="new" && (
-                    <span style={{position:"absolute",top:"-6px",right:"-6px",background:C.gold,color:C.bg,
-                      fontSize:"7px",fontFamily:"Cinzel,serif",letterSpacing:"0.1em",padding:"2px 5px",borderRadius:"8px"}}>NEW</span>
-                  )}
-                </button>
-              );
-            }
-            return (
-              <button key={it.id} onClick={()=>setQuestLine(it.id)}
-                style={{position:"relative",padding:"7px 14px",borderRadius:"7px",cursor:"pointer",
-                  background:sel?`rgba(${C.sageRGB},0.12)`:C.surf,
-                  border:`0.5px solid ${sel?accent:C.bord}`,
-                  ...dsp("10px",sel?C.cream:C.muted,400,"0.08em")}}>
-                {it.label}
-                {it.state==="new" && (
-                  <span style={{position:"absolute",top:"-6px",right:"-6px",background:C.gold,color:C.bg,
-                    fontSize:"7px",fontFamily:"Cinzel,serif",letterSpacing:"0.1em",padding:"2px 5px",borderRadius:"8px"}}>NEW</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <div style={{padding:"8px 20px 28px"}}>
-        {questLine==="main" && <>
-        <div style={{...body("14px",C.muted),lineHeight:"1.6",marginBottom:"20px",fontStyle:"italic"}}>The personal climb — from seeing the situation clearly to no longer walking it alone.</div>
-
+  const crucibleBlock = (<>
         {(()=>{
           /* One collapsible header per Act, not one flat toggle for everything.
              Default (no manual override yet): an act auto-collapses once it's
@@ -6494,7 +6381,80 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
             );
           });
         })()}
-        </>}
+  </>);
+  const presenceOpen = openClasses.presence ?? !crucibleDone;
+  const presenceSection = (
+    <div id="class-sec-presence" style={{marginBottom:"10px",border:`0.5px solid ${presenceOpen?C.gold:C.bord}`,borderRadius:"8px",background:C.surf,overflow:"hidden"}}>
+      <button onClick={()=>setOpenClasses(o=>({...o,presence:!presenceOpen}))} aria-expanded={presenceOpen}
+        style={{width:"100%",display:"flex",alignItems:"center",gap:"12px",padding:"13px 14px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
+        <span style={{width:"9px",height:"9px",borderRadius:"50%",background:C.gold,flexShrink:0}}/>
+        <span style={{flex:1}}>
+          <span style={{...dsp("12px",C.cream,400,"0.1em"),display:"block"}}>PRESENCE</span>
+          <span style={{...body("11px",C.dim),display:"block",marginTop:"2px"}}>{crucibleDone ? "The Crucible · complete" : `The Crucible · chapter ${activeN} of ${crucible.length}`}</span>
+        </span>
+        <span style={{...body("14px",C.muted),transform:presenceOpen?"rotate(90deg)":"none",transition:"transform 0.2s"}}>›</span>
+      </button>
+      {presenceOpen && <div style={{padding:"4px 14px 16px"}}>{crucibleBlock}</div>}
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{position:"relative"}}>
+        <RidgelineScene h={190}/>
+        <div style={{position:"absolute",inset:0,background:`linear-gradient(to bottom, ${PANEL(0)} 35%, ${SC.bg} 100%)`}}/>
+        <div style={{position:"absolute",top:"14px",left:"20px"}}>
+          <span style={{...dsp("13px",SC.cream,400,"0.16em")}}>QUEST</span>
+        </div>
+        <div style={{position:"absolute",bottom:"14px",left:"20px",right:"20px"}}>
+          <div style={{...dsp("11px",SC.gold,400,"0.18em"),marginBottom:"4px"}}>{heroSub}</div>
+          <div style={{...dsp("22px",SC.cream,500,"0.04em"),textShadow:"0 2px 12px rgba(0,0,0,0.6)"}}>{heroTitle}</div>
+        </div>
+      </div>
+
+      {/* ── Questline switcher ── */}
+      {switcherItems.length>1 && (
+        <div style={{display:"flex",gap:"8px",padding:"14px 20px 4px",flexWrap:"wrap"}}>
+          {switcherItems.map(it=>{
+            const sel=questLine===it.id;
+            const accent = it.id==="path"&&pathActive ? (AC(CLASS_BY_ID[classState.activeClass]?.accent)||C.sageB)
+              : it.id==="forge" ? "#d8783c" : C.sageB;
+            /* Forge pill — icon-only. Veiled: dim grey anvil; tap = a single
+               ember pulse, no navigation, no words. Lit: warm, selectable. */
+            if(it.icon){
+              return (
+                <button key={it.id}
+                  onClick={()=>setQuestLine(it.id)}
+                  style={{position:"relative",padding:"7px 12px",borderRadius:"7px",cursor:"pointer",gap:"7px",
+                    background:sel?`rgba(${C.goldRGB},0.12)`:C.surf,
+                    border:`0.5px solid ${sel?C.gold:C.bord}`,display:"flex",alignItems:"center"}}>
+                  <AnvilIcon size={14} color={sel?C.gold:C.muted} spark={sel}/>
+                  <span style={{...dsp("10px",sel?C.cream:C.muted,400,"0.08em")}}>{it.label}</span>
+                  {it.state==="new" && (
+                    <span style={{position:"absolute",top:"-6px",right:"-6px",background:C.gold,color:C.bg,
+                      fontSize:"7px",fontFamily:"Cinzel,serif",letterSpacing:"0.1em",padding:"2px 5px",borderRadius:"8px"}}>NEW</span>
+                  )}
+                </button>
+              );
+            }
+            return (
+              <button key={it.id} onClick={()=>setQuestLine(it.id)}
+                style={{position:"relative",padding:"7px 14px",borderRadius:"7px",cursor:"pointer",
+                  background:sel?`rgba(${C.sageRGB},0.12)`:C.surf,
+                  border:`0.5px solid ${sel?accent:C.bord}`,
+                  ...dsp("10px",sel?C.cream:C.muted,400,"0.08em")}}>
+                {it.label}
+                {it.state==="new" && (
+                  <span style={{position:"absolute",top:"-6px",right:"-6px",background:C.gold,color:C.bg,
+                    fontSize:"7px",fontFamily:"Cinzel,serif",letterSpacing:"0.1em",padding:"2px 5px",borderRadius:"8px"}}>NEW</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{padding:"8px 20px 28px"}}>
 
         {/* ── VOICE (Chant) — its own questline view ── */}
         {questLine==="chant" && chantGateOpen && (
@@ -6518,9 +6478,12 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
         )}
 
         {/* ── CLASS — every active class, each minimized until opened ── */}
-        {questLine==="path" && classGateOpen && classState && (
+        {questLine==="path" && (
           <div style={{paddingTop:"4px"}}>
-            {((classState.chosenClasses||[]).length===0 || viewingChoice) ? (
+            {presenceSection}
+            {!(classGateOpen && classState) ? (
+              <div style={{...body("12px",C.dim),fontStyle:"italic",padding:"8px 2px"}}>The paths open when the Crucible is complete.</div>
+            ) : ((classState.chosenClasses||[]).length===0 || viewingChoice) ? (
               <ClassChoiceScreen
                 onChoose={(cid)=>{ onChooseClass(cid); setViewingChoice(false); setOpenClasses({[cid]:true}); }}
                 onReturn={()=>setViewingChoice(false)}
@@ -8580,7 +8543,7 @@ export default function AscendApp(){
   const [chaptersRead,setChaptersRead]=useState(P.chaptersRead??[]);
   const [libReadAt,setLibReadAt]=useState(P.libReadAt??{});
   const [activities,setActivities]=useState(()=>migrateActivityMetadata(P.activities??[]));
-  const addActivity=(name,stat,practiceType)=>setActivities(p=>[...p,{id:`act_${Date.now()}_${Math.random().toString(36).substr(2,4)}`,name,stat,practiceType}]);
+  const addActivity=(name,stat,practiceType,category)=>setActivities(p=>[...p,{id:`act_${Date.now()}_${Math.random().toString(36).substr(2,4)}`,name,stat,practiceType,...(category?{category}:{})}]);
   const deleteActivity=id=>setActivities(p=>p.filter(a=>a.id!==id));
   // onboarding: "brand" | "intro" | "done"
   const [onboarding,setOnboarding]=useState(P.onboardingDone ? "done" : "brand");
@@ -10047,7 +10010,7 @@ export default function AscendApp(){
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
         {scr==="path"&&pathView&&<PathPortal classId={pathView} classState={classState} sessions={sessions} jEnt={jEnt} activities={activities} onBack={()=>setScr(null)}/>}
         {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} timerVisibility={timerVisibility} setTimerVisibility={setTimerVisibility} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onDeleteCloud={handleDeleteCloud} onSignOut={handleSignOut} onVerified={handleVerified} autoCloudSync={autoCloudSync} setAutoCloudSync={setAutoCloudSync}/>}
-        {anch&&<AnchorPortal sessionTitle={sessionPath?`CULTIVATE ${sessionPath.toUpperCase()}`:"CULTIVATE"} onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={[...activities, ...practiceActivities]} initialActIds={anchPractice?[anchPractice]:[]} requireCenter={(()=>{const ac=sessionClass||classState?.activeClass; if(!(ac && (classState?.chosenClasses||[]).includes(ac) && !trialComplete(ac))) return false; const stp=nextTrialStep(classState, ac); return stp?.centers ? {ids:stp.centers, msg:"Select both centers, Crown and Ground, to complete this trial."} : true;})()} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchStartType || (["sitting","standing","walking"].includes(anchInitType) ? anchInitType : "sitting")} reflectUnlocked={!!classState?.questProgress?.s_reflect || ((classState?.chosenClasses||[]).includes("sage") && trialComplete("sage"))} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={sessionClass||classState?.activeClass||null} unlocks={anchPractice ? {...anchorUnlocks(completedChapters), activities:true} : anchorUnlocks(completedChapters)} guideCues={!anchPractice && !anchorUnlocks(completedChapters).modifiers ? [
+        {anch&&<AnchorPortal sessionTitle={sessionPath?`CULTIVATE ${sessionPath.toUpperCase()}`:"CULTIVATE"} onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={[...activities, ...practiceActivities]} initialActIds={anchPractice?[anchPractice]:[]} requireCenter={(()=>{const ac=sessionClass||classState?.activeClass; if(!(ac && (classState?.chosenClasses||[]).includes(ac) && !trialComplete(ac))) return false; const stp=nextTrialStep(classState, ac); return stp?.centers ? {ids:stp.centers, msg:"Select both centers, Crown and Ground, to complete this trial."} : true;})()} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchStartType || (["sitting","standing","walking"].includes(anchInitType) ? anchInitType : "sitting")} reflectUnlocked={!!classState?.questProgress?.s_reflect || ((classState?.chosenClasses||[]).includes("sage") && trialComplete("sage"))} classPractices={classPracticeList(sessionClass||classState?.activeClass, classState, unlockedClassPracticeTypes)} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={sessionClass||classState?.activeClass||null} unlocks={anchPractice ? {...anchorUnlocks(completedChapters), activities:true} : anchorUnlocks(completedChapters)} guideCues={!anchPractice && !anchorUnlocks(completedChapters).modifiers ? [
           {s:0,  e:5,  text:"Sit comfortably."},
           {s:5,  e:10, text:"Let your eyes soften or close."},
           {s:10, e:50, text:"This is your time to simply be here, breathing, for as long as feels right."},
