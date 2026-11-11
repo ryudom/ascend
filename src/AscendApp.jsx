@@ -532,40 +532,40 @@ const QUEST_CHAINS = {
       title: "Observe Sound",
       myth: "Open your ears to what is actually happening: not the meaning of words, or the names of sounds, but the vibration of everything happening in and around you.\n\nObserve Sound unlocked. Find it under Sit.",
       libId: "lib_s_sound",
-      criteria: "Sit with Observe Sound for 10 minutes in one session.",
-      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Sound", stat: "wis", target: 10, unit: "minutes", singleSession: true }],
+      criteria: "Accumulate 5 minutes of Observe Sound.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Sound", stat: "wis", target: 5, unit: "minutes" }],
     },
     {
       id: "s_thought",
       title: "Observe Thought",
       myth: "Observe your thoughts.",
       libId: "lib_s_thought",
-      criteria: "Sit with Observe Thought for 12 minutes in one session.",
-      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Thought", stat: "wis", target: 12, unit: "minutes", singleSession: true }],
+      criteria: "Accumulate 8 minutes of Observe Thought.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Thought", stat: "wis", target: 8, unit: "minutes" }],
     },
     {
       id: "s_emotion",
       title: "Observe Emotion",
       myth: "Observe your emotions.",
       libId: "lib_s_emotion",
-      criteria: "Sit with Observe Emotion for 15 minutes in one session.",
-      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Emotion", stat: "wis", target: 15, unit: "minutes", singleSession: true }],
+      criteria: "Accumulate 10 minutes of Observe Emotion.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Emotion", stat: "wis", target: 10, unit: "minutes" }],
     },
     {
       id: "s_body",
       title: "Observe Body",
       myth: "Feel your body.\n\nPain, tension, anything you feel.\n\nScan from top to bottom, then bottom to top.\n\nObserve Body unlocked.",
       libId: "lib_s_body",
-      criteria: "Sit with Observe Body for 15 minutes in one session.",
-      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Body", stat: "wis", target: 15, unit: "minutes", singleSession: true }],
+      criteria: "Accumulate 15 minutes of Observe Body.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Body", stat: "wis", target: 15, unit: "minutes" }],
     },
     {
       id: "s_attention",
       title: "Observe Attention",
       myth: "Now we turn to attention itself.\n\nWhere is it? How is it moving? What shape does attention have?\n\nObserve your attention for 20 minutes.",
       libId: "lib_s_attention",
-      criteria: "Sit with Observe Attention for 20 minutes in one session.",
-      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Attention", stat: "ali", target: 20, unit: "minutes", singleSession: true }],
+      criteria: "Accumulate 20 minutes of Observe Attention.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Observe Attention", stat: "ali", target: 20, unit: "minutes" }],
     },
     {
       id: "s_inquire",
@@ -965,28 +965,28 @@ function countBonusXP(loggedCounts, activitiesById){
    witnessing/question for Sage, dissolving/union for Mystic). */
 const TRIAL_WELCOME = {
   warrior: {
-    title: "The Vow Is Spoken",
-    body: "Three forms, three centers, one body that agreed to all of it. That's the oath kept — not promised, not intended, actually kept, the only kind of vow the Warrior's path has ever recognized.\n\nThe forge doesn't ask whether you believe in it before it gets to work. It only asks that you showed up, which you just did. Everything ahead — the strength, the strikes, the flow that eventually stops needing your permission to happen — starts from here, not from belief, but from the simple fact of having stood still long enough to mean it.",
+    title: "Let's Burn Some Muscle",
+    body: "Discipline. Strength. Endurance.\n\nIt's time to push it to the limit, and grow beyond.",
   },
   healer: {
-    title: "The Heart Has Opened",
-    body: "Three forms, three centers — chest, throat, will — and the body agreed to all of it. That agreement is the real beginning. Not a feeling of readiness, just the willingness to turn toward what's there.\n\nEvery healer who ever walked this path carried something before they could tend anything else. You've just spoken that same oath, in the only language this path has ever trusted: presence, held on purpose. What comes next will ask you to keep doing exactly that — toward yourself first, then outward, then further than either.",
+    title: "The Heart of Mystery",
+    body: "Feel. Release. Nourish.\n\nIt's time to restore what has been lost, coming back to wholeness.",
   },
   sage: {
     title: "The Question Is Asked",
-    body: "Three forms, three centers — clarity, alignment, voice — and the body agreed to look. That's the entire vow this path has ever required: not answers, just a willingness to actually see what's there before deciding what it means.\n\nKnow thyself was carved above a temple older than almost anything else still standing, and nobody has improved on it since. You've just taken the first real step toward it — not by finding something out, but by agreeing to keep looking. Everything ahead is more of the same question, asked with progressively sharper attention.",
+    body: "Who am I?\n\nKnow thyself.",
   },
   martial: {
-    title: "The Form Is Taken",
-    body: "Three forms, three centers — legs, belly, head — and the body agreed to hold each one with intention. That's where every martial art actually begins: not with a strike, but with standing well.\n\nThe Warrior gave you a body you can trust. This path teaches it to move with purpose: root first, then the feet, then the hands.\n\nStance comes first. Go find your ground.",
+    title: "Form of the Formless",
+    body: "Power. Range. Control.\n\nExpress your potential.",
   },
   battlemage: {
-    title: "The Current Is Lit",
-    body: "Three forms, three centers — heart, head, belly — and for a few minutes each, the body that trains and the mind that sees were asked to stand in the same place. That's the whole beginning of this path.\n\nNothing here will ask you to become someone else. It asks you to let what you've already built start working together: the Warrior's fire, the Sage's clear eye, and the heart holding the space between them.\n\nThe furnace comes first. Go find it.",
+    title: "Wisdom and Power Combine",
+    body: "These techniques require a solid foundation.\n\nInternal mastery shows externally.",
   },
   mystic: {
-    title: "The Boundary Has Thinned",
-    body: "Three forms, three centers — crown, chest, belly — and for three minutes each, the line between you and where you placed your attention got a little less solid. That's not nothing. That's the entire claim this path has ever made, tested in miniature, three times, just now.\n\nEverything ahead is the same small thinning, applied to something a little larger each time — a pulse, a breath, a thought, a stranger, a moment, and eventually all of it at once. You don't have to believe any of that's possible yet. You only have to keep showing up the way you just did.",
+    title: "Commune with the Divine",
+    body: "Become one.",
   },
 };
 
@@ -1213,6 +1213,26 @@ function classPracticeList(cid, classState, unlockedTypes=[]){
   });
   return out.length ? out : null;
 }
+/* What the class's current quest wants practiced: the picker entry to open on and
+   the activity to select. Only quests that count an activity toward a target
+   (Punch 100, Horse Stance 10 min...) have one; the first unmet activity wins. */
+function questPracticeTarget(cid, classState, activities=[], unlockedTypes=[]){
+  const qp=classState?.questProgress||{};
+  const q=(QUEST_CHAINS[cid]||[]).filter(isChainQuest).find(x=>!qp[x.id]);
+  if(!q) return null;
+  const list=classPracticeList(cid, classState, unlockedTypes);
+  if(!list) return null;
+  for(const u of (q.unlocks||[])){
+    if(u.kind!=="activity" || !u.target) continue;
+    const act=activities.find(a=>a.name===u.name);
+    if(!act) continue;
+    if(!u.singleSession && (act.count||0)>=u.target) continue;
+    const entry = list.find(e=>e.fund && fundMatches(e.fund, act)) || list.find(e=>!e.fund && e.base===act.practiceType) || null;
+    const base = entry ? entry.base : (act.practiceType && act.practiceType!=="any" ? act.practiceType : CLASS_DEFAULT_BASE[cid]);
+    return { actId:act.id, entry, base };
+  }
+  return null;
+}
 const FUND_MARKS = [7, 21, 49, 108, 216, 365, 1000];
 /* category id → its path, e.g. w_strengthen → warrior */
 const FUND_OWNER = Object.fromEntries(Object.entries(FUNDAMENTALS).flatMap(([cid,fs])=>fs.map(f=>[f.id,cid])));
@@ -1355,8 +1375,12 @@ function awardMasteryXP(classState, qualifyingPaths, xpAmount){
    1 XP = 10 s of practice; sessions < 10 s are discarded. */
 const LEVEL_A = 0.36;
 const totalXPForLevel = L => Math.round(LEVEL_A * Math.max(0,L) ** 3);
-const levelFromTotalXP = xp => Math.max(1, Math.floor((Math.max(0,xp) / LEVEL_A) ** (1/3)));
+const levelFromTotalXP = xp => Math.max(1, Math.floor((Math.max(0,xp) / LEVEL_A) ** (1/3) + 1e-9));
 const xpForNextLevel   = L => totalXPForLevel(L+1) - totalXPForLevel(L);
+/* Presence alone starts at level 0: 1 XP is level 1, and from level 2 up it follows the same curve. */
+const presenceLevelFromXP = xp => (xp||0)<1 ? 0 : levelFromTotalXP(xp);
+const presenceXPForLevel  = L => L<=0 ? 0 : L===1 ? 1 : totalXPForLevel(L);
+const presenceNextXP      = L => presenceXPForLevel(L+1) - presenceXPForLevel(L);
 
 const STAT_COLORS = { str:"#a87878", vit:"#a88868", wil:"#a09870", hrt:"#7a9a7a", voi:"#7888a8", wis:"#8880a4", ali:"#a898b8" };
 
@@ -1929,7 +1953,7 @@ function playGong(ctx){
   }catch(e){}
 }
 
-function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting", reflectUnlocked=false, unlockedPracticeTypes=[], unlocks={modifiers:true,pause:true,pin:true,practiceType:true,activities:true,centers:true}, guideCues=null, activeClassId=null, timerVisibility="reveal", initialActIds=[], requireCenter=false, classPractices=null }){
+function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, library, setLibrary, addType, startImmediately=true, skipReview=false, chTotalXP=0, chStats={}, activities=[], addActivity, deleteActivity, guidedSession=true, initialType="sitting", reflectUnlocked=false, unlockedPracticeTypes=[], unlocks={modifiers:true,pause:true,pin:true,practiceType:true,activities:true,centers:true}, guideCues=null, activeClassId=null, timerVisibility="reveal", initialActIds=[], requireCenter=false, classPractices=null, initialPractice=null }){
   const [phase,setPhase]       = useState("active");
   const [running,setRunning]   = useState(startImmediately);
   const [t,setT]               = useState(0);
@@ -1951,7 +1975,7 @@ function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, librar
   const tBaseRef = useRef(0);
   const runStartRef = useRef(null);
   const [pType,setPType]       = useState(initialType);
-  const [pPractice,setPPractice] = useState(initialType); // which picker entry: a base type, a Fundamental ("f:<id>"), or a custom type id
+  const [pPractice,setPPractice] = useState(initialPractice||initialType); // which picker entry: a base type, a Fundamental ("f:<id>"), or a custom type id
   const [tags,setTags]         = useState([]);
   const [refl,setRefl]         = useState("");
   const [pinSession,setPinSession] = useState(false);
@@ -2386,7 +2410,7 @@ function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, librar
           <div style={{...body("11px",C.muted),marginBottom:"10px"}}>{typeLabel} · Total Time</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:"5px",justifyContent:"center",marginBottom:"22px"}}>
             <span style={{fontSize:"11px",color:C.gold,background:C.goldFt,border:`0.5px solid ${C.goldDim}`,padding:"2px 9px",borderRadius:"10px"}}>+{xp} XP</span>
-            {(()=>{const lvBefore=levelFromTotalXP(chTotalXP),lvAfter=levelFromTotalXP(chTotalXP+xp);return lvAfter>lvBefore?(
+            {(()=>{const lvBefore=presenceLevelFromXP(chTotalXP),lvAfter=presenceLevelFromXP(chTotalXP+xp);return lvAfter>lvBefore?(
               <span style={{fontSize:"11px",color:"#7fb3e8",background:"rgba(100,160,220,0.12)",border:"0.5px solid rgba(100,160,220,0.4)",padding:"2px 9px",borderRadius:"10px"}}>LEVEL UP! → {lvAfter}</span>
             ):null;})()}
             {Object.entries(applyAwarenessSiphon(sg, awarenessLanding)).map(([k,v])=>{
@@ -2891,7 +2915,7 @@ function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacit
           <div style={{width:"91px",marginTop:"20px"}}>
             {/* Level slider in dev mode */}
             {devMode && (()=>{
-              const lv = levelFromTotalXP(ch.totalXP??0);
+              const lv = presenceLevelFromXP(ch.totalXP??0);
               return (
                 <div style={{padding:"2px 0 5px",borderBottom:`0.5px solid ${C.bord}`,marginBottom:"3px"}}>
                   <div style={{display:"flex",alignItems:"center",gap:"3px",marginBottom:"1px"}}>
@@ -2899,7 +2923,7 @@ function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacit
                     <span style={{...body("9.5px",C.gold),marginLeft:"auto"}}>{lv}</span>
                   </div>
                   <input type="range" min="1" max="100" value={lv}
-                    onChange={e=>setCh(p=>({...p,totalXP:totalXPForLevel(parseInt(e.target.value))}))}
+                    onChange={e=>setCh(p=>({...p,totalXP:presenceXPForLevel(parseInt(e.target.value))}))}
                     className="dev-slider"
                     style={{width:"100%",height:"3px",display:"block",margin:"0",padding:"0",
                       background:`linear-gradient(to right,${C.gold} 0%,${C.gold} ${lv}%,${C.bord} ${lv}%,${C.bord} 100%)`,
@@ -6265,7 +6289,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
              starting Act II quietly folds up a finished Act I on its own,
              without ever fighting a choice the player made themselves. */
           const actNames = [...new Set(CHAPTER_META.map(c=>c.act))];
-          const actTitles = { "ACT I":"THE CRUCIBLE", "ACT II":"THE AUTHORING" };
+          const actTitles = { "ACT I":"THE CRUCIBLE" };
           const isActCollapsed = (actName) => {
             if(actCollapsed[actName]!==undefined) return actCollapsed[actName];
             const chNums = CHAPTER_META.filter(c=>c.act===actName).map(c=>c.n);
@@ -6274,16 +6298,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
             return actDone && actName!==activeAct;
           };
           return actNames.map(actName=>{
-            if(actName==="ACT II"){
-              /* Retired. Shown only to players who walked part of it. */
-              if(!CHAPTER_META.some(c=>c.act==="ACT II" && completedChapters.includes(c.n))) return null;
-              return (
-                <div key={actName} style={{padding:"14px 0 6px",borderTop:`0.5px solid ${C.bord}`,marginTop:"8px",opacity:0.6}}>
-                  <div style={{...dsp("11px",C.muted,400,"0.16em")}}>THE AUTHORING · RETIRED</div>
-                  <div style={{...body("13px",C.dim),fontStyle:"italic",marginTop:"4px"}}>Its work now lives in the Forge.</div>
-                </div>
-              );
-            }
+            if(actName!=="ACT I") return null; // Act II (The Authoring) is retired
             const chaptersInAct = CHAPTER_META.filter(c=>c.act===actName && (devMode || getState(c.n)!=="locked"));
             if(chaptersInAct.length===0) return null; // nothing unlocked in this act yet — don't even show its header
             const collapsed = isActCollapsed(actName);
@@ -6370,7 +6385,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                       <div style={{...body("10px","rgba(180,100,100,0.85)"),fontStyle:"italic",marginTop:"6px",fontFamily:"monospace"}}>DEV · hold to {complete?"un-complete":"complete"}</div>
                     )}
                   </div>
-                  {(active||complete)&&<span style={{...body("12px",complete?C.gold:C.sageB),marginLeft:"8px",flexShrink:0}}>{complete?"↩ Revisit":(c.n===1?"START HERE →":"Read →")}</span>}
+                  {active&&<span style={{...body("12px",C.sageB),marginLeft:"8px",flexShrink:0}}>{c.n===1?"START HERE →":"Read →"}</span>}
                 </div>
               </div>
             </div>
@@ -8510,6 +8525,8 @@ export default function AscendApp(){
   const setCultSel=v=>{ setCultSelState(v); try{ localStorage.setItem("ascend_cultivate_sel", v); }catch(e){} };
   const [anchStartType,setAnchStartType]=useState(null);
   const [anchPractice,setAnchPractice]=useState(null); // activity id of the practice a session opens with
+  const [anchFull,setAnchFull]=useState(false); // true: show the full Sit/Stand/Walk set (Presence practice), not the active class's list
+  const [anchPracticeId,setAnchPracticeId]=useState(null); // picker entry the session opens on (a base type or "f:<fundId>")
   /* Paths / My Path, and what My Path has selected — per-device conveniences. */
   const lsGet=(k,d)=>{ try{ return localStorage.getItem(k)||d; }catch(e){ return d; } };
   const lsSet=(k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
@@ -9035,7 +9052,7 @@ export default function AscendApp(){
   const addType=name=>{const id="c_"+Date.now();setTypes(p=>[...p,{id,label:name}]);setLibrary(p=>({...p,[id]:[]}));return id;};
 
   /* ── CLASS SYSTEM HANDLERS ──────────────────────────────────────────────── */
-  const presenceLevel = levelFromTotalXP(ch.totalXP??0);
+  const presenceLevel = presenceLevelFromXP(ch.totalXP??0);
   const classGateOpen = devMode || classGateMet(presenceLevel, completedChapters);
   /* The map's selection, when it is a path the player walks with its trial done:
      the Cultivate button then reads "Cultivate <Path>" and opens in that path's mode. */
@@ -9806,10 +9823,10 @@ export default function AscendApp(){
             </button>
             <div>
               <div style={{...dsp("16px",C.gold,500,"0.14em")}}>{ch.name}</div>
-              <div style={{...dsp("8px",C.muted,400,"0.18em"),marginTop:"1px"}}>PRESENCE LVL {levelFromTotalXP(ch.totalXP??0)}</div>
+              <div style={{...dsp("8px",C.muted,400,"0.18em"),marginTop:"1px"}}>PRESENCE LVL {presenceLevelFromXP(ch.totalXP??0)}</div>
             </div>
           </div>
-          {(()=>{const L=levelFromTotalXP(ch.totalXP??0),cur=(ch.totalXP??0)-totalXPForLevel(L),nxt=xpForNextLevel(L);return(
+          {(()=>{const L=presenceLevelFromXP(ch.totalXP??0),cur=(ch.totalXP??0)-presenceXPForLevel(L),nxt=presenceNextXP(L);return(
             <div style={{textAlign:"right"}}>
               <div style={{...body("10px",C.muted)}}>{cur}/{nxt} XP</div>
               <div style={{width:"68px",height:"3px",background:C.bord,borderRadius:"2px",marginTop:"4px"}}><div style={{width:`${Math.min(100,nxt?cur/nxt*100:0)}%`,height:"100%",background:C.gold,borderRadius:"2px",transition:"width .6s ease"}}/></div>
@@ -9820,10 +9837,10 @@ export default function AscendApp(){
         {/* content — all tabs stay mounted so internal state (quest screen, library entry) persists */}
         <div style={{flex:1,overflowY:"auto",paddingBottom:"calc(118px + env(safe-area-inset-bottom))"}}>
           <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities} classState={classState} classGateOpen={classGateOpen} onOpenPath={cid=>{setPathView(cid);setScr("path");}}/></div>
-          <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
+          <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnchFull(true);setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
             classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid,cid)=>setOpenClassQuest({classId:cid||classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}
             onOpenMyPath={()=>{ setCultMode("mine"); setMySel("center"); setTab("cultivate"); }} lineReq={questLineReq}/></div>
-          <div style={{display:tab==="cultivate"?"block":"none",height:"100%"}}><CultivateTab classState={classState} presenceLevel={presenceLevel} onGoQuests={(cid)=>{ setTab("quest"); setQuestLineReq({line:"path", classId:cid, n:Date.now()}); }} onDevSetPresence={L=>setCh(p=>({...p,totalXP:totalXPForLevel(L)}))} onDevSetMastery={(cid,L)=>setClassState(cs=>{
+          <div style={{display:tab==="cultivate"?"block":"none",height:"100%"}}><CultivateTab classState={classState} presenceLevel={presenceLevel} onGoQuests={(cid)=>{ setTab("quest"); setQuestLineReq({line:"path", classId:cid, n:Date.now()}); }} onDevSetPresence={L=>setCh(p=>({...p,totalXP:presenceXPForLevel(L)}))} onDevSetMastery={(cid,L)=>setClassState(cs=>{
               /* Dev only: choose the path, finish its trial and chain, then set the level. */
               const cls=CLASS_BY_ID[cid]; if(!cls) return cs;
               const prog={}; cls.trial.forEach(st=>{ prog[st.type]=true; });
@@ -9847,7 +9864,7 @@ export default function AscendApp(){
             onOpenForge={()=>{ setTab("quest"); setQuestLineReq({line:"forge", n:Date.now()}); }}/></div>
           <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones} savedPos={lastKnownPos} onLocationConfirmed={setLastKnownPos} active={tab==="map"}
             onZoneSeen={(id,r)=>setRevealZones(zs=>zs.map(z=>z.id===id&&!((z.seenR??0)>=r)?{...z,seenR:r}:z))}/></div>
-          <div style={{display:tab==="library"?"block":"none"}}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)} collapsed={libCollapsed} setCollapsed={setLibCollapsed} classState={classState} chantUnlocked={chantUnlocked}/></div>
+          <div style={{display:tab==="library"?"block":"none"}}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnchFull(true);setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)} collapsed={libCollapsed} setCollapsed={setLibCollapsed} classState={classState} chantUnlocked={chantUnlocked}/></div>
         </div>
 
         {/* floating anchor button */}
@@ -9860,16 +9877,23 @@ export default function AscendApp(){
               setSessionPath(myPractice ? myPractice.name : null);
               setSessionClass(null);
               setAnchPractice(myPractice ? practiceActId(myPractice) : null);
+              setAnchPracticeId(null);
+              setAnchFull(false);
               setAnch(true); return;
             }
             const cid=cultSel;
             const ready = cultReadyPath===cid;
             /* A chosen path still in its trial: Cultivate starts its next step. */
             const trialStep = cid && cid!=="center" && (classState?.chosenClasses||[]).includes(cid) && !trialComplete(cid) ? nextTrialStep(classState, cid) : null;
-            setAnchStartType(trialStep ? trialStep.type : ready ? CLASS_MODE[cid] : null);
+            /* A quest that counts an activity toward a target (Punch 100...): open on its practice with the activity selected. */
+            const qt = ready && !trialStep ? questPracticeTarget(cid, classState, activities, unlockedClassPracticeTypes) : null;
+            setAnchStartType(trialStep ? trialStep.type : ready ? (qt ? qt.base : CLASS_MODE[cid]) : null);
             setSessionPath(trialStep ? `${CLASS_BY_ID[cid]?.name} Trial` : ready ? CLASS_BY_ID[cid]?.name : null);
             setSessionClass(trialStep||ready ? cid : null);
-            setAnchPractice(null);
+            setAnchPracticeId(qt?.entry?.id||null);
+            setAnchPractice(qt?.actId||null);
+            /* Presence (or no ready path) is selected: offer the full Sit / Stand / Walk set. */
+            setAnchFull(!(trialStep||ready));
             setAnch(true);
           }} aria-label="Cultivate" style={{position:"absolute",bottom:"calc(-7px + env(safe-area-inset-bottom))",left:"50%",transform:"translateX(-50%)",zIndex:showActComplete?0:261,opacity:showActComplete?0:1,transition:"opacity .8s ease",pointerEvents:showActComplete?"none":"auto",border:"none",background:"none",cursor:"pointer",padding:0,filter:anch?`drop-shadow(0 0 16px rgba(201,168,76,0.85)) drop-shadow(0 -2px 8px ${C.glow})`:`drop-shadow(0 -2px 10px ${C.glow})`}}>
           <svg width="82" height="103" viewBox="0 0 70 88" style={{display:"block"}}>
@@ -10010,7 +10034,7 @@ export default function AscendApp(){
         {scr==="logs"&&<LogsScreen onBack={()=>setScr(null)} sessions={sessions} jEntries={jEnt}/>}
         {scr==="path"&&pathView&&<PathPortal classId={pathView} classState={classState} sessions={sessions} jEnt={jEnt} activities={activities} onBack={()=>setScr(null)}/>}
         {scr==="settings"&&<SettingsScreen onBack={()=>setScr(null)} name={ch.name} setName={n=>setCh(p=>({...p,name:n}))} theme={theme} setTheme={t=>{setTheme(t);applyTheme(t);}} timerVisibility={timerVisibility} setTimerVisibility={setTimerVisibility} devMode={devMode} enableDevMode={enableDevMode} disableDevMode={disableDevMode} exportData={exportData} applyImport={applyImport} resetData={resetData} fontScale={fontScale} setFontScale={setFontScale} cloudUser={cloudUser} cloudSyncing={cloudSyncing} cloudMsg={cloudMsg} onSaveCloud={handleSaveCloud} onLoadCloud={handleLoadCloud} onDeleteCloud={handleDeleteCloud} onSignOut={handleSignOut} onVerified={handleVerified} autoCloudSync={autoCloudSync} setAutoCloudSync={setAutoCloudSync}/>}
-        {anch&&<AnchorPortal sessionTitle={sessionPath?`CULTIVATE ${sessionPath.toUpperCase()}`:"CULTIVATE"} onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={[...activities, ...practiceActivities]} initialActIds={anchPractice?[anchPractice]:[]} requireCenter={(()=>{const ac=sessionClass||classState?.activeClass; if(!(ac && (classState?.chosenClasses||[]).includes(ac) && !trialComplete(ac))) return false; const stp=nextTrialStep(classState, ac); return stp?.centers ? {ids:stp.centers, msg:"Select both centers, Crown and Ground, to complete this trial."} : true;})()} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchStartType || (["sitting","standing","walking"].includes(anchInitType) ? anchInitType : "sitting")} reflectUnlocked={!!classState?.questProgress?.s_reflect || ((classState?.chosenClasses||[]).includes("sage") && trialComplete("sage"))} classPractices={classPracticeList(sessionClass||classState?.activeClass, classState, unlockedClassPracticeTypes)} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={sessionClass||classState?.activeClass||null} unlocks={anchPractice ? {...anchorUnlocks(completedChapters), activities:true} : anchorUnlocks(completedChapters)} guideCues={!anchPractice && !anchorUnlocks(completedChapters).modifiers ? [
+        {anch&&<AnchorPortal sessionTitle={sessionPath?`CULTIVATE ${sessionPath.toUpperCase()}`:"CULTIVATE"} onClose={()=>setAnch(false)} onDone={handleDone} types={types} library={library} setLibrary={setLibrary} addType={addType} startImmediately={true} timerVisibility={timerVisibility} chTotalXP={ch.totalXP??0} chStats={ch.stats??{}} activities={[...activities, ...practiceActivities]} initialActIds={anchPractice?[anchPractice]:[]} initialPractice={anchStartType?anchPracticeId:null} requireCenter={(()=>{const ac=sessionClass||classState?.activeClass; if(!(ac && (classState?.chosenClasses||[]).includes(ac) && !trialComplete(ac))) return false; const stp=nextTrialStep(classState, ac); return stp?.centers ? {ids:stp.centers, msg:"Select both centers, Crown and Ground, to complete this trial."} : true;})()} addActivity={addActivity} deleteActivity={deleteActivity} guidedSession={guidedSession} initialType={anchStartType || (["sitting","standing","walking"].includes(anchInitType) ? anchInitType : "sitting")} reflectUnlocked={!!classState?.questProgress?.s_reflect || ((classState?.chosenClasses||[]).includes("sage") && trialComplete("sage"))} classPractices={anchFull ? null : classPracticeList(sessionClass||classState?.activeClass, classState, unlockedClassPracticeTypes)} unlockedPracticeTypes={unlockedClassPracticeTypes} activeClassId={sessionClass||classState?.activeClass||null} unlocks={anchPractice ? {...anchorUnlocks(completedChapters), activities:true} : anchorUnlocks(completedChapters)} guideCues={!anchPractice && !anchorUnlocks(completedChapters).modifiers ? [
           {s:0,  e:5,  text:"Sit comfortably."},
           {s:5,  e:10, text:"Let your eyes soften or close."},
           {s:10, e:50, text:"This is your time to simply be here, breathing, for as long as feels right."},
