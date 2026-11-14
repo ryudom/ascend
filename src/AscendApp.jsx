@@ -374,12 +374,12 @@ const QUEST_CHAINS = {
       unlocks: [{ kind: "activity", practiceType: "train", name: "Run", stat: "wil", target: 10, unit: "km", category: "w_endure" }],
     },
     {
-      id: "w_stretch",
-      title: "Stretch",
-      myth: "Stretch for 15 minutes. Use stretches from the library or do your own.",
-      libId: "lib_w_stretch",
-      criteria: "Accumulate 15 minutes of Stretch.",
-      unlocks: [{ kind: "activity", practiceType: "train", name: "Stretch", stat: "vit", target: 15, unit: "minutes", category: "w_stretch" }],
+      id: "w_discipline",
+      title: "Discipline",
+      myth: "The warrior is measured by what they refuse.\n\nSet a Do not under Daily. Keep it.",
+      libId: "lib_w_discipline",
+      criteria: "Keep a Do not for 3 days. Set it under Daily in the Warrior's Quest tab.",
+      unlocks: [{ kind: "vowDays", target: 3, cid: "warrior" }],
     },
     {
       id: "w_measure",
@@ -460,6 +460,14 @@ const QUEST_CHAINS = {
         { kind: "activity", practiceType: "restore", name: "Gratitude", stat: "hrt", target: 8, unit: "minutes" },
         { kind: "journalEntry", entryKind: "Gratitude" },
       ],
+    },
+    {
+      id: "h_stretch",
+      title: "Stretch",
+      myth: "Stretch for 15 minutes. Use stretches from the library or do your own.\n\nStretch unlocked. Find it under Release.",
+      libId: "lib_h_stretch",
+      criteria: "Accumulate 15 minutes of Stretch.",
+      unlocks: [{ kind: "activity", practiceType: "restore", name: "Stretch", stat: "vit", target: 15, unit: "minutes", category: "h_release" }],
     },
     {
       id: "h_tension",
@@ -1092,6 +1100,19 @@ function migrateClassState(cs){
     out = { ...out, healerGratitudeAdded:true,
       questProgress: (q4.h_forgive && !q4.h_gratitude) ? { ...q4, h_gratitude:true } : q4 };
   }
+  /* Stretch moved from Warrior to Healer (Release): anyone already past the
+     Healer quest it now sits before is credited. */
+  if(!out.stretchToHealer){
+    const q5 = out.questProgress || {};
+    out = { ...out, stretchToHealer:true,
+      questProgress: (q5.h_tension && !q5.h_stretch) ? { ...q5, h_stretch:true } : q5 };
+  }
+  /* Discipline joined the Warrior chain: anyone already past The Measure is credited. */
+  if(!out.warriorDisciplineAdded){
+    const q6 = out.questProgress || {};
+    out = { ...out, warriorDisciplineAdded:true,
+      questProgress: ((q6.w_measure||q6.w_cold||q6.w_proving) && !q6.w_discipline) ? { ...q6, w_discipline:true } : q6 };
+  }
   return out;
 }
 
@@ -1149,12 +1170,12 @@ const FUNDAMENTALS = {
        Arms…) and whatever the player adds. `legacy` names count old history
        logged under the category's own name. */
     { id:"w_strengthen", name:"Strengthen", activity:false, category:true, unit:"reps",    stat:"str", practiceType:"train", variations:"Pushups, squats, core, chin-ups, lunges", sources:["Pushups","Squats","Core"], legacy:["Arms","Legs"], unlockQuest:"w_strength" },
-    { id:"w_stretch",   name:"Stretch",    activity:false, category:true, unit:"minutes", stat:"vit", practiceType:"train", variations:"Chest, hips, hamstrings, calves, spine",   sources:["Stretch"],                  legacy:[],               unlockQuest:"w_stretch" },
     { id:"w_endure",    name:"Endure",     activity:false, category:true, unit:"minutes", stat:"wil", practiceType:"train", variations:"Run, hike, swim, cycle",                   sources:["Run"],                      legacy:["Endure"],       unlockQuest:"w_run" },
+    { id:"w_discipline", name:"Discipline", activity:false, vow:true, variations:"Do nots, kept day by day", unlockQuest:"w_discipline" },
   ],
   healer: [
     { id:"h_feel",    name:"Feel",    unit:"minutes", stat:"hrt", practiceType:"any", variations:"Heart listening, commune, deep listening", sources:["Heart Listening","Commune"], legacy:["Heart","Relationships"], journal:[{tag:"tend", tendKind:"Deep Listening"}] },
-    { id:"h_release", name:"Release", unit:"minutes", stat:"vit", practiceType:"any", variations:"Tension release, voice work, forgiveness", sources:["Tension Release","Voice Work","Forgiveness"], legacy:["Forgiveness & Gratitude","Body"], journal:[{tag:"release", releaseKind:"Forgiveness"}] },
+    { id:"h_release", name:"Release", unit:"minutes", stat:"vit", practiceType:"any", variations:"Stretch, tension release, voice work, forgiveness", sources:["Stretch","Tension Release","Voice Work","Forgiveness"], legacy:["Forgiveness & Gratitude","Body"], journal:[{tag:"release", releaseKind:"Forgiveness"}] },
     { id:"h_nourish", name:"Nourish", unit:"minutes", stat:"hrt", practiceType:"any", variations:"Gratitude, service, tending people and places", sources:["Gratitude"], legacy:["World"], journal:[{tag:"release", releaseKind:"Gratitude"},{tag:"tend", tendKind:"Service"}] },
   ],
   sage: [
@@ -1184,7 +1205,7 @@ const FUNDAMENTALS = {
    A Fundamental listed here is itself a practice, holding its activities;
    Train / Restore are catch-alls. */
 const CLASS_PRACTICES = {
-  warrior:    [{base:"standing"}, {base:"train"},   {fund:"w_strengthen"}, {fund:"w_stretch"}, {fund:"w_endure"}],
+  warrior:    [{base:"standing"}, {base:"train"},   {fund:"w_strengthen"}, {fund:"w_endure"}],
   healer:     [{base:"walking"},  {base:"restore"}, {fund:"h_feel"}, {fund:"h_release"}, {fund:"h_nourish"}],
   sage:       [{base:"sitting"},  {fund:"s_observe"}],
   mystic:     [{base:"sitting"},  {fund:"m_devotion"}, {fund:"m_communion"}, {fund:"m_henosis"}],
@@ -1288,9 +1309,10 @@ function fundamentalUnlocked(f, cid, classState){
   return questActiveOrDone(cid, f.unlockQuest, classState.questProgress, c=>classTrialDone(classState, c), classState.mastery?.[cid]?.xp||0);
 }
 /* Days trained, personal best and marks for each of a path's Fundamentals. */
-function computeFundamentals(cid, sessions=[], jEnt=[]){
+function computeFundamentals(cid, sessions=[], jEnt=[], classState=null){
   return (FUNDAMENTALS[cid]||[]).map(f=>{
     const days=new Set(); let best=0;
+    if(f.vow) vowDaysOf(classState, cid).forEach(d=>days.add(d));
     (sessions||[]).forEach(s=>{
       const d=s.date; if(!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
       const acts=(s.activities||[]).filter(a=>fundMatches(f,a));
@@ -1366,6 +1388,46 @@ function awardMasteryXP(classState, qualifyingPaths, xpAmount){
     next = {...next, mastery:{...next.mastery, [cid]:{xp:cur+xpAmount}}};
   });
   return next;
+}
+
+/* ── DAILIES ───────────────────────────────────────────────────────────────
+   Per-class daily targets measured in XP (1 XP = 10 s of practice, so 30 XP ≈
+   5 min). Kinds: "class" (any XP that counts for the class), "practice" (one
+   named activity; countable activities pay DAILY_REP_XP per rep so 20 pushups
+   reads as real effort), "vow" (a do-not, checked by hand, worth its target).
+   Day rolls over at local midnight; nothing here penalises a missed day. */
+const DAILY_DEFAULT_XP = 30;
+const DAILY_REP_XP = 1.5;
+const sessionDay = s => s.day || s.date;
+/* Distinct days a class's Do nots were kept. */
+function vowDaysOf(classState, cid){
+  const days=new Set();
+  (classState?.dailies||[]).filter(d=>d.kind==="vow" && d.cid===cid).forEach(d=>(classState.dailyChecks?.[d.id]||[]).forEach(x=>days.add(x)));
+  return [...days];
+}
+function dailyProgress(d, sessions, checks, day){
+  if(d.kind==="vow") return (checks?.[d.id]||[]).includes(day) ? d.target : 0;
+  let sum=0;
+  (sessions||[]).forEach(s=>{
+    if(sessionDay(s)!==day) return;
+    if(d.kind==="class"){
+      if(d.cid==="presence" || masteryPathsForSession(s).includes(d.cid)) sum += s.xp||0;
+    } else {
+      const a=(s.activities||[]).find(x=>x.name===d.match);
+      if(!a) return;
+      const cnt=s.loggedCounts?.[a.id];
+      sum += (a.unit && a.unit!=="minutes" && cnt) ? cnt*DAILY_REP_XP : (s.xp||0);
+    }
+  });
+  return sum;
+}
+/* 0..1 fill for a class: Σ min(progress,target) / Σ target. */
+function classDailyFill(cid, classState, sessions, day=localDateStr()){
+  const ds=(classState?.dailies||[]).filter(d=>d.cid===cid);
+  if(!ds.length) return null;
+  let got=0,tot=0;
+  ds.forEach(d=>{ got+=Math.min(dailyProgress(d,sessions,classState.dailyChecks,day), d.target); tot+=d.target; });
+  return tot>0 ? got/tot : 0;
 }
 
 
@@ -3584,7 +3646,7 @@ const LIBRARY_ENTRIES = [
       "A kick asks more of the root than a punch. One leg leaves the ground, so your balance narrows to a single point, and the power still has to travel the same path: up from the ground, through the hip, and out through the leg.",
       "Start with the front kick. From your stance, lift the knee of the kicking leg up and forward. This is the chamber, and the more it bends, the more it gathers. Then extend the lower leg, strike with the ball of the foot, and bring the leg back along the same line before putting the foot down.",
       "Stand tall on the supporting leg with the knee soft, and keep your hands up and your spine upright. If you lean back to get the leg up, lower the kick. A lower, balanced kick is better than a high, wobbly one.",
-      "Tight hips shorten a kick into a tap. Warm up first, and stretch the hips, hamstrings and quads afterward. The Stretch practice in the Warrior path is a good place to start.",
+      "Tight hips shorten a kick into a tap. Warm up first, and stretch the hips, hamstrings and quads afterward. The Stretch practice in the Healer path is a good place to start.",
       "Form first, height later. Slow, controlled kicks build the balance and hip control that power is made from. Switch legs often so both sides learn equally."
     ],
     practice:"Kick the air in front of you, slowly, alternating legs. Keep going until you reach 100 kicks, resting whenever your balance or form slips." },
@@ -3611,8 +3673,8 @@ const LIBRARY_ENTRIES = [
     ],
     practice:"Choose a line on the floor. Step forward along it five times, then back five times, keeping your height and your weight shifts smooth. Do the same sideways. Rest when form slips, and repeat until 5 minutes of Footwork are done." },
 
-  { id:"lib_w_stretch", unlock:0, section:"Path Skills", pathId:"warrior", pathName:"Warrior", skillUnlockQuest:"w_stretch",
-    title:"Stretch", sub:"Warrior", sc:"vit",
+  { id:"lib_h_stretch", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_stretch",
+    title:"Stretch", sub:"Healer", sc:"vit",
     body:[
       "Stretching keeps the muscles you train long, strong and free of strain. Strength built without length turns into stiffness; a stretch after training is how the work settles in.",
       "How to stretch: hold each position about 30 seconds. Breathe slowly, and let the exhale soften you a little deeper. Never bounce, and never push into pain. Stop at a strong, even pull.",
@@ -3625,7 +3687,7 @@ const LIBRARY_ENTRIES = [
 
   CHANT_LIBRARY_STUB,
   ...Object.entries(QUEST_CHAINS).filter(([cid])=>cid!=="healer"&&cid!=="mystic").flatMap(([cid,chain]) =>
-    chain.filter(q=>!q.isTrial && q.libId!=="lib_w_stretch" && q.libId!=="lib_w_footwork" && q.libId!=="lib_w_punch" && q.libId!=="lib_w_kick").map(q=>({
+    chain.filter(q=>!q.isTrial && q.libId!=="lib_w_footwork" && q.libId!=="lib_w_punch" && q.libId!=="lib_w_kick").map(q=>({
       id:q.libId, unlock:0, section:"Path Skills",
       pathId:cid, pathName:(CLASS_BY_ID[cid]?.name)||"",
       skillUnlockQuest:q.id,
@@ -4358,7 +4420,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
   const st = !mine&&selNode&&selNode.real ? classBadgeState(selNode.id, classState) : null;
   const trialDone = st ? classTrialDone(classState, selNode.id) : false;
   const funds = st ? (FUNDAMENTALS[selNode.id]||[]) : [];
-  const fundStats = st&&st.chosen ? Object.fromEntries(computeFundamentals(selNode.id, sessions, jEnt).map(f=>[f.id,f])) : {};
+  const fundStats = st&&st.chosen ? Object.fromEntries(computeFundamentals(selNode.id, sessions, jEnt, classState).map(f=>[f.id,f])) : {};
   const cMode = st&&st.chosen&&trialDone ? CLASS_MODE[selNode.id] : null;
   const [openFund,setOpenFund]=useState(null);
   const [addingTo,setAddingTo]=useState(null);
@@ -4474,6 +4536,13 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
                 background:locked ? (on?`${ac}2e`:C.surf) : `linear-gradient(${on?`${ac}2e`:C.surf},${on?`${ac}2e`:C.surf}), ${C.bg}`,
                 boxShadow:mastered ? `0 0 14px ${AC(n.accent)}${on?"88":"59"}` : on?`0 0 12px ${ac}66`:"none",
                 opacity:locked?0.55:1}}>
+                {(()=>{ const fill = (n.real && chosen && !locked) ? classDailyFill(n.id, classState, sessions) : null;
+                  if(fill===null) return null;
+                  const R=26.5, SW=4, Cc=2*Math.PI*R;
+                  return (<svg aria-hidden="true" width="56" height="56" viewBox="0 0 56 56" style={{position:"absolute",left:-5,top:-5,pointerEvents:"none",transform:"rotate(-90deg)"}}>
+                    <circle cx="28" cy="28" r={R} fill="none" stroke={C.bord} strokeWidth={SW} opacity="0.7"/>
+                    {fill>0 && <circle cx="28" cy="28" r={R} fill="none" stroke={ac} strokeWidth={SW} strokeDasharray={`${Cc*fill} ${Cc}`} strokeLinecap="butt"/>}
+                  </svg>); })()}
                 {CM_ICONS[n.id] ? <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={CM_ICONS[n.id]}/></svg>
                   : <span style={{...dsp("19px",ac)}}>{n.name[0]}</span>}
               </div>
@@ -4541,7 +4610,23 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
                 activities={activities} jEnt={jEnt} ascents={classState.ascents||{}}
                 onOpenQuest={qid=>onOpenClassQuest(selNode.id, qid)} onOpenLib={onOpenLib}/>
             ) : (<>
-            <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"6px 0 4px"}}>FUNDAMENTALS</div>
+            {st.chosen && (()=>{
+              const day=localDateStr();
+              const ds=(classState.dailies||[]).filter(d=>d.cid===selNode.id);
+              return (<>
+                <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"6px 0 4px"}}>DAILY</div>
+                {ds.length===0 && <div style={{...body("12.5px",C.dim),fontStyle:"italic",padding:"4px 0 8px"}}>No dailies set.</div>}
+                {ds.map(d=>{ const pr=dailyProgress(d,sessions,classState.dailyChecks,day); const pc=Math.min(1,pr/(d.target||1));
+                  return (<div key={d.id} style={{padding:"8px 0",borderBottom:`0.5px solid ${C.bord}`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",gap:"8px"}}>
+                      <span style={{...body("14.5px",C.cream)}}>{d.kind==="vow"?"Do not: ":""}{d.label}</span>
+                      <span style={{...body("12px",pc>=1?accent:C.muted)}}>{pc>=1?"done":`${Math.round(pr)} / ${d.target} XP`}</span>
+                    </div>
+                    <div style={{height:"3px",background:INK(0.08),borderRadius:"2px",marginTop:"6px"}}><div style={{height:"100%",width:`${pc*100}%`,background:accent,borderRadius:"2px"}}/></div>
+                  </div>); })}
+                <button onClick={()=>onGoQuests(selNode.id)} style={{margin:"8px 0 6px",background:"none",border:"none",cursor:"pointer",padding:"4px 0",...body("13px",C.sageB)}}>{ds.length?"Edit dailies ›":"Add a daily ›"}</button>
+              </>); })()}
+            <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"10px 0 4px"}}>PRACTICE RECORD</div>
             {funds.map(f=>{
               const d=st.chosen ? fundamentalDetail(f, sessions, jEnt, activities) : null;
               const canAdd = f.category && st.chosen && fundamentalUnlocked(f, selNode.id, classState);
@@ -4595,7 +4680,7 @@ function PathPortal({ classId, classState, sessions=[], jEnt=[], activities=[], 
   const cls=CLASS_BY_ID[classId]; if(!cls) return null;
   const st=classBadgeState(classId, classState);
   const qp=classState?.questProgress||{};
-  const funds=computeFundamentals(classId, sessions, jEnt);
+  const funds=computeFundamentals(classId, sessions, jEnt, classState);
   const xp=classState?.mastery?.[classId]?.xp||0;
   const lvlFloor=masteryTotalXPForLevel(classId, st.level), lvlNext=masteryTotalXPForLevel(classId, st.level+1);
   const lvlPct = st.complete ? Math.min(100, Math.round((xp-lvlFloor)/Math.max(1,lvlNext-lvlFloor)*100)) : Math.round(st.done/Math.max(1,st.total)*100);
@@ -5188,6 +5273,10 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
             {groupUnlock.scope==="single" ? "Select all four in one session, and log your counts." : "Log a real test of each, any session, any order."}
           </div>
         </div>
+      ) : (q.unlocks||[]).some(u=>u.kind==="vowDays") ? (
+        <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
+          Quest tab, Warrior, Daily: add a Do not, then mark it kept each day. It completes on its own.
+        </div>
       ) : isReflectQuest ? (
         <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
           Sit for at least {reflectUnlock.minDuration} minutes, then write a Reflect entry afterward.
@@ -5205,472 +5294,9 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
 }
 
 
-/* ═══════════════ THE FORGE — the player-authored questline ═══════════════
-   Pre-seal: ForgeFlow — the four fires of "Forging the Way" (Act II ch.12).
-   Post-seal: ForgeSection — the daily place: moon arc, the Way, today's fire.
-   Anti-addiction commitments carved in: no streaks anywhere, no missed state,
-   strikes expire silently at midnight, the fire reflects TODAY only.        */
-
+/* Forge shared constants (the old Act II Way screens were removed). */
 const FORGE_ACCENT = "#d8783c", FORGE_ACCENT_B = "#e8945c";
 const WEEKDAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-
-/* Moon arc — phase along a horizontal arc; renewal (new moon) marked ahead. */
-function MoonArc({ way }){
-  const now = new Date();
-  const frac = moonPhaseFrac(now);                       // 0 new → 0.5 full → 1 new
-  const renewal = nextNewMoon(now);
-  const daysToRenewal = Math.max(0, Math.ceil((renewal.getTime()-now.getTime())/86400000));
-  const W=330, H=74, cx=W/2, cy=H+18, r=96;
-  const arcPt = f => { const a=Math.PI*(1-f); return [cx+r*Math.cos(a), cy-r*Math.sin(a)]; };
-  const [px,py]=arcPt(frac);
-  const illum = 0.5-0.5*Math.cos(frac*2*Math.PI);        // 0 dark → 1 full
-  return (
-    <div style={{padding:"14px 0 4px",display:"flex",flexDirection:"column",alignItems:"center"}}>
-      <svg width={W} height={H+8} viewBox={`0 0 ${W} ${H+8}`} style={{display:"block"}}>
-        <path d={`M ${arcPt(0)[0]} ${arcPt(0)[1]} A ${r} ${r} 0 0 1 ${arcPt(1)[0]} ${arcPt(1)[1]}`}
-          fill="none" stroke={C.bord} strokeWidth="1"/>
-        {/* new-moon endpoints */}
-        {[0,1].map(f=>{ const [x,y]=arcPt(f); return <circle key={f} cx={x} cy={y} r="2.4" fill="none" stroke={C.dim} strokeWidth="1"/>; })}
-        {/* full-moon apex */}
-        {(()=>{ const [x,y]=arcPt(0.5); return <circle cx={x} cy={y} r="2.4" fill={C.dim}/>; })()}
-        {/* the moon, where it is tonight */}
-        <circle cx={px} cy={py} r="7" fill={`rgba(226,229,238,${0.15+illum*0.75})`} stroke={C.cream} strokeWidth="0.8"/>
-      </svg>
-      <div style={{...dsp("9px",C.muted,400,"0.2em"),marginTop:"2px"}}>{moonPhaseName(now).toUpperCase()}</div>
-      <div style={{...body("11px",C.dim),fontStyle:"italic",marginTop:"2px"}}>
-        {daysToRenewal===0 ? "The new moon is here — renewal at the Forge" : `Renewal in ${daysToRenewal} day${daysToRenewal===1?"":"s"}`}
-        {way?.tendingDay!=null && ` · tending ${WEEKDAYS[way.tendingDay]}s`}
-      </div>
-    </div>
-  );
-}
-
-/* One movement screen of Part I — surfaced prior entry + the question. */
-function ForgeMovement({ mv, value, surfacedEntry, onChange }){
-  return (
-    <div>
-      <div style={{...dsp("10px",FORGE_ACCENT,400,"0.22em"),marginBottom:"10px"}}>{mv.label.toUpperCase()}</div>
-      {surfacedEntry && (
-        <div style={{background:INK(0.03),border:`0.5px solid ${C.bord}`,borderLeft:`2px solid ${FORGE_ACCENT}66`,borderRadius:"6px",padding:"10px 12px",marginBottom:"12px"}}>
-          <div style={{...dsp("8px",C.muted,400,"0.18em"),marginBottom:"5px"}}>YOU WROTE, EARLIER ON THE PATH</div>
-          <div style={{...body("12px",C.muted),fontStyle:"italic",lineHeight:"1.7",maxHeight:"110px",overflowY:"auto",whiteSpace:"pre-wrap"}}>{surfacedEntry}</div>
-        </div>
-      )}
-      <div style={{...body("14px",C.cream),fontStyle:"italic",lineHeight:"1.8",marginBottom:"6px"}}>{mv.prompt}</div>
-      <div style={{...body("11px",C.dim),fontStyle:"italic",lineHeight:"1.6",marginBottom:"12px"}}>{mv.hint}</div>
-      <textarea value={value} onChange={e=>onChange(e.target.value)} rows={mv.id==="sentence"?3:7}
-        placeholder={mv.id==="sentence"?"One sentence. Revisable at every renewal.":"Take your time. The fire is patient."}
-        style={{width:"100%",background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("15px"),padding:"12px",resize:"none",boxSizing:"border-box",outline:"none",lineHeight:"1.7",caretColor:FORGE_ACCENT_B}}/>
-    </div>
-  );
-}
-
-/* The pre-seal flow: four fires, gated in sequence. */
-function ForgeFlow({ way, onWayChange, jEnt, onOpenAnchor, onSeal }){
-  const [inPart,setInPart]   = useState(null);  // part id currently open, or null (landing)
-  const [step,setStep]       = useState(0);     // scene/movement index within the part
-  const [draft,setDraft]     = useState({});    // local edits before part-save
-  const [sealing,setSealing] = useState(false);
-  const [nudge,setNudge]     = useState("");    // gentle inline validation message (Rhythm step)
-
-  const done = id => way.partsDone.includes(id);
-  const gateMet = (part) => {
-    if(!part.gate) return true;
-    if(part.gate.key==="strikeOnce") return (way.completions||[]).length>0;
-    return !!way.gates[part.gate.key];
-  };
-  /* A part is enterable when all prior parts are done AND gated. */
-  const partState = (idx) => {
-    const p=FORGE_PARTS[idx];
-    if(done(p.id)) return "done";
-    const priorOk = FORGE_PARTS.slice(0,idx).every(pp=>done(pp.id)&&gateMet(pp));
-    return priorOk ? "active" : "locked";
-  };
-  const entryFor = refId => refId ? (jEnt.find(e=>e.tag==="reflection"&&e.refId===refId)?.text||null) : null;
-  const openPart = (p) => {
-    setInPart(p.id); setStep(0); setNudge("");
-    if(p.id==="calling") setDraft({...way.calling});
-    if(p.id==="cultivation") setDraft({qualities:[...(way.qualities.length?way.qualities:[{word:"",stat:""}])]});
-    if(p.id==="rhythm") setDraft({commitments:[...(way.commitments.length?way.commitments:[{id:`c_${Date.now()}`,name:"",address:"",cadence:"daily",perWeek:3,identityLine:""}])], tendingDay: way.tendingDay??0});
-  };
-  const savePart = (id, patch) => {
-    onWayChange(w=>({ ...w, ...patch, partsDone: w.partsDone.includes(id)?w.partsDone:[...w.partsDone,id] }));
-    setInPart(null); setStep(0);
-  };
-
-  /* ── inside a part ── */
-  if(inPart){
-    const part = FORGE_PARTS.find(p=>p.id===inPart);
-    const scenes = part.scenes||[];
-    const back = ()=>{ if(step>0) setStep(s=>s-1); else { setInPart(null); setStep(0);} };
-
-    /* Sealing — the Way whole, the old story surfaced, the seal. */
-    if(inPart==="horizon" && step>=scenes.length){
-      const story = entryFor("a2_story");
-      return (
-        <div style={{padding:"4px 20px 30px"}}>
-          <div style={{...dsp("10px",FORGE_ACCENT,400,"0.22em"),margin:"10px 0 14px"}}>THE SEALING</div>
-          <div style={{background:C.surf,border:`0.5px solid ${FORGE_ACCENT}55`,borderRadius:"8px",padding:"16px",marginBottom:"14px"}}>
-            <div style={{...dsp("9px",C.gold,400,"0.2em"),marginBottom:"8px"}}>THE WAY</div>
-            <div style={{...body("15px",C.cream),fontStyle:"italic",lineHeight:"1.8",marginBottom:"12px"}}>"{way.calling.sentence||"…"}"</div>
-            {way.qualities.filter(q=>q.word).length>0 && (
-              <div style={{marginBottom:"12px"}}>
-                <div style={{...dsp("8px",C.muted,400,"0.18em"),marginBottom:"5px"}}>CULTIVATING</div>
-                <div style={{...body("13px",C.cream)}}>{way.qualities.filter(q=>q.word).map(q=>q.word).join(" · ")}</div>
-              </div>
-            )}
-            <div style={{...dsp("8px",C.muted,400,"0.18em"),marginBottom:"6px"}}>THE RHYTHM</div>
-            {way.commitments.map(cm=>(
-              <div key={cm.id} style={{marginBottom:"8px"}}>
-                <div style={{...body("13px",C.cream),fontStyle:"italic"}}>{cm.identityLine||cm.name}</div>
-                <div style={{...body("10px",C.dim)}}>{cm.name} · {cm.address} · {cm.cadence==="daily"?"daily":`${cm.perWeek}× a week`}</div>
-              </div>
-            ))}
-            {way.tendingDay!=null && <div style={{...body("11px",C.muted),fontStyle:"italic",marginTop:"8px"}}>Tending: {WEEKDAYS[way.tendingDay]} evenings · Renewal: each new moon</div>}
-          </div>
-          {story && (
-            <div style={{marginBottom:"16px"}}>
-              <div style={{...body("13px",C.cream),fontStyle:"italic",lineHeight:"1.8",marginBottom:"10px"}}>One more thing, before it is sealed. Read this.</div>
-              <div style={{background:INK(0.03),border:`0.5px solid ${C.bord}`,borderRadius:"6px",padding:"12px",marginBottom:"10px"}}>
-                <div style={{...dsp("8px",C.muted,400,"0.18em"),marginBottom:"5px"}}>THE STORY YOU WERE LIVING · WRITTEN AT THE START OF THIS ACT</div>
-                <div style={{...body("12px",C.muted),fontStyle:"italic",lineHeight:"1.7",maxHeight:"140px",overflowY:"auto",whiteSpace:"pre-wrap"}}>{story}</div>
-              </div>
-              <div style={{...body("13px",C.cream),fontStyle:"italic",lineHeight:"1.8"}}>You do not have to rewrite the old one tonight. Only notice: the pen has already changed hands.</div>
-            </div>
-          )}
-          <button onClick={()=>{ if(!sealing){ setSealing(true); onSeal(); } }}
-            style={{width:"100%",padding:"14px",background:"linear-gradient(rgba(216,120,60,0.20),rgba(216,120,60,0.07))",border:`0.5px solid ${FORGE_ACCENT}`,cursor:"pointer",borderRadius:"6px",...dsp("11px",FORGE_ACCENT_B,400,"0.2em")}}>
-            SEAL THE WAY
-          </button>
-          <button onClick={back} style={{width:"100%",marginTop:"8px",padding:"10px",background:"none",border:"none",cursor:"pointer",...body("11px",C.dim)}}>← back</button>
-        </div>
-      );
-    }
-
-    /* Scene pages first, then the part's working screens. */
-    if(step < scenes.length){
-      return (
-        <div style={{padding:"4px 20px 30px"}}>
-          <div style={{...dsp("10px",FORGE_ACCENT,400,"0.22em"),margin:"10px 0 16px"}}>{`FIRE ${part.n} · ${part.title.toUpperCase()}`}</div>
-          <p style={{...body("15px",C.cream),lineHeight:"1.95",fontStyle:"italic",animation:"fadeRise 0.7s ease both"}}>{scenes[step]}</p>
-          <button onClick={()=>setStep(s=>s+1)} style={{width:"100%",marginTop:"20px",padding:"12px",background:C.surf,border:`0.5px solid ${C.bord}`,cursor:"pointer",borderRadius:"6px",...dsp("10px",C.cream,400,"0.16em")}}>CONTINUE</button>
-          <button onClick={back} style={{width:"100%",marginTop:"6px",padding:"8px",background:"none",border:"none",cursor:"pointer",...body("11px",C.dim)}}>← back</button>
-        </div>
-      );
-    }
-
-    /* Part I — the four movements, one per screen. */
-    if(inPart==="calling"){
-      const mi = step - scenes.length;
-      const mv = part.movements[mi];
-      const val = draft[mv.id]||"";
-      const last = mi===part.movements.length-1;
-      return (
-        <div style={{padding:"4px 20px 30px"}}>
-          <ForgeMovement mv={mv} value={val} surfacedEntry={entryFor(mv.surfaces)} onChange={v=>setDraft(d=>({...d,[mv.id]:v}))}/>
-          <button disabled={!val.trim()} onClick={()=>{ if(last){ savePart("calling",{calling:{...way.calling,...draft,[mv.id]:val}}); } else setStep(s=>s+1); }}
-            style={{width:"100%",marginTop:"14px",padding:"12px",background:val.trim()?"rgba(216,120,60,0.10)":C.surf,border:`0.5px solid ${val.trim()?FORGE_ACCENT:C.bord}`,cursor:val.trim()?"pointer":"default",borderRadius:"6px",...dsp("10px",val.trim()?FORGE_ACCENT_B:C.dim,400,"0.16em"),opacity:val.trim()?1:0.6}}>
-            {last?"NAME IT — AND CARRY IT TO THE FIRE":"CONTINUE"}
-          </button>
-          <button onClick={back} style={{width:"100%",marginTop:"6px",padding:"8px",background:"none",border:"none",cursor:"pointer",...body("11px",C.dim)}}>← back</button>
-        </div>
-      );
-    }
-
-    /* Part II — qualities, the player's words; body-mapping optional. */
-    if(inPart==="cultivation"){
-      const qs = draft.qualities||[];
-      const setQ=(i,patch)=>setDraft(d=>({...d,qualities:d.qualities.map((q,qi)=>qi===i?{...q,...patch}:q)}));
-      const valid = qs.some(q=>q.word.trim());
-      return (
-        <div style={{padding:"4px 20px 30px"}}>
-          <div style={{...dsp("10px",FORGE_ACCENT,400,"0.22em"),marginBottom:"10px"}}>WHAT DO YOU WANT TO CULTIVATE?</div>
-          <div style={{...body("11px",C.dim),fontStyle:"italic",lineHeight:"1.6",marginBottom:"14px"}}>Your words — presence, gratitude, peace, joy, clarity, courage, softness, strength… A place in the body is optional. Joy does not need coordinates to be practiced.</div>
-          {qs.map((q,i)=>(
-            <div key={i} style={{display:"flex",gap:"8px",marginBottom:"8px",alignItems:"center"}}>
-              <input value={q.word} onChange={e=>setQ(i,{word:e.target.value})} placeholder="a quality, in your word"
-                style={{flex:1,background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("14px"),padding:"10px 12px",outline:"none",boxSizing:"border-box"}}/>
-              <select value={q.stat||""} onChange={e=>setQ(i,{stat:e.target.value})}
-                style={{background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:q.stat?C.cream:C.dim,...body("12px"),padding:"10px 6px",outline:"none"}}>
-                <option value="">unmapped</option>
-                <option value="vit">Vitality</option><option value="str">Root</option><option value="wil">Will</option>
-                <option value="hrt">Heart</option><option value="voi">Voice</option><option value="wis">Clarity</option><option value="ali">Alignment</option>
-              </select>
-              {qs.length>1&&<button onClick={()=>setDraft(d=>({...d,qualities:d.qualities.filter((_,qi)=>qi!==i)}))} style={{background:"none",border:"none",color:C.dim,cursor:"pointer",fontSize:"15px",padding:"0 2px"}}>×</button>}
-            </div>
-          ))}
-          <button onClick={()=>setDraft(d=>({...d,qualities:[...d.qualities,{word:"",stat:""}]}))} style={{background:"none",border:`0.5px dashed ${C.bord}`,borderRadius:"6px",width:"100%",padding:"8px",cursor:"pointer",...body("12px",C.muted),marginBottom:"14px"}}>+ another quality</button>
-          <button disabled={!valid} onClick={()=>savePart("cultivation",{qualities:qs.filter(q=>q.word.trim()).map(q=>({word:q.word.trim(),stat:q.stat||""}))})}
-            style={{width:"100%",padding:"12px",background:valid?"rgba(216,120,60,0.10)":C.surf,border:`0.5px solid ${valid?FORGE_ACCENT:C.bord}`,cursor:valid?"pointer":"default",borderRadius:"6px",...dsp("10px",valid?FORGE_ACCENT_B:C.dim,400,"0.16em"),opacity:valid?1:0.6}}>
-            THE METAL IS CHOSEN
-          </button>
-          <button onClick={back} style={{width:"100%",marginTop:"6px",padding:"8px",background:"none",border:"none",cursor:"pointer",...body("11px",C.dim)}}>← back</button>
-        </div>
-      );
-    }
-
-    /* Part III — the commitments. Tiny minimums, addresses, identity lines. */
-    if(inPart==="rhythm"){
-      const cms = draft.commitments||[];
-      const setC=(i,patch)=>setDraft(d=>({...d,commitments:d.commitments.map((c2,ci)=>ci===i?{...c2,...patch}:c2)}));
-      /* A commitment is "real" if EITHER the practice name or the identity
-         line is filled — the two are often written in either order, and the
-         identity line ("I am someone who...") is usually the one that pulls
-         people first. Neither field should be able to silently gate the other. */
-      const hasContent = c2 => (c2.name||"").trim() || (c2.identityLine||"").trim();
-      const valid = cms.some(hasContent);
-      /* Derive a plain practice name from the identity line when name is
-         left blank, so no one loses a commitment over which box they wrote in first. */
-      const deriveName = c2 => {
-        if((c2.name||"").trim()) return c2.name.trim();
-        const m=(c2.identityLine||"").match(/i am someone who (.+?)[.\s]*$/i);
-        return (m ? m[1] : c2.identityLine||"").trim() || "a practice";
-      };
-      const attemptSave = () => {
-        if(!valid){ setNudge("Name the practice, or finish the sentence \"I am someone who…\" — either is enough."); return; }
-        savePart("rhythm",{ commitments:cms.filter(hasContent).map(c2=>({...c2,name:deriveName(c2)})), tendingDay:draft.tendingDay??0 });
-      };
-      return (
-        <div style={{padding:"4px 20px 30px"}}>
-          <div style={{...dsp("10px",FORGE_ACCENT,400,"0.22em"),marginBottom:"10px"}}>COMPOSE THE RHYTHM</div>
-          <div style={{...body("11px",C.dim),fontStyle:"italic",lineHeight:"1.6",marginBottom:"14px"}}>Start smaller than feels right — you can grow it at the next renewal. Give each practice an address in the day. Then say who it makes you.</div>
-          {cms.map((c2,i)=>(
-            <div key={c2.id} style={{background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"8px",padding:"12px",marginBottom:"10px"}}>
-              <input value={c2.name} onChange={e=>setC(i,{name:e.target.value})} placeholder="the practice — small and true (e.g. one anchored breath)"
-                style={{width:"100%",background:"transparent",border:"none",borderBottom:`0.5px solid ${C.bord}`,color:C.txt,...body("14px"),padding:"6px 2px",outline:"none",boxSizing:"border-box",marginBottom:"8px"}}/>
-              <input value={c2.address} onChange={e=>setC(i,{address:e.target.value})} placeholder="its address — when & where (after coffee, before the phone…)"
-                style={{width:"100%",background:"transparent",border:"none",borderBottom:`0.5px solid ${C.bord}`,color:C.txt,...body("13px"),padding:"6px 2px",outline:"none",boxSizing:"border-box",marginBottom:"8px"}}/>
-              <input value={c2.identityLine} onChange={e=>setC(i,{identityLine:e.target.value})} placeholder={`"I am someone who…"`}
-                style={{width:"100%",background:"transparent",border:"none",borderBottom:`0.5px solid ${C.bord}`,color:C.cream,...body("13px"),fontStyle:"italic",padding:"6px 2px",outline:"none",boxSizing:"border-box",marginBottom:"10px"}}/>
-              <div style={{display:"flex",gap:"8px",alignItems:"center"}}>
-                <select value={c2.cadence} onChange={e=>setC(i,{cadence:e.target.value})}
-                  style={{background:C.bg2,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.cream,...body("12px"),padding:"7px 6px",outline:"none"}}>
-                  <option value="daily">every day</option>
-                  <option value="weekly">a few times a week</option>
-                </select>
-                {c2.cadence==="weekly"&&(
-                  <select value={c2.perWeek} onChange={e=>setC(i,{perWeek:parseInt(e.target.value)})}
-                    style={{background:C.bg2,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.cream,...body("12px"),padding:"7px 6px",outline:"none"}}>
-                    {[1,2,3,4,5,6].map(n=><option key={n} value={n}>{n}×</option>)}
-                  </select>
-                )}
-                {cms.length>1&&<button onClick={()=>setDraft(d=>({...d,commitments:d.commitments.filter((_,ci)=>ci!==i)}))} style={{marginLeft:"auto",background:"none",border:"none",color:C.dim,cursor:"pointer",fontSize:"15px"}}>×</button>}
-              </div>
-            </div>
-          ))}
-          <button onClick={()=>setDraft(d=>({...d,commitments:[...d.commitments,{id:`c_${Date.now()}`,name:"",address:"",cadence:"daily",perWeek:3,identityLine:""}]}))}
-            style={{background:"none",border:`0.5px dashed ${C.bord}`,borderRadius:"6px",width:"100%",padding:"8px",cursor:"pointer",...body("12px",C.muted),marginBottom:"14px"}}>+ another commitment</button>
-          <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"16px"}}>
-            <span style={{...body("12px",C.muted)}}>Tending evening:</span>
-            <select value={draft.tendingDay??0} onChange={e=>setDraft(d=>({...d,tendingDay:parseInt(e.target.value)}))}
-              style={{background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.cream,...body("12px"),padding:"7px 6px",outline:"none"}}>
-              {WEEKDAYS.map((w,i)=><option key={w} value={i}>{w}</option>)}
-            </select>
-          </div>
-          {nudge && (
-            <div style={{...body("12px",FORGE_ACCENT_B),fontStyle:"italic",lineHeight:"1.6",marginBottom:"10px",padding:"8px 10px",background:"rgba(216,120,60,0.06)",border:`0.5px solid ${FORGE_ACCENT}55`,borderRadius:"6px"}}>{nudge}</div>
-          )}
-          <button onClick={attemptSave}
-            style={{width:"100%",padding:"12px",background:valid?"rgba(216,120,60,0.10)":C.surf,border:`0.5px solid ${valid?FORGE_ACCENT:C.bord}`,cursor:"pointer",borderRadius:"6px",...dsp("10px",valid?FORGE_ACCENT_B:C.muted,400,"0.16em")}}>
-            THE RHYTHM IS SET
-          </button>
-          <button onClick={back} style={{width:"100%",marginTop:"6px",padding:"8px",background:"none",border:"none",cursor:"pointer",...body("11px",C.dim)}}>← back</button>
-        </div>
-      );
-    }
-    return null;
-  }
-
-  /* ── landing: the four fires ── */
-  const todayCms = way.commitments||[];
-  const todayStr = localDateStr();
-  const struck = cid => (way.completions||[]).some(cp=>cp.cid===cid&&cp.date===todayStr);
-  const rhythmDone = done("rhythm");
-  return (
-    <div style={{padding:"4px 20px 30px"}}>
-      <div style={{...body("14px",C.muted),lineHeight:"1.7",fontStyle:"italic",margin:"6px 0 18px"}}>
-        Four fires. Heat, strike, rest, return — nothing is forged in one sitting.
-      </div>
-      {FORGE_PARTS.map((p,idx)=>{
-        const st = partState(idx);
-        const g = p.gate; const gMet = gateMet(p);
-        return (
-          <div key={p.id} style={{marginBottom:"10px"}}>
-            <button onClick={()=>{ if(st==="active") openPart(p); }}
-              style={{width:"100%",textAlign:"left",background:st==="done"?"rgba(216,120,60,0.05)":st==="active"?C.surf:"transparent",
-                border:`0.5px solid ${st==="done"?`${FORGE_ACCENT}66`:st==="active"?FORGE_ACCENT:C.bord}`,borderRadius:"8px",padding:"12px 14px",
-                cursor:st==="active"?"pointer":"default",opacity:st==="locked"?0.4:1}}>
-              <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
-                <span style={{...dsp("11px",st==="done"?FORGE_ACCENT:st==="active"?FORGE_ACCENT_B:C.dim,400,"0.1em")}}>{p.n}</span>
-                <div style={{flex:1}}>
-                  <div style={{...dsp("12px",st==="locked"?C.muted:C.cream,400,"0.1em")}}>{p.title}</div>
-                  <div style={{...body("11px",C.muted),fontStyle:"italic"}}>{p.sub}</div>
-                </div>
-                {st==="done"&&<span style={{color:FORGE_ACCENT,fontSize:"12px"}}>✓</span>}
-                {st==="active"&&<span style={{...body("11px",FORGE_ACCENT_B)}}>Enter the fire →</span>}
-              </div>
-            </button>
-            {/* between-fires practice — appears once the part is done, gates the next.
-                Glows while pending so completing a part never *looks* like a
-                dead end — the one remaining step stays impossible to miss. */}
-            {st==="done" && g && (
-              <div style={{margin:"6px 0 0 18px",padding:"10px 12px",background:gMet?INK(0.02):"rgba(216,120,60,0.05)",border:`0.5px solid ${gMet?`${C.sageB}55`:`${FORGE_ACCENT}77`}`,borderRadius:"6px",animation:gMet?"none":"questGlow 2.6s ease-in-out infinite"}}>
-                <div style={{...dsp("9px",gMet?C.sageB:FORGE_ACCENT_B,400,"0.14em"),marginBottom:"4px"}}>{gMet?"✓ BETWEEN THE FIRES · ":"ONE STEP BEFORE THE NEXT FIRE · "}{g.label.toUpperCase()}</div>
-                <div style={{...body("11px",C.muted),fontStyle:"italic",lineHeight:"1.6",marginBottom:gMet?0:"8px"}}>{g.desc}</div>
-                {!gMet && g.key!=="strikeOnce" && (
-                  <div style={{display:"flex",gap:"8px"}}>
-                    {g.key==="qualitySessionDone" && <button onClick={()=>onOpenAnchor("sitting")} style={{background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"4px",padding:"5px 10px",cursor:"pointer",...body("11px",C.muted)}}>Open Anchor</button>}
-                    <button onClick={()=>onWayChange(w=>({...w,gates:{...w.gates,[g.key]:true}}))} style={{background:`rgba(${C.sageRGB},0.08)`,border:`0.5px solid ${C.sageB}`,borderRadius:"4px",padding:"5px 10px",cursor:"pointer",...body("11px",C.sageB)}}>Mark it done</button>
-                  </div>
-                )}
-                {!gMet && g.key==="strikeOnce" && (
-                  <div>
-                    {todayCms.map(cm=>(
-                      <button key={cm.id} onClick={()=>onWayChange(w=>({...w,completions:[...(w.completions||[]),{cid:cm.id,date:todayStr}]}))}
-                        disabled={struck(cm.id)}
-                        style={{display:"block",width:"100%",textAlign:"left",background:struck(cm.id)?"rgba(216,120,60,0.08)":"transparent",border:`0.5px solid ${struck(cm.id)?FORGE_ACCENT:C.bord}`,borderRadius:"4px",padding:"7px 10px",marginBottom:"5px",cursor:struck(cm.id)?"default":"pointer",...body("12px",struck(cm.id)?FORGE_ACCENT_B:C.cream)}}>
-                        {struck(cm.id)?"✓ ":"⚒ "}{cm.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })}
-      {rhythmDone && !done("horizon") && gateMet(FORGE_PARTS[2]) && (
-        <div style={{...body("11px",C.dim),fontStyle:"italic",textAlign:"center",marginTop:"6px"}}>The final fire is open. The moon is waiting.</div>
-      )}
-    </div>
-  );
-}
-
-/* The post-seal living section: moon arc · the Way · today's fire · strikes. */
-function ForgeSection({ way, onWayChange, onAwardWayXP }){
-  const [wayOpen,setWayOpen]   = useState(false);
-  const [newStrike,setNewStrike]= useState("");
-  const [adding,setAdding]     = useState(false);
-  const todayStr = localDateStr();
-  const wkKey = weekKey();
-  const now = new Date();
-  const isTendingDay = way.tendingDay!=null && now.getDay()===way.tendingDay;
-  const completions = way.completions||[];
-  const struckToday = cid => completions.some(cp=>cp.cid===cid&&cp.date===todayStr);
-  const weekCount = cid => completions.filter(cp=>cp.cid===cid && weekKey(new Date(cp.date+"T12:00"))===wkKey).length;
-  const cycleReturns = completions.filter(cp=>way.cycleStart && cp.date>=way.cycleStart.slice(0,10)).length;
-  /* strikes: today's only — yesterday's incomplete ones simply do not render */
-  const strikes = (way.strikes||[]).filter(s=>s.date===todayStr);
-  const renewalDue = way.cycleStart && now.getTime() >= nextNewMoon(new Date(way.cycleStart)).getTime();
-
-  const completeCommitment = (cm) => {
-    if(struckToday(cm.id)) return;
-    onWayChange(w=>({...w,completions:[...(w.completions||[]),{cid:cm.id,date:todayStr}]}));
-    const q = (way.qualities||[]).find(x=>x.stat); // route to first mapped quality's stat as a gentle default
-    onAwardWayXP(q?.stat||null);
-  };
-  const addStrike = () => {
-    const name=newStrike.trim(); if(!name) return;
-    onWayChange(w=>({...w,strikes:[...(w.strikes||[]),{id:`s_${Date.now()}`,name,date:todayStr,done:false}]}));
-    setNewStrike(""); setAdding(false);
-  };
-
-  const dueToday = (way.commitments||[]).filter(cm=> cm.cadence==="daily" || weekCount(cm.id)<(cm.perWeek||1) || struckToday(cm.id));
-  const allDone = dueToday.length>0 && dueToday.every(cm=>struckToday(cm.id)) && strikes.every(s=>s.done);
-  const anyDone = dueToday.some(cm=>struckToday(cm.id)) || strikes.some(s=>s.done);
-
-  return (
-    <div style={{padding:"0 20px 30px"}}>
-      <MoonArc way={way}/>
-
-      {renewalDue && (
-        <div style={{background:"rgba(216,120,60,0.06)",border:`0.5px solid ${FORGE_ACCENT}66`,borderRadius:"8px",padding:"12px 14px",marginBottom:"14px"}}>
-          <div style={{...dsp("10px",FORGE_ACCENT_B,400,"0.16em"),marginBottom:"4px"}}>THE NEW MOON HAS COME</div>
-          <div style={{...body("12px",C.muted),fontStyle:"italic",lineHeight:"1.6",marginBottom:"10px"}}>A cycle closes. You returned {cycleReturns} time{cycleReturns===1?"":"s"} — that is a fact, not a grade. The fuller renewal ritual is still being built at this forge; for now, carry the Way into the next moon.</div>
-          <button onClick={()=>onWayChange(w=>({...w,renewals:[...(w.renewals||[]),{date:todayStr,returns:cycleReturns}],cycleStart:new Date().toISOString()}))}
-            style={{background:"rgba(216,120,60,0.10)",border:`0.5px solid ${FORGE_ACCENT}`,borderRadius:"6px",padding:"8px 14px",cursor:"pointer",...dsp("9px",FORGE_ACCENT_B,400,"0.16em")}}>BEGIN THE NEXT CYCLE</button>
-        </div>
-      )}
-
-      {/* ── The Way — the most honored, least interactive object here ── */}
-      <button onClick={()=>setWayOpen(o=>!o)} style={{width:"100%",textAlign:"left",background:INK(0.02),border:`0.5px solid ${C.goldDim||C.bord}`,borderRadius:"8px",padding:"14px 16px",cursor:"pointer",marginBottom:"14px"}}>
-        <div style={{...dsp("9px",C.gold,400,"0.22em"),marginBottom:"8px"}}>THE WAY</div>
-        <div style={{...body("14px",C.cream),fontStyle:"italic",lineHeight:"1.8"}}>"{way.calling.sentence}"</div>
-        {(way.commitments||[]).filter(cm=>cm.identityLine).map(cm=>(
-          <div key={cm.id} style={{...body("12px",C.muted),fontStyle:"italic",lineHeight:"1.7",marginTop:"5px"}}>{cm.identityLine}</div>
-        ))}
-        {wayOpen && (
-          <div style={{marginTop:"12px",paddingTop:"12px",borderTop:`0.5px solid ${C.bord}`}}>
-            {[["THE THREAD",way.calling.thread],["THE ACHE",way.calling.ache],["THE DAY",way.calling.day]].map(([l,t])=>t?(
-              <div key={l} style={{marginBottom:"10px"}}>
-                <div style={{...dsp("8px",C.muted,400,"0.18em"),marginBottom:"3px"}}>{l}</div>
-                <div style={{...body("12px",C.muted),fontStyle:"italic",lineHeight:"1.7",whiteSpace:"pre-wrap"}}>{t}</div>
-              </div>
-            ):null)}
-            {(way.qualities||[]).length>0 && (
-              <div style={{marginBottom:"6px"}}>
-                <div style={{...dsp("8px",C.muted,400,"0.18em"),marginBottom:"3px"}}>CULTIVATING</div>
-                <div style={{...body("12px",C.cream)}}>{way.qualities.map(q=>q.word).join(" · ")}</div>
-              </div>
-            )}
-            {(way.renewals||[]).length>0 && <div style={{...body("10px",C.dim),fontStyle:"italic",marginTop:"6px"}}>{way.renewals.length} renewal{way.renewals.length===1?"":"s"} at this forge</div>}
-          </div>
-        )}
-        <div style={{...body("10px",C.dim),marginTop:"8px"}}>{wayOpen?"close":"open the document"} ▾</div>
-      </button>
-
-      {/* ── Today's fire ── */}
-      <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"10px"}}>
-        <span style={{...dsp("10px",C.cream,400,"0.2em")}}>TODAY'S FIRE</span>
-        {/* the hearth — reflects TODAY only; resets at dawn; remembers nothing */}
-        <div style={{width:"10px",height:"10px",borderRadius:"50%",flexShrink:0,
-          background:allDone?FORGE_ACCENT_B:anyDone?FORGE_ACCENT:"transparent",
-          border:`1px solid ${anyDone?FORGE_ACCENT:C.dim}`,
-          boxShadow:anyDone?`0 0 ${allDone?12:7}px ${FORGE_ACCENT}${allDone?"aa":"66"}`:"none",
-          animation:anyDone?"fireBreathe 4s ease-in-out infinite":"none"}}/>
-        {isTendingDay && <span style={{...body("10px",C.sageB),fontStyle:"italic",marginLeft:"auto"}}>tending evening — five kind minutes</span>}
-      </div>
-
-      {dueToday.map(cm=>{
-        const done = struckToday(cm.id);
-        return (
-          <button key={cm.id} onClick={()=>completeCommitment(cm)}
-            style={{width:"100%",textAlign:"left",background:done?"rgba(216,120,60,0.06)":C.surf,border:`0.5px solid ${done?`${FORGE_ACCENT}88`:C.bord}`,borderRadius:"8px",padding:"11px 14px",marginBottom:"7px",cursor:done?"default":"pointer"}}>
-            <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
-              <span style={{color:done?FORGE_ACCENT_B:C.dim,fontSize:"13px",flexShrink:0}}>{done?"✓":"⚒"}</span>
-              <div style={{flex:1}}>
-                <div style={{...body("13px",done?FORGE_ACCENT_B:C.cream)}}>{cm.name}</div>
-                <div style={{...body("10px",C.dim),fontStyle:"italic"}}>{cm.address}{cm.cadence==="weekly"?` · ${weekCount(cm.id)}/${cm.perWeek} this week`:""}</div>
-              </div>
-            </div>
-          </button>
-        );
-      })}
-
-      {/* strikes — today's hammer work, gone by nightfall either way */}
-      {strikes.map(s=>(
-        <button key={s.id} onClick={()=>onWayChange(w=>({...w,strikes:w.strikes.map(x=>x.id===s.id?{...x,done:!x.done}:x)}))}
-          style={{width:"100%",textAlign:"left",background:"transparent",border:`0.5px solid ${s.done?`${FORGE_ACCENT}66`:C.bord}`,borderRadius:"6px",padding:"8px 14px",marginBottom:"6px",cursor:"pointer",opacity:s.done?0.75:1}}>
-          <span style={{...body("12px",s.done?FORGE_ACCENT_B:C.muted)}}>{s.done?"✓ ":""}{s.name}</span>
-        </button>
-      ))}
-      {adding ? (
-        <div style={{display:"flex",gap:"8px",marginTop:"4px"}}>
-          <input autoFocus value={newStrike} onChange={e=>setNewStrike(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addStrike();}}
-            placeholder="today's strike — anything at all"
-            style={{flex:1,background:C.surf,border:`0.5px solid ${C.bord}`,borderRadius:"6px",color:C.txt,...body("13px"),padding:"9px 12px",outline:"none",boxSizing:"border-box"}}/>
-          <button onClick={addStrike} style={{background:"rgba(216,120,60,0.10)",border:`0.5px solid ${FORGE_ACCENT}`,borderRadius:"6px",padding:"0 14px",cursor:"pointer",...body("12px",FORGE_ACCENT_B)}}>add</button>
-        </div>
-      ) : (
-        <button onClick={()=>setAdding(true)} style={{width:"100%",background:"none",border:`0.5px dashed ${C.bord}`,borderRadius:"6px",padding:"8px",cursor:"pointer",...body("12px",C.dim),marginTop:"2px"}}>+ strike</button>
-      )}
-      <div style={{...body("10px",C.dim),fontStyle:"italic",textAlign:"center",marginTop:"12px",lineHeight:"1.6"}}>
-        Strikes cool at midnight and leave no ash. The fire remembers only today.
-      </div>
-    </div>
-  );
-}
-
 
 /* ═══════════════ THE FORGE — the player's own story ═══════════════
    Three questions, asked first and kept short: values, the name they point
@@ -5847,18 +5473,103 @@ function ForgeStoryView({ way, onWayChange, onOpenMyPath=()=>{} }){
   );
 }
 
-/* Wrapper — cold forge / flow / living section. (Retired: the old Act II Way.) */
-function ForgeQuestline({ way, onWayChange, jEnt, forgeOpen, onOpenAnchor, onSeal, onAwardWayXP }){
-  if(!way || !forgeOpen){
-    return (
-      <div style={{padding:"30px 20px",display:"flex",flexDirection:"column",alignItems:"center",gap:"14px"}}>
-        <AnvilIcon size={40} color={C.dim}/>
-        <div style={{...body("12px",C.dim),fontStyle:"italic"}}>The fire is not yet lit.</div>
-      </div>
-    );
-  }
-  if(!way.forged) return <ForgeFlow way={way} onWayChange={onWayChange} jEnt={jEnt} onOpenAnchor={onOpenAnchor} onSeal={onSeal}/>;
-  return <ForgeSection way={way} onWayChange={onWayChange} onAwardWayXP={onAwardWayXP}/>;
+function DailySection({ cid, acc, classState, sessions=[], activities=[], setClassState=()=>{} }){
+  const day=localDateStr();
+  const dailies=(classState?.dailies||[]).filter(d=>d.cid===cid);
+  const checks=classState?.dailyChecks||{};
+  const [openId,setOpenId]=useState(null);
+  const [adding,setAdding]=useState(false);
+  const [kind,setKind]=useState("class");
+  const [match,setMatch]=useState("");
+  const [label,setLabel]=useState("");
+  const cname = cid==="presence" ? "Presence" : (CLASS_BY_ID[cid]?.name||cid);
+  const pool = [...new Set((activities||[]).filter(a=>cid==="presence" || PATH_SKILL_NAMES[cid]?.has(a.name) || FUND_OWNER[a.category]===cid).map(a=>a.name))];
+  const upd = fn => setClassState(cs=>({...cs, dailies:fn(cs.dailies||[])}));
+  const add = () => {
+    const d = kind==="class" ? {kind,label:`${cname} XP`}
+      : kind==="practice" ? (match?{kind,match,label:match}:null)
+      : (label.trim()?{kind,label:label.trim()}:null);
+    if(!d) return;
+    upd(ds=>[...ds,{id:"d"+Date.now().toString(36),cid,target:DAILY_DEFAULT_XP,...d}]);
+    setAdding(false); setLabel(""); setMatch("");
+  };
+  const toggleVow = id => setClassState(cs=>{
+    const cur=cs.dailyChecks?.[id]||[];
+    return {...cs, dailyChecks:{...(cs.dailyChecks||{}), [id]: cur.includes(day)?cur.filter(x=>x!==day):[...cur,day]}};
+  });
+  const chip=(on)=>({padding:"6px 10px",borderRadius:"6px",cursor:"pointer",background:"none",border:`0.5px solid ${on?acc:C.bord}`,...dsp("9px",on?C.cream:C.muted,400,"0.1em")});
+  return (
+    <div style={{marginTop:"16px",paddingTop:"12px",borderTop:`0.5px solid ${C.bord}`}}>
+      <div style={{...dsp("10px",acc,400,"0.16em"),marginBottom:"8px"}}>DAILY</div>
+      {dailies.length===0 && !adding && <div style={{...body("12px",C.dim),fontStyle:"italic",marginBottom:"8px"}}>No dailies yet. Set what you want to do each day.</div>}
+      {dailies.map(d=>{
+        const prog=dailyProgress(d,sessions,checks,day);
+        const pct=Math.min(1,prog/(d.target||1));
+        const open=openId===d.id;
+        return (
+          <div key={d.id} style={{marginBottom:"8px",border:`0.5px solid ${open?acc:C.bord}`,borderRadius:"6px",padding:"10px 12px",background:INK(0.02)}}>
+            <div onClick={()=>setOpenId(open?null:d.id)} style={{cursor:"pointer"}}>
+              <div style={{display:"flex",justifyContent:"space-between",gap:"8px"}}>
+                <span style={{...body("14px",C.cream)}}>{d.kind==="vow"?"Do not: ":""}{d.label}</span>
+                <span style={{...body("11px",pct>=1?acc:C.dim)}}>{pct>=1?"done":`${Math.round(prog)} / ${d.target} XP`}</span>
+              </div>
+              <div style={{height:"3px",background:INK(0.08),borderRadius:"2px",marginTop:"7px"}}>
+                <div style={{height:"100%",width:`${pct*100}%`,background:acc,borderRadius:"2px"}}/>
+              </div>
+            </div>
+            {open && (
+              <div style={{marginTop:"12px"}}>
+                {d.kind==="vow" && (
+                  <button onClick={()=>toggleVow(d.id)} style={{...chip((checks[d.id]||[]).includes(day)),marginBottom:"10px"}}>
+                    {(checks[d.id]||[]).includes(day)?"KEPT TODAY ✓":"MARK KEPT TODAY"}
+                  </button>
+                )}
+                <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"10px"}}>
+                  <span style={{...body("12px",C.dim)}}>Target</span>
+                  <input type="number" min="5" step="5" value={d.target}
+                    onChange={e=>{ const v=Math.max(1,Math.round(+e.target.value||0)); upd(ds=>ds.map(x=>x.id===d.id?{...x,target:v}:x)); }}
+                    style={{width:"64px",background:C.bg,color:C.cream,border:`0.5px solid ${C.bord}`,borderRadius:"4px",padding:"5px 7px",...body("13px",C.cream)}}/>
+                  <span style={{...body("12px",C.dim)}}>XP · about {Math.max(1,Math.round(d.target/6))} min</span>
+                </div>
+                {d.kind==="vow" && (
+                  <input value={d.label} onChange={e=>upd(ds=>ds.map(x=>x.id===d.id?{...x,label:e.target.value}:x))}
+                    style={{width:"100%",boxSizing:"border-box",background:C.bg,border:`0.5px solid ${C.bord}`,borderRadius:"4px",padding:"6px 8px",marginBottom:"10px",...body("13px",C.cream)}}/>
+                )}
+                <button onClick={()=>{ upd(ds=>ds.filter(x=>x.id!==d.id)); setOpenId(null); }} style={{...chip(false)}}>REMOVE</button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {adding ? (
+        <div style={{border:`0.5px solid ${C.bord}`,borderRadius:"6px",padding:"10px 12px"}}>
+          <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"10px"}}>
+            <button onClick={()=>setKind("class")} style={chip(kind==="class")}>{cname.toUpperCase()} XP</button>
+            <button onClick={()=>setKind("practice")} style={chip(kind==="practice")}>PRACTICE</button>
+            <button onClick={()=>setKind("vow")} style={chip(kind==="vow")}>DO NOT</button>
+          </div>
+          {kind==="practice" && (
+            <select value={match} onChange={e=>setMatch(e.target.value)}
+              style={{width:"100%",background:C.bg,color:C.cream,border:`0.5px solid ${C.bord}`,borderRadius:"4px",padding:"7px",marginBottom:"10px",...body("13px",C.cream)}}>
+              <option value="">Choose a practice…</option>
+              {pool.map(n=><option key={n} value={n}>{n}</option>)}
+            </select>
+          )}
+          {kind==="vow" && (
+            <input value={label} onChange={e=>setLabel(e.target.value)} placeholder="e.g. skip the sugar"
+              style={{width:"100%",boxSizing:"border-box",background:C.bg,border:`0.5px solid ${C.bord}`,borderRadius:"4px",padding:"7px 8px",marginBottom:"10px",...body("13px",C.cream)}}/>
+          )}
+          <div style={{...body("11px",C.dim),marginBottom:"10px"}}>Starts at {DAILY_DEFAULT_XP} XP (about 5 min). Change it after.</div>
+          <div style={{display:"flex",gap:"6px"}}>
+            <button onClick={add} style={chip(true)}>ADD</button>
+            <button onClick={()=>setAdding(false)} style={chip(false)}>CANCEL</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={()=>setAdding(true)} style={{width:"100%",padding:"9px",background:"none",border:`0.5px dashed ${acc}`,borderRadius:"6px",cursor:"pointer",...dsp("10px",acc,400,"0.14em")}}>+ ADD DAILY</button>
+      )}
+    </div>
+  );
 }
 
 function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}, hasAnchored, sessions=[], chaptersRead=[], onMarkRead, libReadAt={}, pins=[], chStats={}, onOpenAnchor=()=>{}, onGoToLib=()=>{},
@@ -5866,7 +5577,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   actCollapsed={}, setActCollapsed=()=>{}, classCollapsed=false, setClassCollapsed=()=>{},
   chantGateOpen=false, chantUnlocked=false, setOpenChantQuest=()=>{}, activities=[], jEnt=[], onAcknowledgeTrial=()=>{},
   showActComplete=false, setShowActComplete=()=>{},
-  way=null, onWayChange=()=>{}, onOpenReflection=()=>{}, onAwardWayXP=()=>{}, onOpenMyPath=()=>{}, lineReq=null }){
+  way=null, onWayChange=()=>{}, onOpenReflection=()=>{}, onAwardWayXP=()=>{}, onOpenMyPath=()=>{}, lineReq=null, setClassState=()=>{} }){
   const [view,setView]               = useState("overview");
   const [questLine,setQuestLine]     = useState(()=>storyForged(way)?"path":"forge"); // "forge" | "chant" | "path" (Presence + the classes)
   const [openClasses,setOpenClasses] = useState({}); // class accordions in the Class tab; all minimized by default
@@ -6409,7 +6120,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
         </span>
         <span style={{...body("14px",C.muted),transform:presenceOpen?"rotate(90deg)":"none",transition:"transform 0.2s"}}>›</span>
       </button>
-      {presenceOpen && <div style={{padding:"4px 14px 16px"}}>{crucibleBlock}</div>}
+      {presenceOpen && <div style={{padding:"4px 14px 16px"}}>{crucibleBlock}{crucibleDone && <DailySection cid="presence" acc={C.gold} classState={classState} sessions={sessions} activities={activities} setClassState={setClassState}/>}</div>}
     </div>
   );
 
@@ -6553,6 +6264,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                               activities={activities} jEnt={jEnt} ascents={classState.ascents||{}}
                               onOpenQuest={(qid)=>onOpenClassQuest(qid, cid)} onOpenLib={onGoToLib}/>
                           )}
+                          {trialDone && celebrated && <DailySection cid={cid} acc={acc} classState={classState} sessions={sessions} activities={activities} setClassState={setClassState}/>}
                         </div>
                       )}
                     </div>
@@ -9112,6 +8824,14 @@ export default function AscendApp(){
     if(first) applyQuestUnlocks(first);
   };
 
+  /* Discipline: completes once a Warrior Do not has been kept on enough days. */
+  useEffect(()=>{
+    const q=findQuest("w_discipline"); if(!q || classState?.questProgress?.w_discipline) return;
+    const need=(q.unlocks||[]).find(u=>u.kind==="vowDays")?.target||3;
+    if(vowDaysOf(classState,"warrior").length<need) return;
+    if(!questActiveOrDone("warrior","w_discipline",classState.questProgress,c=>classTrialDone(classState,c),classState.mastery?.warrior?.xp||0)) return;
+    completeClassQuest("w_discipline");
+  },[classState?.dailyChecks, classState?.dailies, classState?.questProgress]);
   const chooseClass = (classId) => setClassState(cs=>({
     ...cs,
     unlocked:true,
@@ -9398,7 +9118,7 @@ export default function AscendApp(){
     // backward compat: old sessions stored a string, new ones store an array
     const lands = Array.isArray(awarenessLanding) ? awarenessLanding : (awarenessLanding ? [awarenessLanding] : []);
     const sg = applyAwarenessSiphon(sgRaw, lands);
-    const s={type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),activities:activeActivities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg,awarenessLanding:lands,loggedCounts:loggedCounts||{}};
+    const s={type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),day:localDateStr(),activities:activeActivities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg,awarenessLanding:lands,loggedCounts:loggedCounts||{}};
     setSessions(p=>[s,...p]);
     if(isA || (elapsedSecs??0) >= 10) setHasAnchored(true);
 
@@ -9839,7 +9559,7 @@ export default function AscendApp(){
           <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities} classState={classState} classGateOpen={classGateOpen} onOpenPath={cid=>{setPathView(cid);setScr("path");}}/></div>
           <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnchFull(true);setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
             classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid,cid)=>setOpenClassQuest({classId:cid||classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}
-            onOpenMyPath={()=>{ setCultMode("mine"); setMySel("center"); setTab("cultivate"); }} lineReq={questLineReq}/></div>
+            onOpenMyPath={()=>{ setCultMode("mine"); setMySel("center"); setTab("cultivate"); }} lineReq={questLineReq} setClassState={setClassState}/></div>
           <div style={{display:tab==="cultivate"?"block":"none",height:"100%"}}><CultivateTab classState={classState} presenceLevel={presenceLevel} onGoQuests={(cid)=>{ setTab("quest"); setQuestLineReq({line:"path", classId:cid, n:Date.now()}); }} onDevSetPresence={L=>setCh(p=>({...p,totalXP:presenceXPForLevel(L)}))} onDevSetMastery={(cid,L)=>setClassState(cs=>{
               /* Dev only: choose the path, finish its trial and chain, then set the level. */
               const cls=CLASS_BY_ID[cid]; if(!cls) return cs;
