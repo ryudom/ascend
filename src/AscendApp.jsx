@@ -137,23 +137,8 @@ const moonPhaseName = (d=new Date()) => {
   return "Waning Crescent";
 };
 
-/* ── The Way — the player-authored practice document, forged in Act II ch.12.
-   Commitments render as recurring quests in the Forge; strikes are one-day
-   quests that expire silently at midnight (no missed state exists anywhere). */
-const freshWay = () => ({
-  forged:false,
-  partsDone:[],            // ["calling","cultivation","rhythm","horizon"]
-  calling:{ thread:"", ache:"", day:"", sentence:"" },
-  qualities:[],            // [{word, stat}] — stat nullable ("" = unmapped)
-  commitments:[],          // [{id,name,address,cadence:"daily"|"weekly",perWeek,identityLine}]
-  tendingDay:null,         // 0(Sun)–6(Sat)
-  cycleStart:null,         // ISO — set at sealing
-  completions:[],          // [{cid, date:"YYYY-MM-DD"}]
-  strikes:[],              // [{id,name,date:"YYYY-MM-DD",done}]
-  gates:{},                // {boardDone,qualitySessionDone} — honor-marked between-fires practices
-  renewals:[],
-  story:freshStory(),
-});
+/* ── The Way — now just the holder of the player's Story (see below). */
+const freshWay = () => ({ forged:false, story:freshStory() });
 
 /* ── The Story — what the player forges first: up to five values, the one name
    they all point to, and an ideal self or world. Practices hang from values
@@ -198,18 +183,8 @@ const daysFromNewMoon = (d=new Date()) => { const a=moonAgeDays(d); return Math.
 const reforgeGlow = (d=new Date()) => { const x=daysFromNewMoon(d); return x>=REFORGE_HALF_WINDOW ? 0 : 0.5+0.5*Math.cos(Math.PI*x/REFORGE_HALF_WINDOW); };
 const migrateWay = (w) => {
   if(!w || typeof w!=="object") return freshWay();
-  const f=freshWay();
-  return { ...f, ...w,
-    calling:{...f.calling, ...(w.calling||{})},
-    qualities:Array.isArray(w.qualities)?w.qualities:[],
-    commitments:Array.isArray(w.commitments)?w.commitments:[],
-    completions:Array.isArray(w.completions)?w.completions:[],
-    strikes:Array.isArray(w.strikes)?w.strikes:[],
-    partsDone:Array.isArray(w.partsDone)?w.partsDone:[],
-    gates:w.gates&&typeof w.gates==="object"?w.gates:{},
-    renewals:Array.isArray(w.renewals)?w.renewals:[],
-    story:migrateStory(w.story),
-  };
+  /* the old Act II Way fields (commitments, strikes, completions…) are dropped */
+  return { forged:!!w.forged, story:migrateStory(w.story) };
 };
 const localDateStr = (d=new Date()) => {
   const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), da=String(d.getDate()).padStart(2,"0");
@@ -378,7 +353,7 @@ const QUEST_CHAINS = {
       title: "Discipline",
       myth: "The warrior is measured by what they refuse.\n\nSet a Do not under Daily. Keep it.",
       libId: "lib_w_discipline",
-      criteria: "Keep a Do not for 3 days. Set it under Daily in the Warrior's Quest tab.",
+      criteria: "Keep a Do not for 3 days. Set it in the Quest tab, under Daily, Warrior.",
       unlocks: [{ kind: "vowDays", target: 3, cid: "warrior" }],
     },
     {
@@ -1066,6 +1041,15 @@ function migrateActivityMetadata(activities){
    "Commune" (id h_communion -> h_commune). Anyone who already completed it
    under the old id would otherwise show it as incomplete forever, since the
    new code only ever checks questProgress.h_commune. */
+/* One-time credits for quests inserted into a chain after launch: anyone already
+   past the quest that now follows is credited, so nobody is pushed backwards.
+   Order matters (run top to bottom). Add a line here for the next insertion. */
+const QUEST_CREDIT_MIGRATIONS = [
+  { flag:"warriorStretchAdded",    past:["w_measure"],                    credit:"w_stretch" },   // w_stretch has since moved to Healer; kept so old saves resolve the same
+  { flag:"healerGratitudeAdded",   past:["h_forgive"],                    credit:"h_gratitude" },
+  { flag:"stretchToHealer",        past:["h_tension"],                    credit:"h_stretch" },
+  { flag:"warriorDisciplineAdded", past:["w_measure","w_cold","w_proving"], credit:"w_discipline" },
+];
 function migrateClassState(cs){
   if(!cs || typeof cs!=="object") return cs;
   let out = cs;
@@ -1090,31 +1074,33 @@ function migrateClassState(cs){
   /* Stretch (Warrior) and Gratitude (Healer) were added to their chains:
      anyone already past the quest just before them is credited, so nobody is
      pushed back behind a quest they have effectively outgrown. */
-  if(!out.warriorStretchAdded){
-    const q3 = out.questProgress || {};
-    out = { ...out, warriorStretchAdded:true,
-      questProgress: (q3.w_measure && !q3.w_stretch) ? { ...q3, w_stretch:true } : q3 };
-  }
-  if(!out.healerGratitudeAdded){
-    const q4 = out.questProgress || {};
-    out = { ...out, healerGratitudeAdded:true,
-      questProgress: (q4.h_forgive && !q4.h_gratitude) ? { ...q4, h_gratitude:true } : q4 };
-  }
-  /* Stretch moved from Warrior to Healer (Release): anyone already past the
-     Healer quest it now sits before is credited. */
-  if(!out.stretchToHealer){
-    const q5 = out.questProgress || {};
-    out = { ...out, stretchToHealer:true,
-      questProgress: (q5.h_tension && !q5.h_stretch) ? { ...q5, h_stretch:true } : q5 };
-  }
-  /* Discipline joined the Warrior chain: anyone already past The Measure is credited. */
-  if(!out.warriorDisciplineAdded){
-    const q6 = out.questProgress || {};
-    out = { ...out, warriorDisciplineAdded:true,
-      questProgress: ((q6.w_measure||q6.w_cold||q6.w_proving) && !q6.w_discipline) ? { ...q6, w_discipline:true } : q6 };
-  }
+  QUEST_CREDIT_MIGRATIONS.forEach(m=>{
+    if(out[m.flag]) return;
+    const q = out.questProgress || {};
+    out = { ...out, [m.flag]:true,
+      questProgress: (m.past.some(id=>q[id]) && !q[m.credit]) ? { ...q, [m.credit]:true } : q };
+  });
   return out;
 }
+
+/* ── Quest requirement checks: the ONE place that decides whether a quest's
+   activity targets, journal entries and session notes are met. Used by the
+   session handler, the journal handler and the quest page. `loggedCounts` is
+   this session's counts; without it a singleSession target falls back to the
+   lifetime count. */
+const questTargetUnlocks = q => (q.unlocks||[]).filter(u=>u.kind==="activity" && u.target);
+function questTargetsMet(q, activities=[], loggedCounts=null){
+  return questTargetUnlocks(q).every(u=>{
+    const act=activities.find(a=>a.name===u.name);
+    if(!act) return false;
+    if(u.singleSession && loggedCounts) return (loggedCounts[act.id]||0) >= u.target;
+    return (act.count||0) >= u.target;
+  });
+}
+const questEntryUnlocks = q => (q.unlocks||[]).filter(u=>u.kind==="journalEntry");
+const questEntriesMet = (q, jEnt=[]) => questEntryUnlocks(q).every(u=>jEnt.some(e=>e.tag==="release" && e.releaseKind===u.entryKind));
+const questNotesMet = (q, sessions=[]) => (q.unlocks||[]).filter(u=>u.kind==="sessionNote").every(u=>
+  sessions.some(x=>(x.activities||[]).some(a=>a.name===u.activity) && x.reflection && String(x.reflection).trim()));
 
 /* Mastery quests (minMastery) sit outside the numbered chain: they open once
    the chain is complete and the path's mastery reaches their level. */
@@ -1399,6 +1385,11 @@ function awardMasteryXP(classState, qualifyingPaths, xpAmount){
 const DAILY_DEFAULT_XP = 30;
 const DAILY_REP_XP = 1.5;
 const sessionDay = s => s.day || s.date;
+/* Flip today's "kept" mark on a Do not. */
+function toggleVowCheck(cs, id, day=localDateStr()){
+  const cur=cs.dailyChecks?.[id]||[];
+  return {...cs, dailyChecks:{...(cs.dailyChecks||{}), [id]: cur.includes(day)?cur.filter(x=>x!==day):[...cur,day]}};
+}
 /* Distinct days a class's Do nots were kept. */
 function vowDaysOf(classState, cid){
   const days=new Set();
@@ -1411,7 +1402,7 @@ function dailyProgress(d, sessions, checks, day){
   (sessions||[]).forEach(s=>{
     if(sessionDay(s)!==day) return;
     if(d.kind==="class"){
-      if(d.cid==="presence" || masteryPathsForSession(s).includes(d.cid)) sum += s.xp||0;
+      if(d.cid==="presence" || d.cid==="mine" || masteryPathsForSession(s).includes(d.cid)) sum += s.xp||0;
     } else {
       const a=(s.activities||[]).find(x=>x.name===d.match);
       if(!a) return;
@@ -2910,19 +2901,17 @@ function CapacitiesList({ stats, devMode, setCh }){
   );
 }
 
+/* A tab's pane. All tabs stay mounted (so their internal state survives), but a
+   hidden one skips re-rendering entirely until it is shown again. */
+const TabPane = React.memo(function TabPane({ active, style, children }){
+  return <div style={{display:active?"block":"none", ...(style||{})}}>{children}</div>;
+}, (prev,next)=>!prev.active && !next.active);
+
 function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacities, setCapacities, classState=null, classGateOpen=false, onOpenPath=()=>{} }){
   const totalMin = sessions.reduce((a,s)=>a+s.duration,0);
   const longestMin = sessions.reduce((a,s)=>Math.max(a,s.duration),0);
-  const todayISO = new Date().toISOString().slice(0,10);
-  const computeStreak = ss => {
-    const dates = new Set(ss.map(s=>s.date==="Today"?todayISO:(s.date||"")).filter(d=>d.match(/^\d{4}-\d{2}-\d{2}$/)));
-    const check = new Date();
-    if(!dates.has(todayISO)) check.setDate(check.getDate()-1);
-    let streak=0;
-    while(dates.has(check.toISOString().slice(0,10))){ streak++; check.setDate(check.getDate()-1); }
-    return streak;
-  };
-  const currentStreak = computeStreak(sessions);
+  /* Lifetime count of distinct days with a session. Never resets: no streaks. */
+  const daysPracticed = new Set(sessions.map(x=>sessionDay(x)).filter(Boolean)).size;
 
   const setStatVal = (k, lvl) => setCh(p=>({...p, stats:{...p.stats, [k]: totalXPForLevel(clamp(parseInt(lvl),1,100))}}));
 
@@ -3024,10 +3013,10 @@ function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacit
         </div>
       </div>
 
-      {/* ── COMPACT STREAK ROW ── */}
+      {/* ── COMPACT TOTALS ROW ── */}
       <div style={{margin:"10px 14px 0",display:"flex"}}>
         {[
-          {l:"CURRENT STREAK",  v:currentStreak===0?"—":`${currentStreak} ${currentStreak===1?"day":"days"}`},
+          {l:"DAYS PRACTICED",  v:daysPracticed===0?"—":`${daysPracticed} ${daysPracticed===1?"day":"days"}`},
           {l:"TOTAL TIME",      v:`${Math.floor(totalMin/60)}h ${totalMin%60}m`},
           {l:"LONGEST SESSION", v:`${Math.floor(longestMin/60)}h ${longestMin%60}m`},
         ].map(({l,v},i)=>(
@@ -3156,206 +3145,6 @@ const THREE_FIRES_SCENES=[
 ];
 
 
-/* ═══════════════ ACT II — THE AUTHORING ═══════════════ */
-
-const SCRIPT_SCENES=[
-  {label:"i · the second current",body:[
-    "In the first Act you learned to see a current — the one that carries attention out of the body, into the head, into the machines. You learned to feel it pulling, and you learned the way back.",
-    "But attention was never the only thing drifting.",
-    "Look at a single ordinary day of your life. The hour you wake. The route you take. The work you do and the way you speak of it. What you eat, what you watch, what you believe is possible for someone like you.",
-    "How much of it did you choose? And how much of it was simply — there. Already written. Waiting for you to perform it.",
-  ]},
-  {label:"ii · the writers",body:[
-    "Every life runs on a script. Most of it was written by others.",
-    "Some of it by people who loved you — family patterns, handed down like heirlooms, some treasure and some weight. Some by the age you were born into — its schools, its markets, its clocks. And some, more recently, by systems that study you: feeds that learned what holds your eyes, and quietly took over the pen.",
-    "There is no villain here. Scripts are how humans pass on a world. Most of the people who wrote yours were performing scripts of their own, written by hands they never saw.",
-    "The script is not evil. It is only unexamined.",
-  ]},
-  {label:"iii · the reader",body:[
-    "Here is what the first Act was secretly for.",
-    "A person carried by the current cannot see the current. A person inside a script cannot read it — the lines feel like life itself, like the only way things could be.",
-    "But you have practiced stepping back. You have sat and watched a thought arrive, perform itself, and pass — without becoming it. That skill has a second use.",
-    "The same presence that can watch a thought can watch a pattern. The reflex reach for the phone. The automatic yes. The old sentence about yourself, spoken again in your mother's cadence. Watched closely enough, each one reveals itself as what it is: a line, being read.",
-    "You are learning the rarest form of literacy. Not reading words — reading the script you live in.",
-  ]},
-  {label:"iv · the opening",body:[
-    "And here the ground shifts. Because anything that was written can be rewritten.",
-    "Not all at once. Not by burning the script — much of it holds real wisdom, and a life needs its inherited lines the way a house needs its beams. The work is quieter than rebellion. It is authorship: keeping what is true, releasing what was never yours, and writing — slowly, deliberately — the lines that are.",
-    "Most people never learn the difference between living a life and performing one. Not because they are weak, but because no one ever told them there was a pen.",
-    "There is a pen.",
-  ]},
-  {label:"v · the hand",body:[
-    "This Act is about what happens when the pen changes hands.",
-    "In the chapters ahead you will look at the world and find it unfinished. You will take up the strings you are made of and learn to tune them. You will stand before the many doors of the path and choose your own. And at the end of it, in a place that has been waiting for you since you arrived, you will write something no one else can write.",
-    "For now, only this: begin to read.",
-    "And before this chapter closes, one act of courage — write the story down. The one that is running now, in its own plain words. You cannot rewrite a page you have never looked at.",
-    "You are not the script. You are the one who can see it — and everyone who has ever rewritten a life started exactly there.",
-  ]},
-];
-const HEAVEN_EARTH_SCENES=[
-  {label:"i · the oldest gesture",body:[
-    "Long before there were scriptures, there was a gesture. A human being, standing on the earth, looking up.",
-    "Wherever humans looked up, this happened. When words ran out, they pointed — up, toward the vast, the luminous, the unnameable. And down, toward the ground that held them, the dark that grew things, the body and its blood. Heaven and earth. The above and the below.",
-    "They disagreed about almost everything else. Names, laws, rituals, gods. But the gesture was the same on every continent. As if all of them were describing the same architecture from different windows.",
-  ]},
-  {label:"ii · the bridge",body:[
-    "And in that architecture, the human being was never placed in heaven, and never buried in the earth.",
-    "The human was placed between.",
-    "You have already felt this — not as an idea, as a structure. In standing practice: crown rising, weight dropping, the body becoming a bridge between earth and sky. That was not poetry. That is what you are. A vertical being, feet in the soil, head in the open, something moving through the middle.",
-    "Most people live as a closed bridge. The traffic stopped long ago; above and below lost touch. Not through any fault — only through forgetting. A bridge that no one crosses slowly forgets it is a bridge.",
-  ]},
-  {label:"iii · heaven on earth",body:[
-    "Now the phrase can be said properly.",
-    "Heaven on earth is not a place. It is not a future the world arrives at once the last problem is solved. It is a state — the moment above and below meet in a body present enough to carry both. Harmony, realized. Not somewhere. In someone.",
-    "And you have touched it. Somewhere in your life there is a moment — perhaps a minute, perhaps less — when everything was exactly in place and nothing was missing. A morning, a shoreline, a room, a face. You did not manufacture that moment. Something opened, and the two currents met, and you were the meeting.",
-    "That was not an accident. That was contact. The state is not foreign to you. It is the thing you were built for, visited too rarely, remembered like a country you cannot quite place on a map.",
-  ]},
-  {label:"iv · the radiance",body:[
-    "Here is what changes everything about the so-called state of the world.",
-    "A world is made of the states of its people. Not only its systems and its laws — those are downstream. A fearful people builds fearful systems. A scattered people builds a scattered age. You saw this in the first Act: the outer world reflects the inner one.",
-    "But the reflection runs both ways. A person in harmony harmonizes a room. A room, a household. A household, a street. Presence radiates the way warmth does — without argument, without persuasion, changing the temperature of everything near it.",
-    "No one tunes a whole orchestra at once. It happens one instrument at a time. And every instrument that comes into tune makes it easier for the next to find the note.",
-  ]},
-  {label:"v · the conducting",body:[
-    "So the dream of a more beautiful world does not begin with a plan. It begins with a state — practiced, returned to, carried into rooms.",
-    "This is not a retreat into the self. It is the opposite. Every session, every return, every minute of presence is already participation — the bridge opening, the current crossing, heaven arriving in the only place it has ever arrived: a human being, here, now.",
-    "Before this chapter closes, go and find the moment. The one where nothing was missing. Write it down while it is still warm from remembering. You will need it later — it is made of the same material as everything you are going to build.",
-    "You are the bridge. Heaven on earth is not somewhere you go. It is something you conduct — and you have already carried it once.",
-  ]},
-];
-const INSTRUMENT_SCENES=[
-  {label:"i · the strings",body:[
-    "You do not end at your skin.",
-    "Pull on any life and you will find it strung — lines of relation running outward in every direction, taut or slack, sounding or silent. To the people you are made of. To the place that holds you. To money, to time, to your own body. To the mystery you may or may not have a name for.",
-    "You are not a self that happens to have relationships. You are, in large part, made of them. Cut every string and see what remains — not a purer you. Almost no you at all.",
-    "This chapter is about the instrument you already are.",
-  ]},
-  {label:"ii · the near strings",body:[
-    "The first ring is the nearest: the handful of people whose lives are woven into yours. Family, chosen or given. The friend who knows the unedited version. The ones you love, the ones you carry, the ones you cannot seem to put down.",
-    "Each of these is a string with a real tone. Some sound clear — every contact leaves you more alive. Some have gone sour, and you flinch when life plucks them. Some have gone slack from years of silence, so quiet you forgot they were strung at all.",
-    "None of this is a verdict. A sour string is not a bad string. It is a pitch — information, waiting for a tuner.",
-  ]},
-  {label:"iii · the great strings",body:[
-    "The second ring is stranger, and almost no one examines it.",
-    "You are in relationship with money — listen to what happens in your body when it is mentioned. With time, which you fight or flee or race. With your own body, spoken to daily in a tone you would never use on a friend. With technology. With the government and its weather. With nature. With death, whose string everyone carries and few ever touch. And with the mystery — God, the sacred, the above — whatever your word is, or your silence.",
-    "These strings are enormous, and mostly invisible, and they sound through everything. A sour string to money can flatten every note near it. A slack string to the mystery leaves a life quietly missing its lowest tone.",
-    "You are not asked to fix them. You are asked, first, only to hear them honestly.",
-  ]},
-  {label:"iv · tuning",body:[
-    "Here is what the ear is for.",
-    "A string is tuned by attention — feeling its pitch precisely, then adjusting, small turn by small turn. Relationships tune the same way, and the movements have old names.",
-    "Acceptance loosens what is over-wound — the string held so tight against what-is that it can only screech. Forgiveness releases the sour note — not excusing what happened, only refusing to keep sounding it. Gratitude brightens what is true and good and already there, the tone that was never taken.",
-    "Not every string can be tuned to sweetness. Some can only be loosened. A few are best left to rest. Even that is tuning — done deliberately, by the one holding the instrument, rather than by drift.",
-    "Some make this work their entire path. That door has a name here, and it belongs to the Healer.",
-    "But understand the shape of the work: no one tunes a whole instrument in a week. The strings you are made of will be tuned across a lifetime — turned, and turned again, as the weather changes them. What begins now is not a task with an end. It is the practice of a player who has finally picked up the instrument.",
-  ]},
-  {label:"v · the player",body:[
-    "There is a reason this chapter comes now.",
-    "You have written the script and seen whose hand wrote it. You have found the bridge and remembered the state. But no one conducts alone. The harmony you touched is not a private glow — it is relational, or it is not much at all. A person in tune with nothing may be calm. They are not yet music.",
-    "So before this chapter closes: string the instrument. Name what you are made of, honestly, in both directions — what feeds you and what drains you. Then begin the tuning. As many strings as you are willing to touch — one turned with full attention is worth more than six turned in a hurry, but no string is off limits, and the willing hand should not be held back. Feel them in the body. Write what you find. Where the string is a person, let the tuning reach them — a voice, a presence, not a text.",
-    "You are an instrument, and the tuning was never anyone else's job. That is not a burden. It is the return of the one power no script can hold: your own hand on the pegs.",
-  ]},
-];
-const DOORS_SCENES=[
-  {label:"i · the long experiment",body:[
-    "For at least ten thousand years, human beings have been doing what you are doing now.",
-    "Sitting in stillness until the sediment settled. Standing between earth and sky. Walking with attention gathered. Fasting, chanting, praying, serving. Dancing until the self loosened. Working the land, working the breath, working the heart.",
-    "On every continent, in every age, some portion of humanity turned inward and began to cultivate. They left maps — thousands of them. Different languages, different symbols, different names for the summit.",
-    "You have inherited all of it. The whole long experiment. Most people never learn this. They think the path has one gate, guarded by whoever they happened to meet first.",
-  ]},
-  {label:"ii · the doors",body:[
-    "The maps disagree on much. But walk through enough of them and a pattern appears: the doors are many, and they are not the same door.",
-    "There is the door of the body — movement, breath, posture, the animal made conscious. The door of the mind — inquiry, study, the blade of a question. The door of the heart — devotion, love, the gates of grief and gratitude. The door of the hands — craft, work, service, the world improved as prayer. The door of the wild — mountains, rivers, the oldest teacher. The door of stillness. The door of sound. The door of the ordinary, hidden in dishes and doorways.",
-    "No door is higher. This must be said plainly, because nearly every tradition claimed its own door was the summit's only gate. They were wrong in the same way — each mistaking their window for the sky.",
-  ]},
-  {label:"iii · this map",body:[
-    "Now something must be said about the map in your hands.",
-    "Everything you have met here — the forms, the fires, the paths and their names — is one map among thousands. Drawn with care, drawn from the long experiment, but drawn so that you would have somewhere to start. Not so that you would have somewhere to stop.",
-    "A map that claims to be the territory becomes a cage. A teacher who cannot be outgrown was never a teacher. So hear it from the map itself: this scaffolding was built to be climbed, and then, one day, climbed past. What is being cultivated is not loyalty to a system. It is you.",
-    "Keep what works. Question all of it. The path is verified in one place only — your own direct experience. Nothing here asks to be believed. It asks to be tested.",
-  ]},
-  {label:"iv · many doors, one truth",body:[
-    "How, then, does anyone choose among a thousand doors?",
-    "Not by ranking them. By listening. Somewhere in that list a door pulled at you — a slight lean of the attention, quiet as a preference. That pull is data. It is how a path announces it is yours right now.",
-    "And here is the thing every mapmaker eventually discovers, walking far enough down their own road: the doors lead to the same room. Different language, different posture, different hour of arrival — but the same stillness on the other side. Many doors. One truth, wearing a thousand coats.",
-  ]},
-  {label:"v · your map, your door",body:[
-    "So the choosing is smaller than it looks. Not which truth — there is only one. Only which door.",
-    "Before this chapter closes: look back at the ground you've covered. Not the whole thousand-year map — yours. The one drawn in your own footprints, from the first current to this page. And look forward to the one door that keeps pulling, quieter than the rest, patient as a held breath.",
-    "The path is real, and it is yours to choose. No one can walk it for you — and from this point on, no one here will choose it for you either. That is not abandonment. That is the difference between a map and a cage.",
-  ]},
-];
-const FORGE_CH_SCENES=[
-  {label:"i · the fire is lit",body:[
-    "There is a place that has been waiting for you since you arrived. Grey, cold, unlit — perhaps you noticed it, sitting at the edge of the path, and wondered.",
-    "It is a forge. And a forge does nothing until two things are present: fire, and something worth shaping.",
-    "You have gathered both without knowing it. The script, written down in your own hand. The moment when nothing was missing. The strings you are made of, and their honest pitch. The map you have walked, and the door that keeps pulling. All of it — every reflection, every session, every return — has been fuel, carried here one armload at a time.",
-    "Tonight the fire is lit. What burns first is the question underneath every other question: what are you actually here for?",
-  ]},
-  {label:"ii · the buried thing",body:[
-    "Callings are not invented. They are excavated.",
-    "Yours has been in you longer than your plans, longer than your job, longer than most of your opinions about yourself. It was visible once — in what you did for hours as a child without being asked, in what you kept returning to wearing different costumes across the years. Then the script arrived, with its sensible lines, and the calling learned to live quietly underneath them.",
-    "But buried is not gone. It has been pulling the whole time — a slight lean in the attention, a door among the thousand. And it speaks a second language too, stranger than desire: it speaks through the ache. What breaks your heart in this world is not random. You do not grieve what you were not built to tend.",
-    "The forge does not ask you to make something up. It asks you to listen down.",
-    "The anvil waits. Go to the Forge, and begin.",
-  ]},
-];
-
-/* ── Forge flow — parts, movements, scene copy ── */
-const FORGE_PARTS=[
-  { id:"calling", n:"I", title:"The Calling", sub:"Listening down",
-    scenes:[
-      "Callings are not invented. They are excavated. Yours has been in you longer than your plans — visible once in what you did for hours unasked, still pulling through what aches and what draws. The forge does not ask you to make something up. It asks you to listen down.",
-    ],
-    movements:[
-      { id:"thread", label:"The Thread", surfaces:"a2_doors",
-        prompt:"Before the world told you what to want — what did you love? What did you do for hours, unasked? What have you kept returning to, in different costumes, your whole life?",
-        hint:"It rarely looks like a job title. It usually looks like a verb — making, tending, exploring, understanding, gathering people." },
-      { id:"ache", label:"The Ache", surfaces:"a2_strings",
-        prompt:"What in this world do you almost have to look away from? What loss or waste or suffering aches in you the way other people's causes don't?",
-        hint:"The ache is a compass. You do not grieve what you were not built to tend." },
-      { id:"day", label:"The Day", surfaces:"a2_contact",
-        prompt:"It is some years from now, and the thread and the ache are being answered. Walk through one ordinary day of that life — waking to sleep. Where do you wake? Who is near? What does the work of your hands look like? What do you no longer do?",
-        hint:"You once described a moment when nothing was missing. Build the day that moment lives in." },
-      { id:"sentence", label:"The Naming", surfaces:null,
-        prompt:"In your own words, one sentence: what is the dream? What are you here to build, tend, heal, or make?",
-        hint:"Half-heard is allowed. A calling half-heard is still a heading — you will return to this sentence at every renewal, and it will grow truer as you do." },
-    ],
-    gate:{ key:"boardDone", label:"Build the dream where your hands can reach it",
-      desc:"Images, words, objects. A board, a wall, a shelf. Cut, print, gather, arrange. Put it where morning will find it. The phone cannot hold this one — it must live in your room, in the world, at hand-height." },
-  },
-  { id:"cultivation", n:"II", title:"The Cultivation", sub:"The metal",
-    scenes:[
-      "A fire alone forges nothing. There must be metal. Here is the law every calling eventually teaches: you cannot give what you have not grown. The dream you named asks something of you — specific qualities, without which it stays a picture on a wall. This is why cultivation comes before plans. Plans are made of circumstances, and circumstances shift. Qualities are made of practice, and practice is yours.",
-      "Do not reach for the app's words here. Reach for yours. What do you want to grow? It may be a capacity you have trained — presence, strength, clarity, will. It may be something no stat has ever measured — gratitude, peace, joy, patience, courage, softness. All of it is metal. All of it can be worked. Some qualities live somewhere in the body — a place you can rest attention and feel them stir. Some refuse an address entirely, and that is no failure. Joy does not need coordinates to be practiced.",
-    ],
-    gate:{ key:"qualitySessionDone", label:"One session with a chosen quality as its companion",
-      desc:"Not thinking about it — sitting inside it, letting it set the tone of the breath. If it has a place in the body, rest there. If it doesn't, let the whole body be its address." },
-  },
-  { id:"rhythm", n:"III", title:"The Rhythm", sub:"Devotion with a schedule",
-    scenes:[
-      "Now the strikes. And first, a correction the age badly needs. Discipline has been slandered — spoken of as punishment, the whip, the war against the self. That discipline breaks; it always breaks, because no one can occupy their own life as an enemy force forever. There is an older meaning. Discipline as devotion with a schedule. The monastery bell, the farmer's dawn, the musician's scales — not violence against the self, but loyalty to what one loves, kept in time. A rhythm is simply love, made repeatable.",
-      "Here the forge asks for restraint, and means it. Start smaller than feels right. The grandest practice abandoned in three weeks forges nothing; the smallest practice kept becomes a life. One breath taken on purpose every morning outweighs an hour promised and skipped. You can grow it at the next renewal — the forge will still be here. What cannot be recovered so easily is the trust you break with yourself by over-promising. And bind each practice to the day itself. Not \"more often\" — that is fog. After the coffee. Before the phone. When the door closes behind you. A practice with an address gets visited. A practice without one gets remembered fondly.",
-    ],
-    gate:{ key:"strikeOnce", label:"Strike once",
-      desc:"One commitment, done — tonight or tomorrow — before the final part opens. The blade is real now. It should feel the hammer at least once before it is named." },
-  },
-  { id:"horizon", n:"IV", title:"The Horizon", sub:"The moon",
-    scenes:[
-      "Go outside tonight, if the sky allows, and find the moon. It is the oldest clock, and the honest one. It does not accumulate. It does not count streaks. It waxes, fullens, wanes, goes dark — and begins again, unashamed of the dark it passed through. Every tradition that tied its practice to the moon learned the same thing: nothing living holds one shape forever.",
-      "Neither will your Way. It is forged tonight to be reforged — each new moon, back at this fire: what held, what slipped, what the sentence wants to become. The dark of the moon is not failure. It is the part of the rhythm where the next shape is chosen.",
-    ],
-    gate:null,
-  },
-];
-
-const ACT2_CLOSE_LINES=[
-  "You arrived at this Act carrying a life shaped by drift and written by others.",
-  "You read the script. You found the bridge and remembered the state it opens. You strung the instrument and put your own hand on the pegs. You stood before the thousand doors and heard which ones were yours.",
-  "And tonight you leave holding a Way written in your own hand — and a forge that will be lit every morning you choose to return to it.",
-  "The fire is yours now.",
-];
-
 const CONTEMPLATIONS=[
   "The map is useful. The terrain is real.",
   "Clarity is not achievement. It is uncovering.",
@@ -3411,11 +3200,6 @@ const CHAPTER_MOODS = {
   5: { bg1:"#081208", bg2:"#0b1e0c", accent:"#98c870", wisp:"rgba(120,200,80,0.09)"  }, // living world — vivid green
   6: { bg1:"#0e0e04", bg2:"#181804", accent:"#c8b840", wisp:"rgba(200,180,50,0.07)" },  // growing — gold
   7: { bg1:"#120808", bg2:"#200a04", accent:"#c86030", wisp:"rgba(200,90,40,0.08)"  },  // three fires — ember
-  8: { bg1:"#0c0a10", bg2:"#141020", accent:"#9a8fc0", wisp:"rgba(140,125,190,0.07)" }, // the script — faded ink violet
-  9: { bg1:"#081018", bg2:"#0c1a28", accent:"#8fb8d8", wisp:"rgba(140,185,220,0.08)" }, // heaven & earth — sky over ground
-  10:{ bg1:"#100c08", bg2:"#1c1408", accent:"#c89860", wisp:"rgba(200,150,90,0.07)"  }, // instrument — warm wood
-  11:{ bg1:"#0c0812", bg2:"#160c22", accent:"#a878c8", wisp:"rgba(160,110,200,0.07)" }, // thousand doors — violet
-  12:{ bg1:"#0e0c0a", bg2:"#1a1210", accent:"#d8783c", wisp:"rgba(216,120,60,0.09)"  }, // the forge — iron & ember
 };
 const DEFAULT_MOOD = { bg1:"#0d1410", bg2:"#0d1410", accent:"#7aa060", wisp:"rgba(90,150,80,0.07)" };
 
@@ -3465,54 +3249,6 @@ const CHAPTER_REQUIREMENTS = {
           const hasLand=(s,ids)=>{ const l=Array.isArray(s.awarenessLanding)?s.awarenessLanding:(s.awarenessLanding?[s.awarenessLanding]:[]); return ids.some(id=>l.includes(id)); };
           return [["root","belly","solar_plexus"],["chest"],["head","top"]].every(ids=>ss.some(s=>hasLand(s,ids)&&(s.elapsed||0)>=300));
         } } },
-
-  /* ── Act II — reflection-based chapters. `reflections` render as journal
-     sub-quests on the quest screen; each completes when an entry with that
-     refId exists. `invitations` are displayed practices, honor-system,
-     never gating (the Act I DRIFT_PRACTICES spirit). ── */
-  8: { needsRead:true,
-      reflections:[
-        { refId:"a2_story", label:"Write the story you are living",
-          prompt:"Tell the story of your life as it runs right now — present tense, an ordinary week, told plainly. Not the story you tell at dinner. The one that actually plays. As short or as long as it wants to be. \"I wake at… I spend my days… I tell myself that…\"" },
-        { refId:"a2_readback", label:"Read it back",
-          prompt:"Read what you wrote as if a stranger handed it to you. How much of this story did its main character choose? Notice — without fixing anything — how it feels to read it." },
-      ],
-      invitations:[
-        { t:"Catch it live", d:"Notice one scripted moment as it happens — the reflex reach, the default route, the automatic yes. Don't fight it. Just see it." },
-        { t:"Anchor before the pen", d:"One session, any form. Reading requires a reader who is home." },
-      ] },
-  9: { needsRead:true,
-      reflections:[
-        { refId:"a2_contact", label:"The remembered contact",
-          prompt:"Describe a moment when everything was exactly in place and nothing was missing. Where were you? What was present? Stay in it as long as it lets you." },
-      ],
-      practice:{ desc:"One standing session — attention on the vertical line, crown to sky, weight to earth, you as what joins them.",
-        check: ss => ss.some(s=>s.typeId==="standing"&&(s.elapsed||0)>=180) },
-      invitations:[
-        { t:"Find the evidence", d:"Find one place near you where someone made the world slightly more beautiful on purpose — a garden, a bench, a painted wall. Stand in it for one minute." },
-      ] },
-  10:{ needsRead:true,
-      reflections:[
-        { refId:"a2_strings", label:"String the instrument",
-          prompt:"Name the strings you are made of. The near ring — the handful of people. Then choose the great strings that pull at you — money, time, your body, technology, nature, death, the mystery. Beside each, the honest tone: clear, sour, or slack. No verdicts. Just pitch." },
-        { refId:"a2_tuning", label:"Begin the tuning",
-          prompt:"Work as many strings as you're willing this week. Feel each in the body, adjust by small turns, write what you find. If the string is a person: voice or presence, not a text. The whole instrument is a life's work — this week is only your hands learning the pegs." },
-      ],
-      invitations:[
-        { t:"Feel one string", d:"One session, any form, holding a single chosen string. Where does it live in the body? What is its actual pitch, beneath what you say about it?" },
-      ] },
-  11:{ needsRead:true,
-      reflections:[
-        { refId:"a2_doors", label:"What is your Path",
-          prompt:"Describe your map — the path you've walked so far, in your own words, from the first current to this page. Then name your door: which practice, which form, keeps pulling at you right now?" },
-      ],
-      invitations:[
-        { t:"The unfamiliar form", d:"One session in the form you've used least — not because it is better, but because you have not yet heard what it has to say." },
-        { t:"Anchor at a door", d:"One session held at whichever door pulled you. Let the door itself be the session's companion." },
-      ] },
-  12:{ needsRead:true, forgeGate:true,
-      practice:{ desc:"Complete the four fires at the Forge — the Calling, the Cultivation, the Rhythm, the Horizon.",
-        check: (ss,lr,pins,stats,jEnt,way) => !!(way&&way.forged) } },
 };
 
 const LIBRARY_ENTRIES = [
@@ -3859,14 +3595,8 @@ const CHAPTER_META = [
   {n:5, title:"The Living World",          sub:"The oldest teacher",                 act:"ACT I"},
   {n:6, title:"Cultivating the Capacities",sub:"The invisible harvest",              act:"ACT I"},
   {n:7, title:"The Three Fires",           sub:"Centers of being",                   act:"ACT I"},
-  {n:8, title:"The Script",                sub:"A life written elsewhere",           act:"ACT II"},
-  {n:9, title:"Heaven and Earth",          sub:"The bridge between",                 act:"ACT II"},
-  {n:10,title:"The Instrument",            sub:"Tuning the strings",                 act:"ACT II"},
-  {n:11,title:"Many Doors to One Truth",   sub:"Ten thousand years of practice",     act:"ACT II"},
-  {n:12,title:"Forging the Way",           sub:"The pen changes hands",              act:"ACT II"},
 ];
-const CHAPTER_SCENES = { 1:DRIFT_SCENES, 2:DOORWAY_SCENES, 3:PLACED_SCENES, 4:MASTERY_SCENES, 5:LIVING_WORLD_SCENES, 6:GROWING_SCENES, 7:THREE_FIRES_SCENES,
-  8:SCRIPT_SCENES, 9:HEAVEN_EARTH_SCENES, 10:INSTRUMENT_SCENES, 11:DOORS_SCENES, 12:FORGE_CH_SCENES };
+const CHAPTER_SCENES = { 1:DRIFT_SCENES, 2:DOORWAY_SCENES, 3:PLACED_SCENES, 4:MASTERY_SCENES, 5:LIVING_WORLD_SCENES, 6:GROWING_SCENES, 7:THREE_FIRES_SCENES };
 const CHAPTER_QUESTS = {
   1: { label:"The Current",          desc:"Recognize the current that carries us — and the turning that calls us back." },
   2: { label:"Who are you, really?", desc:"Anchor once. Enter the house of your soul." },
@@ -3875,11 +3605,6 @@ const CHAPTER_QUESTS = {
   5: { label:"Enter the world",      desc:"Take your practice outside. Complete one walking session in the living world." },
   6: { label:"Build the vessel",     desc:"Bring every capacity to 30 XP. Practice across all forms." },
   7: { label:"Tend the fires",       desc:"Read each Center. Complete a 5-minute session in each — awareness landing on that center." },
-  8: { label:"Write the story you are living", desc:"Read the script of your days — then write it down, and read it back as a stranger would." },
-  9: { label:"The remembered contact", desc:"Find the moment when nothing was missing. Write it down while it is still warm. Then stand between earth and sky." },
-  10:{ label:"String the instrument", desc:"Name what you are made of — near strings and great strings, their honest pitch. Then begin the tuning." },
-  11:{ label:"What is your Path",           desc:"Describe the map you've walked and the door that keeps pulling — both are the path speaking." },
-  12:{ label:"Forge the Way",        desc:"Four fires: the Calling, the Cultivation, the Rhythm, the Horizon. Leave holding a Way written in your own hand." },
 };
 
 /* ════════════════════════ CLASS SYSTEM — UI ════════════════════════════════ */
@@ -4330,7 +4055,7 @@ function CategoryAddForm({ f, taken=[], onAdd, onCancel }){
 function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pathSel="center", onSelect:onPathSelect=()=>{}, onOpenPath=()=>{}, onChoosePath=()=>{},
   activities=[], onAddCategoryItem=()=>{}, onRemoveActivity=()=>{},
   onOpenClassQuest=()=>{}, onOpenLib=()=>{}, onAcknowledgeTrial=()=>{}, devMode=false, onDevSkipTrial=()=>{},
-  story=null, mode="paths", onMode=()=>{}, mySel="center", onMySel=()=>{}, onStoryChange=()=>{}, practiceModes=["sitting","standing","walking"], onOpenForge=()=>{}, presenceLevel=1, onDevSetMastery=()=>{}, onDevSetPresence=()=>{}, onGoQuests=()=>{} }){
+  story=null, mode="paths", onMode=()=>{}, mySel="center", onMySel=()=>{}, onStoryChange=()=>{}, practiceModes=["sitting","standing","walking"], onOpenForge=()=>{}, presenceLevel=1, onDevSetMastery=()=>{}, onDevSetPresence=()=>{}, onGoQuests=()=>{}, onGoDaily=()=>{}, onToggleVow=()=>{} }){
   const hasStory=!!(story && story.name && story.values?.length);
   const mine = mode==="mine" && hasStory;
   const pathNodes=useMemo(cmNodes,[]);
@@ -4420,7 +4145,17 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
   const st = !mine&&selNode&&selNode.real ? classBadgeState(selNode.id, classState) : null;
   const trialDone = st ? classTrialDone(classState, selNode.id) : false;
   const funds = st ? (FUNDAMENTALS[selNode.id]||[]) : [];
-  const fundStats = st&&st.chosen ? Object.fromEntries(computeFundamentals(selNode.id, sessions, jEnt, classState).map(f=>[f.id,f])) : {};
+  /* Cached: these walk the whole session log, so only redo them when the log,
+     the journal or the dailies actually change — not on every map render. */
+  const selId = st ? selNode.id : null, selChosen = !!(st&&st.chosen);
+  const fundStats = useMemo(()=> selChosen ? Object.fromEntries(computeFundamentals(selId, sessions, jEnt, classState).map(f=>[f.id,f])) : {},
+    [selId, selChosen, sessions, jEnt, classState?.dailies, classState?.dailyChecks]);
+  const fundDetails = useMemo(()=> selChosen ? Object.fromEntries((FUNDAMENTALS[selId]||[]).map(f=>[f.id,fundamentalDetail(f, sessions, jEnt, activities)])) : {},
+    [selId, selChosen, sessions, jEnt, activities]);
+  const today = localDateStr();
+  const todaySessions = useMemo(()=>sessions.filter(x=>sessionDay(x)===today),[sessions,today]);
+  const dailyFills = useMemo(()=>Object.fromEntries((classState?.chosenClasses||[]).map(c=>[c,classDailyFill(c,classState,todaySessions,today)])),
+    [classState?.chosenClasses, classState?.dailies, classState?.dailyChecks, todaySessions, today]);
   const cMode = st&&st.chosen&&trialDone ? CLASS_MODE[selNode.id] : null;
   const [openFund,setOpenFund]=useState(null);
   const [addingTo,setAddingTo]=useState(null);
@@ -4452,7 +4187,8 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
       {/* Map */}
       <div onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onWheel={onWheel}
         style={{position:"absolute",left:0,top:0,width:"100%",height:`${mapH}px`,overflow:"hidden",touchAction:"none",cursor:"grab"}}>
-        <div style={{position:"absolute",left:"20px",top:"12px",pointerEvents:"none",zIndex:1}}>
+        <div aria-hidden="true" style={{position:"absolute",left:0,top:0,right:0,height:"84px",pointerEvents:"none",zIndex:3,background:`linear-gradient(to bottom, ${C.bg} 0%, ${C.bg} 55%, transparent 100%)`}}/>
+        <div style={{position:"absolute",left:"20px",top:"12px",pointerEvents:"none",zIndex:4}}>
           <div style={{...dsp("8px",C.muted,400,"0.24em")}}>ASCEND: INFINITE POTENTIAL</div>
           <div style={{...dsp("15px",C.cream,400,"0.14em"),marginTop:"3px"}}>CULTIVATE</div>
         </div>
@@ -4460,7 +4196,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
           const lv = centerOn ? presenceLevel : masteryLevelFromXP(selNode.id, classState?.mastery?.[selNode.id]?.xp||0);
           const col = centerOn ? C.gold : AC(selNode.accent);
           return (
-            <div onPointerDown={e=>e.stopPropagation()} style={{position:"absolute",left:"20px",top:"54px",width:"110px",zIndex:2}}>
+            <div onPointerDown={e=>e.stopPropagation()} style={{position:"absolute",left:"20px",top:"54px",width:"110px",zIndex:4}}>
               <div style={{display:"flex",alignItems:"center",gap:"4px",marginBottom:"3px"}}>
                 <span style={{...dsp("7.5px",col,400,"0.1em")}}>{centerOn?"PRESENCE":selNode.name.toUpperCase()} LVL</span>
                 <span style={{...body("10px",col),marginLeft:"auto"}}>{lv}</span>
@@ -4473,7 +4209,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
           );
         })()}
         {hasStory && (
-          <div role="group" aria-label="Map" onPointerDown={e=>e.stopPropagation()} style={{position:"absolute",right:"14px",top:"14px",zIndex:2,display:"flex",border:`0.5px solid ${C.bord}`,borderRadius:"16px",overflow:"hidden",background:C.surf}}>
+          <div role="group" aria-label="Map" onPointerDown={e=>e.stopPropagation()} style={{position:"absolute",right:"14px",top:"14px",zIndex:4,display:"flex",border:`0.5px solid ${C.bord}`,borderRadius:"16px",overflow:"hidden",background:`linear-gradient(${C.surf},${C.surf}), ${C.bg}`}}>
             {[["paths","Paths"],["mine","My Path"]].map(([id,l])=>{ const on=(id==="mine")===mine; return (
               <button key={id} aria-pressed={on} onClick={()=>onMode(id)} style={{padding:"6px 12px",border:"none",cursor:"pointer",background:on?`rgba(${C.goldRGB},0.16)`:"transparent",...dsp("8.5px",on?C.gold:C.muted,400,"0.14em")}}>{l.toUpperCase()}</button>); })}
           </div>
@@ -4536,7 +4272,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
                 background:locked ? (on?`${ac}2e`:C.surf) : `linear-gradient(${on?`${ac}2e`:C.surf},${on?`${ac}2e`:C.surf}), ${C.bg}`,
                 boxShadow:mastered ? `0 0 14px ${AC(n.accent)}${on?"88":"59"}` : on?`0 0 12px ${ac}66`:"none",
                 opacity:locked?0.55:1}}>
-                {(()=>{ const fill = (n.real && chosen && !locked) ? classDailyFill(n.id, classState, sessions) : null;
+                {(()=>{ const fill = (n.real && chosen && !locked) ? (dailyFills[n.id] ?? null) : null;
                   if(fill===null) return null;
                   const R=26.5, SW=4, Cc=2*Math.PI*R;
                   return (<svg aria-hidden="true" width="56" height="56" viewBox="0 0 56 56" style={{position:"absolute",left:-5,top:-5,pointerEvents:"none",transform:"rotate(-90deg)"}}>
@@ -4616,39 +4352,42 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
               return (<>
                 <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"6px 0 4px"}}>DAILY</div>
                 {ds.length===0 && <div style={{...body("12.5px",C.dim),fontStyle:"italic",padding:"4px 0 8px"}}>No dailies set.</div>}
-                {ds.map(d=>{ const pr=dailyProgress(d,sessions,classState.dailyChecks,day); const pc=Math.min(1,pr/(d.target||1));
+                {ds.map(d=>{ const pr=dailyProgress(d,todaySessions,classState.dailyChecks,day); const pc=Math.min(1,pr/(d.target||1));
                   return (<div key={d.id} style={{padding:"8px 0",borderBottom:`0.5px solid ${C.bord}`}}>
-                    <div style={{display:"flex",justifyContent:"space-between",gap:"8px"}}>
-                      <span style={{...body("14.5px",C.cream)}}>{d.kind==="vow"?"Do not: ":""}{d.label}</span>
-                      <span style={{...body("12px",pc>=1?accent:C.muted)}}>{pc>=1?"done":`${Math.round(pr)} / ${d.target} XP`}</span>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"8px"}}>
+                      <span style={{...body("14.5px",C.cream),flex:1}}>{d.kind==="vow"?"Do not: ":""}{d.label}</span>
+                      {d.kind!=="vow" && <span style={{...body("12px",pc>=1?accent:C.muted)}}>{pc>=1?"done":`${Math.round(pr)} / ${d.target} XP`}</span>}
+                      {d.kind==="vow" && (()=>{ const kept=(classState.dailyChecks?.[d.id]||[]).includes(day); return (
+                        <button aria-label={kept?"Unmark kept today":"Mark kept today"} aria-pressed={kept} onClick={()=>onToggleVow(d.id)}
+                          style={{width:"24px",height:"24px",borderRadius:"50%",flexShrink:0,cursor:"pointer",background:kept?accent:"none",border:`1px solid ${accent}`,color:kept?C.bg:accent,fontSize:"12px",lineHeight:1,padding:0}}>{kept?"✓":""}</button>); })()}
                     </div>
-                    <div style={{height:"3px",background:INK(0.08),borderRadius:"2px",marginTop:"6px"}}><div style={{height:"100%",width:`${pc*100}%`,background:accent,borderRadius:"2px"}}/></div>
+                    {d.kind!=="vow" && <div style={{height:"3px",background:INK(0.08),borderRadius:"2px",marginTop:"6px"}}><div style={{height:"100%",width:`${pc*100}%`,background:accent,borderRadius:"2px"}}/></div>}
                   </div>); })}
-                <button onClick={()=>onGoQuests(selNode.id)} style={{margin:"8px 0 6px",background:"none",border:"none",cursor:"pointer",padding:"4px 0",...body("13px",C.sageB)}}>{ds.length?"Edit dailies ›":"Add a daily ›"}</button>
+                <button onClick={()=>onGoDaily(selNode.id)} style={{margin:"8px 0 6px",background:"none",border:"none",cursor:"pointer",padding:"4px 0",...body("13px",C.sageB)}}>{ds.length?"Edit dailies ›":"Add a daily ›"}</button>
               </>); })()}
-            <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"10px 0 4px"}}>PRACTICE RECORD</div>
+            <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"10px 0 2px"}}>FUNDAMENTALS</div>
             {funds.map(f=>{
-              const d=st.chosen ? fundamentalDetail(f, sessions, jEnt, activities) : null;
+              const d=st.chosen ? (fundDetails[f.id]||null) : null;
               const canAdd = f.category && st.chosen && fundamentalUnlocked(f, selNode.id, classState);
               const fs=fundStats[f.id];
               const open=openFund===f.id;
               return (
                 <div key={f.id} style={{borderBottom:`0.5px solid ${C.bord}`}}>
                   <button onClick={()=>setOpenFund(o=>o===f.id?null:f.id)} aria-expanded={open}
-                    style={{width:"100%",display:"flex",alignItems:"baseline",gap:"8px",padding:"10px 0",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
-                    <span style={{...body("15px",C.cream),flex:1}}>{f.name}</span>
+                    style={{width:"100%",display:"flex",alignItems:"baseline",gap:"8px",padding:"7px 0",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
+                    <span style={{...body("14px",C.cream),flex:1}}>{f.name}</span>
                     {d && <span style={{...body("12px",C.muted)}}>{fs?.days||0} {fs?.days===1?"day":"days"}</span>}
                     {d && <span style={{...dsp("9px",accent,400,"0.08em"),minWidth:"58px",textAlign:"right"}}>{d.xp} XP</span>}
                     <span style={{...body("12px",C.dim),width:"12px",textAlign:"right"}}>{open?"−":"+"}</span>
                   </button>
                   {open && (
                     <div style={{padding:"0 0 10px 10px"}}>
-                      <div style={{...body("12px",C.dim),fontStyle:"italic",marginBottom:"6px"}}>{f.variations}{fs&&fs.best?` · best ${fmtFundBest(fs)}`:""}</div>
+                      {fs&&fs.best ? <div style={{...body("12px",C.dim),fontStyle:"italic",marginBottom:"4px"}}>Best {fmtFundBest(fs)}</div> : null}
                       {(d ? d.rows : [...(f.activity===false?[]:[{name:f.name,own:true}]), ...(f.sources||[]).map(n=>({name:n}))]).map(r=>{
                         const mineAct = r.userAdded ? activities.find(a=>a.name===r.name && a.category===f.id) : null;
                         return (
-                        <div key={r.name} style={{display:"flex",alignItems:"baseline",gap:"8px",padding:"5px 0"}}>
-                          <span style={{...body("13.5px",C.cream),flex:1}}>{r.name}{r.own&&<span style={{...body("11px",C.dim)}}> · any variation</span>}{r.legacy&&<span style={{...body("11px",C.dim)}}> · earlier</span>}</span>
+                        <div key={r.name} style={{display:"flex",alignItems:"baseline",gap:"8px",padding:"3px 0"}}>
+                          <span style={{...body("13px",C.cream),flex:1}}>{r.name}{r.own&&<span style={{...body("11px",C.dim)}}> · any variation</span>}{r.legacy&&<span style={{...body("11px",C.dim)}}> · earlier</span>}</span>
                           {d && <span style={{...body("12px",C.muted)}}>{fmtTotal(r)}</span>}
                           {d && <span style={{...body("11px",C.dim),minWidth:"48px",textAlign:"right"}}>{r.days} {r.days===1?"day":"days"}</span>}
                           {canAdd && <span style={{width:"16px",textAlign:"right"}}>{mineAct && !r.days && <button aria-label={`Remove ${r.name}`} onClick={()=>onRemoveActivity(mineAct.id)} style={{background:"none",border:"none",cursor:"pointer",padding:0,...body("14px",C.dim)}}>×</button>}</span>}
@@ -5119,13 +4858,10 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
   const hasTargets = targetUnlocks.length>0;
   const hasTendTargets = tendUnlocks.length>0;
   const hasEntryRequirements = entryUnlocks.length>0;
-  const targetsMet = hasTargets && targetUnlocks.every(u=>{
-    const act=activities.find(a=>a.name===u.name);
-    return act && (act.count||0) >= u.target;
-  });
+  const targetsMet = hasTargets && questTargetsMet(q, activities);
   const tendTotal = (kind) => jEnt.filter(e=>e.tag==="tend" && e.tendKind===kind).reduce((s,e)=>s+(e.tendMinutes||0),0);
   const tendsMet = hasTendTargets && tendUnlocks.every(u=>tendTotal(u.tendKind) >= u.target);
-  const entriesMet = hasEntryRequirements && entryUnlocks.every(u=>jEnt.some(e=>e.tag==="release" && e.releaseKind===u.entryKind));
+  const entriesMet = hasEntryRequirements && questEntriesMet(q, jEnt);
   const reflectUnlock = (q.unlocks||[]).find(u=>u.kind==="reflect" && u.minDuration);
   const isReflectQuest = !!reflectUnlock;
   const groupUnlock = (q.unlocks||[]).find(u=>u.kind==="groups");
@@ -5275,7 +5011,7 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
         </div>
       ) : (q.unlocks||[]).some(u=>u.kind==="vowDays") ? (
         <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
-          Quest tab, Warrior, Daily: add a Do not, then mark it kept each day. It completes on its own.
+          Quest tab, Daily, Warrior: add a Do not, then mark it kept each day. It completes on its own.
         </div>
       ) : isReflectQuest ? (
         <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
@@ -5473,57 +5209,59 @@ function ForgeStoryView({ way, onWayChange, onOpenMyPath=()=>{} }){
   );
 }
 
-function DailySection({ cid, acc, classState, sessions=[], activities=[], setClassState=()=>{} }){
+function DailySection({ cid, acc, classState, sessions=[], activities=[], setClassState=()=>{}, values=[] }){
   const day=localDateStr();
   const dailies=(classState?.dailies||[]).filter(d=>d.cid===cid);
   const checks=classState?.dailyChecks||{};
+  const todaySessions=useMemo(()=>sessions.filter(x=>sessionDay(x)===day),[sessions,day]);
   const [openId,setOpenId]=useState(null);
   const [adding,setAdding]=useState(false);
   const [kind,setKind]=useState("class");
   const [match,setMatch]=useState("");
   const [label,setLabel]=useState("");
-  const cname = cid==="presence" ? "Presence" : (CLASS_BY_ID[cid]?.name||cid);
-  const pool = [...new Set((activities||[]).filter(a=>cid==="presence" || PATH_SKILL_NAMES[cid]?.has(a.name) || FUND_OWNER[a.category]===cid).map(a=>a.name))];
+  const [value,setValue]=useState("");
+  const mine = cid==="mine";
+  const cname = cid==="presence" ? "Presence" : mine ? "Any practice" : (CLASS_BY_ID[cid]?.name||cid);
+  const pool = [...new Set((activities||[]).filter(a=>cid==="presence" || mine || PATH_SKILL_NAMES[cid]?.has(a.name) || FUND_OWNER[a.category]===cid).map(a=>a.name))];
   const upd = fn => setClassState(cs=>({...cs, dailies:fn(cs.dailies||[])}));
   const add = () => {
     const d = kind==="class" ? {kind,label:`${cname} XP`}
       : kind==="practice" ? (match?{kind,match,label:match}:null)
       : (label.trim()?{kind,label:label.trim()}:null);
     if(!d) return;
-    upd(ds=>[...ds,{id:"d"+Date.now().toString(36),cid,target:DAILY_DEFAULT_XP,...d}]);
-    setAdding(false); setLabel(""); setMatch("");
+    upd(ds=>[...ds,{id:"d"+Date.now().toString(36),cid,target:DAILY_DEFAULT_XP,...d,...(mine&&value?{value}:{})}]);
+    setAdding(false); setLabel(""); setMatch(""); setValue("");
   };
-  const toggleVow = id => setClassState(cs=>{
-    const cur=cs.dailyChecks?.[id]||[];
-    return {...cs, dailyChecks:{...(cs.dailyChecks||{}), [id]: cur.includes(day)?cur.filter(x=>x!==day):[...cur,day]}};
-  });
+  const toggleVow = id => setClassState(cs=>toggleVowCheck(cs, id));
   const chip=(on)=>({padding:"6px 10px",borderRadius:"6px",cursor:"pointer",background:"none",border:`0.5px solid ${on?acc:C.bord}`,...dsp("9px",on?C.cream:C.muted,400,"0.1em")});
   return (
-    <div style={{marginTop:"16px",paddingTop:"12px",borderTop:`0.5px solid ${C.bord}`}}>
-      <div style={{...dsp("10px",acc,400,"0.16em"),marginBottom:"8px"}}>DAILY</div>
-      {dailies.length===0 && !adding && <div style={{...body("12px",C.dim),fontStyle:"italic",marginBottom:"8px"}}>No dailies yet. Set what you want to do each day.</div>}
+    <div>
       {dailies.map(d=>{
-        const prog=dailyProgress(d,sessions,checks,day);
+        const prog=dailyProgress(d,todaySessions,checks,day);
         const pct=Math.min(1,prog/(d.target||1));
         const open=openId===d.id;
         return (
           <div key={d.id} style={{marginBottom:"8px",border:`0.5px solid ${open?acc:C.bord}`,borderRadius:"6px",padding:"10px 12px",background:INK(0.02)}}>
+            {d.kind==="vow" ? (()=>{ const kept=(checks[d.id]||[]).includes(day); return (
+              <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+                <div onClick={()=>setOpenId(open?null:d.id)} style={{flex:1,cursor:"pointer",minWidth:0}}>
+                  <span style={{...body("14px",C.cream)}}>Do not: {d.label}</span>
+                  {d.value && <span style={{...dsp("8px",C.dim,400,"0.12em"),marginLeft:"8px"}}>{String(d.value).toUpperCase()}</span>}
+                </div>
+                <button aria-label={kept?"Unmark kept today":"Mark kept today"} aria-pressed={kept} onClick={()=>toggleVow(d.id)}
+                  style={{width:"26px",height:"26px",borderRadius:"50%",flexShrink:0,cursor:"pointer",background:kept?acc:"none",border:`1px solid ${acc}`,color:kept?C.bg:acc,fontSize:"13px",lineHeight:1,padding:0}}>{kept?"✓":""}</button>
+              </div>); })() : (
             <div onClick={()=>setOpenId(open?null:d.id)} style={{cursor:"pointer"}}>
               <div style={{display:"flex",justifyContent:"space-between",gap:"8px"}}>
-                <span style={{...body("14px",C.cream)}}>{d.kind==="vow"?"Do not: ":""}{d.label}</span>
+                <span style={{...body("14px",C.cream)}}>{d.label}{d.value && <span style={{...dsp("8px",C.dim,400,"0.12em"),marginLeft:"8px"}}>{String(d.value).toUpperCase()}</span>}</span>
                 <span style={{...body("11px",pct>=1?acc:C.dim)}}>{pct>=1?"done":`${Math.round(prog)} / ${d.target} XP`}</span>
               </div>
               <div style={{height:"3px",background:INK(0.08),borderRadius:"2px",marginTop:"7px"}}>
                 <div style={{height:"100%",width:`${pct*100}%`,background:acc,borderRadius:"2px"}}/>
               </div>
-            </div>
+            </div>)}
             {open && (
               <div style={{marginTop:"12px"}}>
-                {d.kind==="vow" && (
-                  <button onClick={()=>toggleVow(d.id)} style={{...chip((checks[d.id]||[]).includes(day)),marginBottom:"10px"}}>
-                    {(checks[d.id]||[]).includes(day)?"KEPT TODAY ✓":"MARK KEPT TODAY"}
-                  </button>
-                )}
                 <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"10px"}}>
                   <span style={{...body("12px",C.dim)}}>Target</span>
                   <input type="number" min="5" step="5" value={d.target}
@@ -5559,7 +5297,13 @@ function DailySection({ cid, acc, classState, sessions=[], activities=[], setCla
             <input value={label} onChange={e=>setLabel(e.target.value)} placeholder="e.g. skip the sugar"
               style={{width:"100%",boxSizing:"border-box",background:C.bg,border:`0.5px solid ${C.bord}`,borderRadius:"4px",padding:"7px 8px",marginBottom:"10px",...body("13px",C.cream)}}/>
           )}
-          <div style={{...body("11px",C.dim),marginBottom:"10px"}}>Starts at {DAILY_DEFAULT_XP} XP (about 5 min). Change it after.</div>
+          {mine && values.length>0 && (
+            <div style={{display:"flex",gap:"6px",flexWrap:"wrap",alignItems:"center",marginBottom:"10px"}}>
+              <span style={{...body("11px",C.dim)}}>For</span>
+              {values.map(v=><button key={v} onClick={()=>setValue(value===v?"":v)} style={chip(value===v)}>{String(v).toUpperCase()}</button>)}
+            </div>
+          )}
+          {kind!=="vow" && <div style={{...body("11px",C.dim),marginBottom:"10px"}}>Starts at {DAILY_DEFAULT_XP} XP (about 5 min). Change it after.</div>}
           <div style={{display:"flex",gap:"6px"}}>
             <button onClick={add} style={chip(true)}>ADD</button>
             <button onClick={()=>setAdding(false)} style={chip(false)}>CANCEL</button>
@@ -5584,7 +5328,9 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   useEffect(()=>{
     if(lineReq?.line){
       setQuestLine(lineReq.line); setView("overview");
-      if(lineReq.classId){
+      if(lineReq.line==="daily"){
+        if(lineReq.classId) setTimeout(()=>{ try{ document.getElementById("daily-sec-"+lineReq.classId)?.scrollIntoView({block:"start",behavior:"smooth"}); }catch(e){} },120);
+      } else if(lineReq.classId){
         setOpenClasses({[lineReq.classId]:true, ...(lineReq.classId!=="presence"?{presence:false}:{})});
         setTimeout(()=>{ try{ document.getElementById("class-sec-"+lineReq.classId)?.scrollIntoView({block:"start",behavior:"smooth"}); }catch(e){} },120);
       }
@@ -5981,14 +5727,17 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
     { id:"chant", label:"Voice", show: chantGateOpen && !chantUnlocked,
       state: chantNew ? "new" : "" },
     { id:"path", label:"Class", show:true, state: "" },
+    { id:"daily", label:"Daily", show:true, state: "" },
   ].filter(x=>x.show);
 
   const heroTitle = questLine==="chant" ? "Voice"
     : questLine==="path" ? "Classes"
+    : questLine==="daily" ? "Daily"
     : questLine==="forge" ? (storyForged(way) ? way.story.name : "The Forge")
     : "The Crucible";
   const heroSub = questLine==="chant" ? "The oldest practice"
     : questLine==="path" ? (crucibleDone ? "Presence · Crucible complete" : `Presence · Crucible, chapter ${activeN}`)
+    : questLine==="daily" ? "Today"
     : questLine==="forge" ? (storyForged(way) ? "The Forge · Your story" : "Your story")
     : crucibleDone ? "The Crucible · Complete" : `The Crucible · Chapter ${activeN}`;
 
@@ -6120,14 +5869,14 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
         </span>
         <span style={{...body("14px",C.muted),transform:presenceOpen?"rotate(90deg)":"none",transition:"transform 0.2s"}}>›</span>
       </button>
-      {presenceOpen && <div style={{padding:"4px 14px 16px"}}>{crucibleBlock}{crucibleDone && <DailySection cid="presence" acc={C.gold} classState={classState} sessions={sessions} activities={activities} setClassState={setClassState}/>}</div>}
+      {presenceOpen && <div style={{padding:"4px 14px 16px"}}>{crucibleBlock}</div>}
     </div>
   );
 
   return (
     <div>
       <div style={{position:"relative"}}>
-        <RidgelineScene h={190}/>
+        <RidgelineScene h={104}/>
         <div style={{position:"absolute",inset:0,background:`linear-gradient(to bottom, ${PANEL(0)} 35%, ${SC.bg} 100%)`}}/>
         <div style={{position:"absolute",top:"14px",left:"20px"}}>
           <span style={{...dsp("13px",SC.cream,400,"0.16em")}}>QUEST</span>
@@ -6180,7 +5929,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
         </div>
       )}
 
-      <div style={{padding:"8px 20px 28px"}}>
+      <div style={{padding:"8px 20px 96px"}}>
 
         {/* ── VOICE (Chant) — its own questline view ── */}
         {questLine==="chant" && chantGateOpen && (
@@ -6204,6 +5953,33 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
         )}
 
         {/* ── CLASS — every active class, each minimized until opened ── */}
+        {/* ── DAILY — every daily in one place: your own, Presence, each class ── */}
+        {questLine==="daily" && (()=>{
+          const groups=[
+            { cid:"mine", name:"MY PATH", sub:storyForged(way)?way.story.name:"Your own dailies", acc:"#d8783c" },
+            { cid:"presence", name:"PRESENCE", sub:"Sit, stand, walk", acc:C.gold },
+            ...(classState?.chosenClasses||[]).filter(c=>trialComplete(c)).map(c=>({ cid:c, name:(CLASS_BY_ID[c]?.name||c).toUpperCase(), sub:null, acc:AC(CLASS_BY_ID[c]?.accent)||C.sageB })),
+          ];
+          const vals=(storyForged(way) ? (way.story.values||[]) : []).map(v=>typeof v==="string"?v:(v?.name||v?.label||"")).filter(Boolean);
+          return (
+            <div style={{paddingTop:"4px"}}>
+              {groups.map(g=>{
+                const n=(classState?.dailies||[]).filter(d=>d.cid===g.cid).length;
+                return (
+                  <div key={g.cid} id={"daily-sec-"+g.cid} style={{marginBottom:"12px",border:`0.5px solid ${C.bord}`,borderRadius:"8px",background:C.surf,padding:"12px 14px 14px"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"10px"}}>
+                      <span style={{width:"9px",height:"9px",borderRadius:"50%",background:g.acc,flexShrink:0}}/>
+                      <span style={{...dsp("12px",C.cream,400,"0.1em")}}>{g.name}</span>
+                      {g.sub && n===0 && <span style={{...body("11px",C.dim)}}>{g.sub}</span>}
+                    </div>
+                    <DailySection cid={g.cid} acc={g.acc} classState={classState} sessions={sessions} activities={activities} setClassState={setClassState} values={vals}/>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+
         {questLine==="path" && (
           <div style={{paddingTop:"4px"}}>
             {presenceSection}
@@ -6264,7 +6040,6 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                               activities={activities} jEnt={jEnt} ascents={classState.ascents||{}}
                               onOpenQuest={(qid)=>onOpenClassQuest(qid, cid)} onOpenLib={onGoToLib}/>
                           )}
-                          {trialDone && celebrated && <DailySection cid={cid} acc={acc} classState={classState} sessions={sessions} activities={activities} setClassState={setClassState}/>}
                         </div>
                       )}
                     </div>
@@ -8824,6 +8599,7 @@ export default function AscendApp(){
     if(first) applyQuestUnlocks(first);
   };
 
+  const toggleVowToday = (id) => setClassState(cs=>toggleVowCheck(cs, id));
   /* Discipline: completes once a Warrior Do not has been kept on enough days. */
   useEffect(()=>{
     const q=findQuest("w_discipline"); if(!q || classState?.questProgress?.w_discipline) return;
@@ -9081,18 +8857,8 @@ export default function AscendApp(){
     Object.keys(QUEST_CHAINS).forEach(cid=>{
       QUEST_CHAINS[cid].forEach(q=>{
         if(classState.questProgress?.[q.id]) return;
-        const entryUnlocks = (q.unlocks||[]).filter(u=>u.kind==="journalEntry");
-        if(entryUnlocks.length===0) return;
-        const entriesOk = entryUnlocks.every(u=>
-          updatedEntries.some(e=>e.tag==="release" && e.releaseKind===u.entryKind)
-        );
-        if(!entriesOk) return;
-        const targetUnlocks = (q.unlocks||[]).filter(u=>u.kind==="activity" && u.target);
-        const activitiesOk = targetUnlocks.every(u=>{
-          const act = activities.find(a=>a.name===u.name);
-          return act && (act.count||0) >= u.target;
-        });
-        if(activitiesOk) completeClassQuest(q.id);
+        if(questEntryUnlocks(q).length===0) return;
+        if(questEntriesMet(q, updatedEntries) && questTargetsMet(q, activities) && questNotesMet(q, sessions)) completeClassQuest(q.id);
       });
     });
   };
@@ -9142,33 +8908,10 @@ export default function AscendApp(){
       Object.keys(QUEST_CHAINS).forEach(cid=>{
         QUEST_CHAINS[cid].forEach(q=>{
           if(classState.questProgress?.[q.id]) return; // already done
-          const targetUnlocks = (q.unlocks||[]).filter(u=>u.kind==="activity" && u.target);
-          if(targetUnlocks.length===0) return;
-          const allMet = targetUnlocks.every(u=>{
-            const act = updatedActivities.find(a=>a.name===u.name);
-            if(!act) return false;
-            if(u.singleSession){
-              const thisSession = loggedCounts[act.id]||0;
-              return thisSession >= u.target;
-            }
-            return (act.count||0) >= u.target;
-          });
-          if(!allMet) return;
-          /* If this quest ALSO requires specific journal entries (e.g.
-             Forgiveness & Gratitude needs one Release entry of each kind),
-             those must already exist too — finishing the practice minutes
-             alone isn't enough if the writing half hasn't happened yet. */
-          const entryUnlocks = (q.unlocks||[]).filter(u=>u.kind==="journalEntry");
-          const entriesOk = entryUnlocks.every(u=>
-            jEnt.some(e=>e.tag==="release" && e.releaseKind===u.entryKind)
-          );
-          /* sessionNote: at least one session that used the named activity
-             (this one included) carried a written reflection. */
-          const noteUnlocks = (q.unlocks||[]).filter(u=>u.kind==="sessionNote");
-          const notesOk = noteUnlocks.every(u=>
-            [s,...sessions].some(x=>(x.activities||[]).some(a=>a.name===u.activity) && x.reflection && String(x.reflection).trim())
-          );
-          if(entriesOk && notesOk) completeClassQuest(q.id);
+          if(questTargetUnlocks(q).length===0) return;
+          /* targets (singleSession ones against THIS session's counts), plus any
+             required journal entries and session notes, all via the shared checks */
+          if(questTargetsMet(q, updatedActivities, loggedCounts) && questEntriesMet(q, jEnt) && questNotesMet(q, [s,...sessions])) completeClassQuest(q.id);
         });
       });
       /* Chant is standalone (not part of any class's QUEST_CHAINS), so it gets
@@ -9548,19 +9291,19 @@ export default function AscendApp(){
           </div>
           {(()=>{const L=presenceLevelFromXP(ch.totalXP??0),cur=(ch.totalXP??0)-presenceXPForLevel(L),nxt=presenceNextXP(L);return(
             <div style={{textAlign:"right"}}>
-              <div style={{...body("10px",C.muted)}}>{cur}/{nxt} XP</div>
-              <div style={{width:"68px",height:"3px",background:C.bord,borderRadius:"2px",marginTop:"4px"}}><div style={{width:`${Math.min(100,nxt?cur/nxt*100:0)}%`,height:"100%",background:C.gold,borderRadius:"2px",transition:"width .6s ease"}}/></div>
+              <div style={{...body("10px",C.muted)}}>{cur}/{nxt} XP to next level</div>
+              <div style={{width:"100%",height:"3px",background:C.bord,borderRadius:"2px",marginTop:"4px"}}><div style={{width:`${Math.min(100,nxt?cur/nxt*100:0)}%`,height:"100%",background:C.gold,borderRadius:"2px",transition:"width .6s ease"}}/></div>
             </div>
           );})()}
         </div>
 
         {/* content — all tabs stay mounted so internal state (quest screen, library entry) persists */}
         <div style={{flex:1,overflowY:"auto",paddingBottom:"calc(118px + env(safe-area-inset-bottom))"}}>
-          <div style={{display:tab==="character"?"block":"none"}}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities} classState={classState} classGateOpen={classGateOpen} onOpenPath={cid=>{setPathView(cid);setScr("path");}}/></div>
-          <div style={{display:tab==="quest"?"block":"none"}}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnchFull(true);setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
+          <TabPane active={tab==="character"}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities} classState={classState} classGateOpen={classGateOpen} onOpenPath={cid=>{setPathView(cid);setScr("path");}}/></TabPane>
+          <TabPane active={tab==="quest"}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnchFull(true);setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
             classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid,cid)=>setOpenClassQuest({classId:cid||classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}
-            onOpenMyPath={()=>{ setCultMode("mine"); setMySel("center"); setTab("cultivate"); }} lineReq={questLineReq} setClassState={setClassState}/></div>
-          <div style={{display:tab==="cultivate"?"block":"none",height:"100%"}}><CultivateTab classState={classState} presenceLevel={presenceLevel} onGoQuests={(cid)=>{ setTab("quest"); setQuestLineReq({line:"path", classId:cid, n:Date.now()}); }} onDevSetPresence={L=>setCh(p=>({...p,totalXP:presenceXPForLevel(L)}))} onDevSetMastery={(cid,L)=>setClassState(cs=>{
+            onOpenMyPath={()=>{ setCultMode("mine"); setMySel("center"); setTab("cultivate"); }} lineReq={questLineReq} setClassState={setClassState}/></TabPane>
+          <TabPane active={tab==="cultivate"} style={{height:"100%"}}><CultivateTab classState={classState} presenceLevel={presenceLevel} onToggleVow={toggleVowToday} onGoDaily={(cid)=>{ setTab("quest"); setQuestLineReq({line:"daily", classId:cid, n:Date.now()}); }} onGoQuests={(cid)=>{ setTab("quest"); setQuestLineReq({line:"path", classId:cid, n:Date.now()}); }} onDevSetPresence={L=>setCh(p=>({...p,totalXP:presenceXPForLevel(L)}))} onDevSetMastery={(cid,L)=>setClassState(cs=>{
               /* Dev only: choose the path, finish its trial and chain, then set the level. */
               const cls=CLASS_BY_ID[cid]; if(!cls) return cs;
               const prog={}; cls.trial.forEach(st=>{ prog[st.type]=true; });
@@ -9581,10 +9324,10 @@ export default function AscendApp(){
               : [...p,{id:`act_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, name, stat:f.stat, practiceType:f.practiceType||"train", unit, category:f.id, count:0}])}
             story={story} mode={cultMode} onMode={setCultMode} mySel={mySel} onMySel={setMySel} onStoryChange={updateStory}
             practiceModes={["sitting","standing","walking",...unlockedClassPracticeTypes.filter(t=>t==="train"||t==="restore")]}
-            onOpenForge={()=>{ setTab("quest"); setQuestLineReq({line:"forge", n:Date.now()}); }}/></div>
+            onOpenForge={()=>{ setTab("quest"); setQuestLineReq({line:"forge", n:Date.now()}); }}/></TabPane>
           <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones} savedPos={lastKnownPos} onLocationConfirmed={setLastKnownPos} active={tab==="map"}
             onZoneSeen={(id,r)=>setRevealZones(zs=>zs.map(z=>z.id===id&&!((z.seenR??0)>=r)?{...z,seenR:r}:z))}/></div>
-          <div style={{display:tab==="library"?"block":"none"}}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnchFull(true);setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)} collapsed={libCollapsed} setCollapsed={setLibCollapsed} classState={classState} chantUnlocked={chantUnlocked}/></div>
+          <TabPane active={tab==="library"}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnchFull(true);setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)} collapsed={libCollapsed} setCollapsed={setLibCollapsed} classState={classState} chantUnlocked={chantUnlocked}/></TabPane>
         </div>
 
         {/* floating anchor button */}
