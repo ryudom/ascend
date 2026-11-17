@@ -1376,6 +1376,25 @@ function awardMasteryXP(classState, qualifyingPaths, xpAmount){
   return next;
 }
 
+/* ── MAP TEMPLATES ─────────────────────────────────────────────────────────
+   The Cultivate map shows one template at a time. Two are built in: "Classes"
+   (the class map; fixed) and "My Path" (the forged story; edited in the Forge).
+   The player's own templates live in classState.mapTemplates:
+     { id, kind:"classes", name, nodes:[classId…] }   a filtered class map
+     { id, kind:"mine",    story:{name,values,practices} }   a values map
+   classState.mapTemplateId names the custom one in use (null = a built-in). */
+const tplId = () => "tp"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+const tplName = t => t.kind==="mine" ? (t.story?.name||"Untitled") : (t.name||"Untitled");
+function duplicateTemplate(cs, src){
+  /* practices get fresh ids so the copy's history starts clean and never collides */
+  const t = src.kind==="mine"
+    ? { id:tplId(), kind:"mine", story:{ ...freshStory(), name:`${src.story.name} copy`, values:[...(src.story.values||[])],
+        practices:(src.story.practices||[]).map((p,i)=>({ ...p, id:tplId()+i })) } }
+    : { id:tplId(), kind:"classes", name:`${src.name} copy`, nodes:[...(src.nodes||CLASSES.map(c=>c.id))] };
+  return { cs:{ ...cs, mapTemplates:[...(cs.mapTemplates||[]), t] }, id:t.id };
+}
+const patchTemplate = (cs, id, fn) => ({ ...cs, mapTemplates:(cs.mapTemplates||[]).map(t=>t.id===id?fn(t):t) });
+
 /* ── DAILIES ───────────────────────────────────────────────────────────────
    Per-class daily targets measured in XP (1 XP = 10 s of practice, so 30 XP ≈
    5 min). Kinds: "class" (any XP that counts for the class), "practice" (one
@@ -2641,7 +2660,19 @@ function getCultivationSummary(stats){
 }
 
 /* ── EMBODIMENT SILHOUETTE ───────────────────────────────────────────────── */
-function EmbodimentSilhouette({ stats, totalXP=0 }){
+/* Which three capacities build each center (as the figure draws them). */
+const CENTER_STATS = { Wisdom:["voi","wis","ali"], Heart:["wil","hrt","voi"], Vitality:["str","vit","wil"] };
+const CENTER_RGB   = { Wisdom:"167,199,231", Heart:"111,168,122", Vitality:"212,185,106" };
+/* Capacity XP gained inside a window, from the stat gains each session recorded.
+   (Journal and Tend XP are not in sessions, so they only count toward lifetime.) */
+function periodStatXP(sessions=[], days){
+  const d=new Date(); d.setDate(d.getDate()-(days-1)); const from=localDateStr(d);
+  const out={};
+  (sessions||[]).forEach(x=>{ if((sessionDay(x)||"")<from) return; Object.entries(x.sg||{}).forEach(([k,v])=>{ out[k]=(out[k]||0)+(+v||0); }); });
+  return out;
+}
+
+function EmbodimentSilhouette({ stats, totalXP=0, selected=null, onSelect=null }){
   const pv = k => clamp(levelFromTotalXP(stats[k]||0), 1, 100) / 100;
   // Each center brightness = average of its three contributing stats
   const presB  = (pv('str') + pv('vit') + pv('wil')) / 3;
@@ -2712,7 +2743,7 @@ function EmbodimentSilhouette({ stats, totalXP=0 }){
   const presG = centerState(presRaw).G, presHi = centerState(presRaw).hi;
 
   return (
-    <svg width="100%" height="100%" viewBox="-115 0 530 728" preserveAspectRatio="xMidYMid meet" style={{display:"block",overflow:"visible"}}>
+    <svg width="100%" height="100%" viewBox="-115 0 530 728" preserveAspectRatio="xMidYMid meet" style={{display:"block",overflow:"visible",pointerEvents:"none"}}>
       <defs>
         <filter id="body-glow" x="-30%" y="-5%" width="160%" height="110%">
           <feGaussianBlur stdDeviation="5"/>
@@ -2782,10 +2813,11 @@ function EmbodimentSilhouette({ stats, totalXP=0 }){
       </g>
 
       {/* Energy centers — scale from a point (r=3) at zero stats to full rings at max */}
-      {CENTERS.map(({cx,cy,color,vis,G,hi,L})=>{
+      {CENTERS.map(({label,cx,cy,color,vis,G,hi,L})=>{
         const ring1=10+G*36, ring2=6+G*19;
         return (
-        <g key={cy} opacity={vis}>
+        <g key={cy} opacity={vis*(selected&&selected!==label?0.3:1)}>
+          {selected===label && <circle cx={cx} cy={cy} r={ring1+9} fill="none" stroke={`rgba(${color},0.85)`} strokeWidth="1.4" strokeDasharray="3 5"/>}
           {/* growth rings — full size by level 10 */}
           <circle cx={cx} cy={cy} r={ring1} fill="none" stroke={`rgba(${color},${0.12+G*0.3+hi*0.25})`} strokeWidth={1.1+hi*0.6}/>
           <circle cx={cx} cy={cy} r={ring2} fill="none" stroke={`rgba(${color},${0.2+G*0.4+hi*0.3})`} strokeWidth={1.3+hi*0.7}/>
@@ -2820,7 +2852,7 @@ function EmbodimentSilhouette({ stats, totalXP=0 }){
       {CENTERS.map(({cx,cy,B,R,color,label,vis})=>{
         const ringEdge = cx - (10+centerState(R).G*36) - 5;
         return (
-          <g key={label} opacity={vis}>
+          <g key={label} opacity={vis*(selected&&selected!==label?0.4:1)}>
             <line x1={ringEdge} y1={cy} x2={ringEdge-110} y2={cy}
               stroke={`rgba(${color},0.3)`} strokeWidth="1" strokeDasharray="3,4"/>
             <text x={ringEdge-116} y={cy+5} textAnchor="end" fontSize="16" fill={`rgba(${color},0.92)`}
@@ -2828,6 +2860,17 @@ function EmbodimentSilhouette({ stats, totalXP=0 }){
           </g>
         );
       })}
+
+      {/* Tap a center (its glow or its label) to filter the capacity list to the three that feed it */}
+      {onSelect && CENTERS.map(({label,cx,cy})=>(
+        <g key={"hit-"+label} role="button" tabIndex={0} aria-label={`${label} center`} aria-pressed={selected===label}
+          style={{cursor:"pointer",outline:"none",pointerEvents:"all"}}
+          onClick={e=>{ e.stopPropagation(); onSelect(selected===label?null:label); }}
+          onKeyDown={e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); onSelect(selected===label?null:label); } }}>
+          <circle cx={cx} cy={cy} r={62} fill="transparent"/>
+          <rect x={-115} y={cy-18} width={cx+115-60} height={36} fill="transparent"/>
+        </g>
+      ))}
     </svg>
   );
 }
@@ -2907,7 +2950,7 @@ const TabPane = React.memo(function TabPane({ active, style, children }){
   return <div style={{display:active?"block":"none", ...(style||{})}}>{children}</div>;
 }, (prev,next)=>!prev.active && !next.active);
 
-function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacities, setCapacities, classState=null, classGateOpen=false, onOpenPath=()=>{} }){
+function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacities, setCapacities, classState=null, classGateOpen=false, onOpenPath=()=>{}, active=true }){
   const totalMin = sessions.reduce((a,s)=>a+s.duration,0);
   const longestMin = sessions.reduce((a,s)=>Math.max(a,s.duration),0);
   /* Lifetime count of distinct days with a session. Never resets: no streaks. */
@@ -2915,12 +2958,28 @@ function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacit
 
   const setStatVal = (k, lvl) => setCh(p=>({...p, stats:{...p.stats, [k]: totalXPForLevel(clamp(parseInt(lvl),1,100))}}));
 
+  /* A tapped center narrows the capacity list to its three; leaving the tab clears it. */
+  const [ctr,setCtr]=useState(null);
+  useEffect(()=>{ if(!active) setCtr(null); },[active]);
+  /* Lifetime shows total levels; Week / Month show what the last 7 / 30 days added. */
+  const [period,setPeriod]=useState("life");
+  const periodStats = useMemo(()=> period==="week" ? periodStatXP(sessions,7) : period==="month" ? periodStatXP(sessions,30) : null, [period, sessions]);
+  const shownStats = periodStats || ch.stats;
+  const listStats = ctr ? STATS.filter(x=>CENTER_STATS[ctr].includes(x.k)) : STATS;
 
   return (
     <div style={{paddingBottom:"20px",position:"relative"}}>
 
       {/* Page title */}
       <div style={{textAlign:"center",padding:"14px 0 2px",...dsp("11px",C.cream,400,"0.26em")}}>CULTIVATION PROFILE</div>
+      {/* Period toggle: right-aligned, in the gap between the title and the figure */}
+      <div style={{display:"flex",justifyContent:"flex-end",padding:"8px 14px 0"}}>
+        <div role="group" aria-label="Period" style={{display:"flex",border:`0.5px solid ${C.bord}`,borderRadius:"14px",overflow:"hidden",flexShrink:0,position:"relative",zIndex:5}}>
+          {[["life","Lifetime"],["week","Week"],["month","Month"]].map(([id,l])=>(
+            <button key={id} aria-pressed={period===id} onClick={()=>setPeriod(id)}
+              style={{padding:"5px 8px",border:"none",cursor:"pointer",background:period===id?`rgba(${C.goldRGB},0.16)`:"transparent",...dsp("8px",period===id?C.gold:C.muted,400,"0.1em")}}>{l.toUpperCase()}</button>))}
+        </div>
+      </div>
 
       {/* Floating DEV MODE — no layout impact */}
       {devMode && (
@@ -2955,14 +3014,14 @@ function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacit
         </div>
       )}
       {/* ── HERO: figure + radar/stats side by side ── */}
-      <div style={{display:"flex",margin:"8px 14px 0",gap:"0",height:"400px"}}>
-        <div style={{flex:"0 0 62%",position:"relative",display:"flex",alignItems:"center",justifyContent:"center",overflow:"visible"}}>
+      <div style={{display:"flex",margin:"-4px 14px 0",gap:"0",height:"400px"}}>
+        <div onClick={()=>setCtr(null)} style={{flex:"0 0 62%",position:"relative",display:"flex",alignItems:"center",justifyContent:"center",overflow:"visible"}}>
           <div style={{width:"100%",height:"100%",transform:"scale(1.35)",transformOrigin:"center center"}}>
-            <div style={{width:"100%",height:"100%",filter:C.light?LIGHT_GLOW_FILTER:"none"}}><EmbodimentSilhouette stats={ch.stats} totalXP={ch.totalXP??0}/></div>
+            <div style={{width:"100%",height:"100%",filter:C.light?LIGHT_GLOW_FILTER:"none"}}><EmbodimentSilhouette stats={shownStats} totalXP={ch.totalXP??0} selected={ctr} onSelect={setCtr}/></div>
           </div>
         </div>
         <div style={{flex:"0 0 112px",display:"flex",flexDirection:"column",alignItems:"center",paddingTop:"0px",gap:"4px",transform:"translateX(15px)"}}>
-          <div onClick={()=>setCapacities(true)} style={{cursor:"pointer",opacity:0.9}} title="View Capacities"><Radar stats={ch.stats} size={108} showLabels={false} totalXP={ch.totalXP??0}/></div>
+          <div onClick={()=>setCapacities(true)} style={{cursor:"pointer",opacity:0.9}} title="View Capacities"><Radar stats={shownStats} size={108} showLabels={false} totalXP={ch.totalXP??0}/></div>
           <div style={{width:"91px",marginTop:"20px"}}>
             {/* Level slider in dev mode */}
             {devMode && (()=>{
@@ -2982,16 +3041,18 @@ function CharacterTab({ ch, sessions, onJournal, onLogs, devMode, setCh, capacit
                 </div>
               );
             })()}
-            {[...STATS].reverse().map(({k,l,s})=>{
+            {ctr && <div style={{...dsp("7.5px",`rgb(${CENTER_RGB[ctr]})`,400,"0.14em"),padding:"2px 0 4px"}}>{ctr.toUpperCase()} CENTER</div>}
+            {[...listStats].reverse().map(({k,l,s})=>{
               const val = levelFromTotalXP(ch.stats[k]||0);
               const pct = val/100;
+              const gained = periodStats ? Math.round(periodStats[k]||0) : null;
               return (
                 <div key={k} style={{padding:"1.5px 0 1.5px",borderBottom:`0.5px solid rgba(39,54,43,0.5)`}}>
                   {/* abbrev | label | value */}
                   <div style={{display:"flex",alignItems:"center",gap:"3px"}}>
                     <span style={{...dsp("7.5px",AC(STAT_COLORS[k]),400,"0.08em"),minWidth:"22px"}}>{s}</span>
                     <span style={{...body("9.5px",C.muted),lineHeight:1.2}}>{l}</span>
-                    <span style={{...body("9.5px",C.sage),marginLeft:"auto",textAlign:"right"}}>{val}</span>
+                    <span style={{...body("9.5px",C.sage),marginLeft:"auto",textAlign:"right"}}>{gained===null ? val : (gained>0?`+${gained}`:"·")}</span>
                   </div>
                   {/* slider in dev mode only */}
                   {devMode && (
@@ -3781,6 +3842,22 @@ function cmUnlockText(n, classState, gateOpen){
   return `Unlocks when you complete the ${need.length>1 ? need.slice(0,-1).join(", ")+" and "+need[need.length-1] : need[0]} path${need.length>1?"s":""}.`;
 }
 const CM_LOCK_D = "M7 11V8a5 5 0 0 1 10 0v3 M5 11h14v10H5z";
+/* Does the player "have" a class, for the purpose of revealing what grows from it?
+   Today that means its path is complete. Kept apart from the unlock gate
+   (advancedGateMet) so the gate can later become e.g. "Warrior level 10" while
+   this stays "you hold the class". */
+const classHeld = (cid, classState) => chainComplete(cid, classState?.questProgress||{});
+/* How a node appears on the class map:
+   hidden  — nothing yet (foundations before the Crucible; paths with no prerequisite held)
+   mystery — some, but not all, prerequisites held: a "?" with no name
+   named   — shown with its name (greyed while locked) */
+function cmNodeState(n, classState, gateOpen){
+  if((classState?.chosenClasses||[]).includes(n.id)) return "named";
+  if(!n.parents) return gateOpen ? "named" : "hidden";
+  const held = n.parents.filter(p=>classHeld(p, classState)).length;
+  if(held===0) return "hidden";
+  return held<n.parents.length ? "mystery" : "named";
+}
 function cmVisible(n, classState, gateOpen){
   const qp=classState?.questProgress||{};
   if((classState?.chosenClasses||[]).includes(n.id)) return true;
@@ -3920,7 +3997,7 @@ function PracticeForm({ initial=null, values=[], value, modes=["sitting","standi
 }
 
 /* Sheet body for My Path — what the selected node holds. */
-function MyPathSheetBody({ story, node, sessions=[], modes, onPick=()=>{}, onStoryChange=()=>{}, onOpenForge=()=>{} }){
+function MyPathSheetBody({ story, node, sessions=[], modes, onPick=()=>{}, onStoryChange=()=>{}, onOpenForge=()=>{}, forgeLabel="THE FORGE ›" }){
   const [form,setForm]=useState(null); // null | "add" | "edit"
   useEffect(()=>{ setForm(null); },[node?.id]);
   const setPractices=fn=>onStoryChange(s=>({...s, practices:fn(s.practices||[])}));
@@ -3944,7 +4021,7 @@ function MyPathSheetBody({ story, node, sessions=[], modes, onPick=()=>{}, onSto
               </button>
             ))}
           </div>); })}
-        <button onClick={onOpenForge} style={{marginTop:"16px",padding:"8px 16px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"6px",cursor:"pointer",...dsp("8.5px",C.muted,400,"0.16em")}}>THE FORGE ›</button>
+        <button onClick={onOpenForge} style={{marginTop:"16px",padding:"8px 16px",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"6px",cursor:"pointer",...dsp("8.5px",C.muted,400,"0.16em")}}>{forgeLabel}</button>
       </div>
     );
   }
@@ -4055,15 +4132,23 @@ function CategoryAddForm({ f, taken=[], onAdd, onCancel }){
 function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pathSel="center", onSelect:onPathSelect=()=>{}, onOpenPath=()=>{}, onChoosePath=()=>{},
   activities=[], onAddCategoryItem=()=>{}, onRemoveActivity=()=>{},
   onOpenClassQuest=()=>{}, onOpenLib=()=>{}, onAcknowledgeTrial=()=>{}, devMode=false, onDevSkipTrial=()=>{},
-  story=null, mode="paths", onMode=()=>{}, mySel="center", onMySel=()=>{}, onStoryChange=()=>{}, practiceModes=["sitting","standing","walking"], onOpenForge=()=>{}, presenceLevel=1, onDevSetMastery=()=>{}, onDevSetPresence=()=>{}, onGoQuests=()=>{}, onGoDaily=()=>{}, onToggleVow=()=>{} }){
-  const hasStory=!!(story && story.name && story.values?.length);
+  story=null, mode="paths", onMode=()=>{}, mySel="center", onMySel=()=>{}, onStoryChange=()=>{}, practiceModes=["sitting","standing","walking"], onOpenForge=()=>{}, presenceLevel=1, onDevSetMastery=()=>{}, onDevSetPresence=()=>{}, onGoQuests=()=>{}, onGoDaily=()=>{}, onToggleVow=()=>{}, forgedStory=null, customTpl=null, onPickTemplate=()=>{}, onClassState=()=>{} }){
+  const customMine = customTpl?.kind==="mine";
+  const hasStory=!!(story && story.name && (story.values?.length || customMine));
   const mine = mode==="mine" && hasStory;
   const pathNodes=useMemo(cmNodes,[]);
   const myNodes=useMemo(()=>myPathNodes(story),[story]);
   const nodes = mine ? myNodes : pathNodes;
   const sel = mine ? (mySel==="center"||myNodes.some(n=>n.id===mySel) ? mySel : "center") : pathSel;
   const onSelect = mine ? onMySel : onPathSelect;
-  const visible = mine ? myNodes : pathNodes;   // every path is on the map; locked ones are greyed
+  const [tplOpen,setTplOpen]=useState(false);
+  const [tplEdit,setTplEdit]=useState(null);     // id of the custom template being edited
+  const [tplNewVal,setTplNewVal]=useState("");
+  const tplNodes = customTpl?.kind==="classes" ? (customTpl.nodes||[]) : null;
+  const shownPaths = useMemo(()=> tplNodes ? pathNodes.filter(n=>tplNodes.includes(n.id)) : pathNodes, [pathNodes, customTpl]);
+  const cmState = useMemo(()=>Object.fromEntries(pathNodes.map(n=>[n.id, cmNodeState(n, classState, gateOpen)])),
+    [pathNodes, classState?.questProgress, classState?.chosenClasses, gateOpen]);
+  const visible = mine ? myNodes : shownPaths.filter(n=>cmState[n.id]!=="hidden");   // hidden nodes stay off the map until earned
   const openIds = new Set(mine ? [] : pathNodes.filter(n=>n.real && cmVisible(n, classState, gateOpen)).map(n=>n.id));
   const visIds=new Set(visible.map(n=>n.id));
   const wrapRef=useRef(null);
@@ -4142,6 +4227,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
   const selNode = sel!=="center" && visIds.has(sel) ? nodes.find(n=>n.id===sel) : null;
   const centerOn = !selNode;
   const selLocked = !mine && !!selNode && !openIds.has(selNode.id);
+  const selMystery = !mine && !!selNode && cmState[selNode.id]==="mystery";
   const st = !mine&&selNode&&selNode.real ? classBadgeState(selNode.id, classState) : null;
   const trialDone = st ? classTrialDone(classState, selNode.id) : false;
   const funds = st ? (FUNDAMENTALS[selNode.id]||[]) : [];
@@ -4170,6 +4256,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
       : myPr ? `Press Cultivate to practice ${myPr.name} · ${modeLabel(myPr.mode)}.`
       : "Add the practices that serve this value.")
     : centerOn ? "Press Cultivate to practice: Sit, Stand or Walk."
+    : selMystery ? ""
     : selLocked ? cmUnlockText(selNode, classState, gateOpen)
     : !st.chosen ? "Open to you. Choose it to begin its trial."
     : !trialDone ? (CLASS_BY_ID[selNode.id]?.trial?.length===1 ? `Trial: ${CLASS_BY_ID[selNode.id].trial[0].label} for ${CLASS_BY_ID[selNode.id].trial[0].minutes} minutes. Press Cultivate to begin.` : `Trial: Sit, Stand and Walk, three minutes each. Press Cultivate for your ${nextTrialStep(classState, selNode.id)?.label||"next"}.`)
@@ -4177,13 +4264,115 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
   const accent = mine ? (myPr ? practiceAccent(myPr) : C.gold) : selLocked ? C.muted : selNode ? AC(selNode.accent) : C.gold;
   const eyebrow = mine ? (centerOn ? "MY PATH" : myPr ? `SERVES ${myPr.value.toUpperCase()}${myPr.stat?` · ${statLabel(myPr.stat).toUpperCase()}`:""}` : "VALUE")
     : centerOn ? "THE CENTER" : !selNode.real ? "COMING · LOCKED" : selLocked ? "LOCKED" : st.chosen ? (st.complete?`MASTERY LVL ${st.level}`:`PATH ${st.done}/${st.total}`) : "OPEN";
-  const sheetTitle = mine ? (centerOn ? story.name : selNode.name) : (centerOn ? "Presence" : selNode.name);
+  const sheetTitle = mine ? (centerOn ? story.name : selNode.name) : (centerOn ? "Presence" : selMystery ? "?" : selNode.name);
   const sheetBlurb = mine ? (centerOn ? (story.ideal || "The name your values point to.") : myPr ? `${modeLabel(myPr.mode)} · ${myPr.unit==="minutes"?"tracked by time":`counted in ${myPr.unit}`}` : `${story.practices.filter(p=>p.value===selNode.value).length||"No"} practice${story.practices.filter(p=>p.value===selNode.value).length===1?"":"s"} serve ${selNode.name}.`)
-    : centerOn ? "Every path draws on these four, practiced through Sit, Stand and Walk." : selNode.blurb;
+    : centerOn ? "Every path draws on these four, practiced through Sit, Stand and Walk." : selMystery ? "A path not yet revealed." : selNode.blurb;
 
   return (
     <div ref={wrapRef} style={{position:"relative",height:"100%",minHeight:"420px"}}>
       <style>{`@keyframes ascStarSpin{to{transform:rotate(360deg)}} @media (prefers-reduced-motion: reduce){.asc-star-lane{animation:none !important}}`}</style>
+      {tplOpen && (()=>{
+        const forged=!!(forgedStory && forgedStory.name && forgedStory.values?.length);
+        const own=classState?.mapTemplates||[];
+        const activeId = customTpl ? customTpl.id : (mode==="mine" && forged ? "mine" : "classes");
+        const realIds=CLASSES.map(c=>c.id);
+        const pick=id=>{ onPickTemplate(id); onPathSelect("center"); setView(null); setTplOpen(false); setTplEdit(null); };
+        const act={background:"none",border:"none",padding:"4px 0",cursor:"pointer",...dsp("8.5px",C.muted,400,"0.14em")};
+        const inp={boxSizing:"border-box",background:C.bg,border:`0.5px solid ${C.bord}`,borderRadius:"6px",padding:"7px 9px",...body("13.5px",C.cream)};
+        const dup=src=>onClassState(cs=>duplicateTemplate(cs, src).cs);
+        const dots=cols=>(<div style={{display:"flex",gap:"5px",marginTop:"9px"}}>{[C.gold,...cols].map((c,i)=><span key={i} style={{width:"9px",height:"9px",borderRadius:"50%",background:c}}/>)}</div>);
+        const shell=(key,on,head,actions,extra)=>(
+          <div key={key} style={{border:`${on?1:0.5}px solid ${on?C.gold:C.bord}`,borderRadius:"10px",padding:"13px 14px 9px",marginBottom:"10px",background:C.surf}}>
+            {head}
+            <div style={{display:"flex",gap:"18px",marginTop:"8px",paddingTop:"6px",borderTop:`0.5px solid ${C.bord}`}}>{actions}</div>
+            {extra}
+          </div>);
+        const head=(id,name,on,desc,cols,note)=>(
+          <button aria-pressed={on} onClick={()=>pick(id)} style={{display:"block",width:"100%",textAlign:"left",cursor:"pointer",background:"none",border:"none",padding:0}}>
+            <span style={{...body("15.5px",C.cream)}}>{name}</span>
+            {on && <span style={{...dsp("8px",C.gold,400,"0.16em"),marginLeft:"8px"}}>IN USE</span>}
+            {note && <span style={{...dsp("8px",C.muted,400,"0.16em"),marginLeft:"8px"}}>{note}</span>}
+            <div style={{...body("12.5px",C.muted),marginTop:"4px",lineHeight:1.45}}>{desc}</div>
+            {dots(cols)}
+          </button>);
+        return (
+          <div style={{position:"absolute",inset:0,zIndex:20,background:C.bg,overflowY:"auto",padding:"14px 20px 110px"}}>
+            <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:"14px"}}>
+              <div><div style={{...dsp("8px",C.muted,400,"0.24em")}}>CULTIVATE</div><div style={{...dsp("15px",C.cream,400,"0.14em"),marginTop:"3px"}}>TEMPLATES</div></div>
+              <button onClick={()=>{ setTplOpen(false); setTplEdit(null); }} style={{padding:"6px 12px",borderRadius:"14px",cursor:"pointer",background:"none",border:`0.5px solid ${C.bord}`,...dsp("8.5px",C.muted,400,"0.14em")}}>DONE</button>
+            </div>
+
+            {/* Classes — built in; can be copied, not edited or deleted */}
+            {shell("classes", activeId==="classes",
+              head("classes","Classes",activeId==="classes","The class map. Presence at the centre, each class unlocked in turn.",CLASSES.map(c=>AC(c.accent))),
+              <button onClick={()=>dup({kind:"classes",name:"Classes",nodes:null})} style={act}>DUPLICATE</button>)}
+
+            {/* My Path — the forged story; edited in the Forge */}
+            {forged ? shell("mine", activeId==="mine",
+              head("mine","My Path",activeId==="mine",`${forgedStory.name}. Your values and the practices that serve them.`,forgedStory.values.map(()=>"#d8783c")),
+              <>
+                <button onClick={()=>{ setTplOpen(false); onOpenForge(); }} style={act}>EDIT</button>
+                <button onClick={()=>dup({kind:"mine",story:forgedStory})} style={act}>DUPLICATE</button>
+              </>)
+            : (<button onClick={()=>{ setTplOpen(false); onOpenForge(); }} style={{display:"block",width:"100%",textAlign:"left",cursor:"pointer",border:`0.5px solid ${C.bord}`,borderRadius:"10px",padding:"13px 14px",marginBottom:"10px",background:C.surf,opacity:0.75}}>
+                <span style={{...body("15.5px",C.cream)}}>My Path</span><span style={{...dsp("8px",C.muted,400,"0.16em"),marginLeft:"8px"}}>FORGE FIRST ›</span>
+                <div style={{...body("12.5px",C.muted),marginTop:"4px",lineHeight:1.45}}>Your own map, built from your values. Forge your story to open it.</div>
+              </button>)}
+
+            {/* The player's own templates */}
+            {own.map(t=>{ const on=activeId===t.id, ed=tplEdit===t.id, isMine=t.kind==="mine";
+              const st=isMine ? migrateStory(t.story) : null;
+              const nodes=isMine ? [] : (t.nodes||[]);
+              const upd=fn=>onClassState(cs=>patchTemplate(cs, t.id, fn));
+              const updStory=fn=>upd(x=>({...x, story:fn(migrateStory(x.story))}));
+              return shell(t.id, on,
+                head(t.id, tplName(t), on,
+                  isMine ? `${st.values.length} value${st.values.length===1?"":"s"} · ${st.practices.length} practice${st.practices.length===1?"":"s"}` : `Class map · ${nodes.length} class${nodes.length===1?"":"es"} shown`,
+                  isMine ? st.values.map(()=>"#d8783c") : nodes.map(id=>AC(CLASS_BY_ID[id]?.accent)||C.dim)),
+                <>
+                  <button onClick={()=>setTplEdit(ed?null:t.id)} style={{...act,color:ed?C.gold:C.muted}}>{ed?"CLOSE":"EDIT"}</button>
+                  <button onClick={()=>dup(t)} style={act}>DUPLICATE</button>
+                  <button onClick={()=>{ if(on) onPickTemplate("classes"); onClassState(cs=>({...cs, mapTemplates:(cs.mapTemplates||[]).filter(x=>x.id!==t.id)})); if(ed) setTplEdit(null); }} style={act}>DELETE</button>
+                </>,
+                ed && (
+                  <div style={{padding:"10px 0 6px"}}>
+                    <div style={{...dsp("8px",C.muted,400,"0.2em"),marginBottom:"5px"}}>NAME</div>
+                    <input value={isMine?st.name:(t.name||"")} maxLength={28}
+                      onChange={e=>{ const v=e.target.value; isMine ? updStory(x=>({...x,name:v})) : upd(x=>({...x,name:v})); }}
+                      style={{...inp,width:"100%",marginBottom:"12px"}}/>
+                    {isMine ? (<>
+                      <div style={{...dsp("8px",C.muted,400,"0.2em"),marginBottom:"6px"}}>VALUES · UP TO {STORY_MAX_VALUES}</div>
+                      <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"8px"}}>
+                        {st.values.map(v=>(
+                          <button key={v} aria-label={`Remove ${v}`} onClick={()=>updStory(x=>({...x, values:x.values.filter(y=>y!==v), practices:x.practices.filter(p=>p.value!==v)}))}
+                            style={{padding:"5px 10px",borderRadius:"6px",cursor:"pointer",background:"none",border:`0.5px solid #d8783c`,...dsp("8.5px",C.cream,400,"0.1em")}}>{v.toUpperCase()} ✕</button>))}
+                        {st.values.length===0 && <span style={{...body("12px",C.dim),fontStyle:"italic"}}>No values yet.</span>}
+                      </div>
+                      {st.values.length<STORY_MAX_VALUES && (
+                        <div style={{display:"flex",gap:"8px"}}>
+                          <input value={tplNewVal} onChange={e=>setTplNewVal(e.target.value)} placeholder="Add a value" maxLength={20} style={{...inp,flex:1,minWidth:0}}/>
+                          <button onClick={()=>{ const v=tplNewVal.trim(); if(!v || st.values.some(y=>y.toLowerCase()===v.toLowerCase())) return; updStory(x=>({...x, values:[...x.values, v]})); setTplNewVal(""); }}
+                            style={{padding:"7px 14px",borderRadius:"6px",cursor:"pointer",background:"none",border:`0.5px solid ${C.bord}`,...dsp("9px",C.gold,400,"0.14em")}}>ADD</button>
+                        </div>)}
+                      <div style={{...body("11.5px",C.dim),fontStyle:"italic",marginTop:"8px"}}>Removing a value removes its practices. Add practices on the map, under each value.</div>
+                    </>) : (<>
+                      <div style={{...dsp("8px",C.muted,400,"0.2em"),marginBottom:"6px"}}>CLASSES SHOWN</div>
+                      <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+                        {realIds.map(id=>{ const sel=nodes.includes(id), ac=AC(CLASS_BY_ID[id]?.accent)||C.sageB; return (
+                          <button key={id} aria-pressed={sel} onClick={()=>upd(x=>{ const a=x.nodes||[]; return {...x, nodes: a.includes(id)?a.filter(y=>y!==id):realIds.filter(y=>a.includes(y)||y===id)}; })}
+                            style={{padding:"5px 10px",borderRadius:"6px",cursor:"pointer",background:sel?`${ac}22`:"none",border:`0.5px solid ${sel?ac:C.bord}`,...dsp("8.5px",sel?C.cream:C.muted,400,"0.1em")}}>{(CLASS_BY_ID[id]?.name||id).toUpperCase()}</button>); })}
+                      </div>
+                      <div style={{...body("11.5px",C.dim),fontStyle:"italic",marginTop:"8px"}}>This only changes what the map shows. Classes still unlock the usual way.</div>
+                    </>)}
+                  </div>));
+            })}
+
+            {/* New slot */}
+            <button onClick={()=>{ const id=tplId(); onClassState(cs=>({...cs, mapTemplates:[...(cs.mapTemplates||[]), {id, kind:"mine", story:{...freshStory(), name:"New map"}}]})); setTplEdit(id); }}
+              style={{display:"block",width:"100%",padding:"18px 14px",borderRadius:"10px",cursor:"pointer",background:"none",border:`0.5px dashed ${C.gold}`,...dsp("9.5px",C.gold,400,"0.16em")}}>+ NEW TEMPLATE</button>
+          </div>
+        );
+      })()}
       {/* Map */}
       <div onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onWheel={onWheel}
         style={{position:"absolute",left:0,top:0,width:"100%",height:`${mapH}px`,overflow:"hidden",touchAction:"none",cursor:"grab"}}>
@@ -4208,12 +4397,11 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
             </div>
           );
         })()}
-        {hasStory && (
-          <div role="group" aria-label="Map" onPointerDown={e=>e.stopPropagation()} style={{position:"absolute",right:"14px",top:"14px",zIndex:4,display:"flex",border:`0.5px solid ${C.bord}`,borderRadius:"16px",overflow:"hidden",background:`linear-gradient(${C.surf},${C.surf}), ${C.bg}`}}>
-            {[["paths","Paths"],["mine","My Path"]].map(([id,l])=>{ const on=(id==="mine")===mine; return (
-              <button key={id} aria-pressed={on} onClick={()=>onMode(id)} style={{padding:"6px 12px",border:"none",cursor:"pointer",background:on?`rgba(${C.goldRGB},0.16)`:"transparent",...dsp("8.5px",on?C.gold:C.muted,400,"0.14em")}}>{l.toUpperCase()}</button>); })}
-          </div>
-        )}
+        {/* Template switcher: names the map in use; opens the Templates screen. */}
+        <button onPointerDown={e=>e.stopPropagation()} onClick={()=>setTplOpen(true)} aria-label="Map templates"
+          style={{position:"absolute",right:"14px",top:"14px",zIndex:4,padding:"6px 13px",borderRadius:"16px",cursor:"pointer",border:`0.5px solid ${C.bord}`,background:`linear-gradient(${C.surf},${C.surf}), ${C.bg}`,maxWidth:"170px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",...dsp("8.5px",C.gold,400,"0.14em")}}>
+          {(customTpl ? tplName(customTpl) : mine ? "My Path" : "Classes").toUpperCase()} ▾
+        </button>
         <svg aria-hidden="true" width={vw} height={mapH} viewBox={`0 0 ${vw} ${mapH}`} style={{position:"absolute",left:0,top:0,fill:"none",strokeLinecap:"round",pointerEvents:"none"}}>
           <path d={rings} stroke={INK(0.14)} strokeWidth="1" strokeDasharray="2 6"/>
           <path d={solid} stroke={INK(0.3)} strokeWidth="1.4"/>
@@ -4254,6 +4442,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
           const on=sel===n.id;
           const chosen=(classState?.chosenClasses||[]).includes(n.id);
           const locked=!openIds.has(n.id);
+          const mystery = cmState[n.id]==="mystery";
           const bs=n.real ? classBadgeState(n.id, classState) : null;
           const mastered=!!(bs && bs.chosen && bs.complete);
           /* The three foundation paths are grey (locked) until the Crucible is complete, then take their color. */
@@ -4264,7 +4453,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
           const ringGrey = !locked && !dormant && chosen && !mastered;
           const edge = ringGrey ? C.muted : ac;
           return (
-            <button key={n.id} type="button" aria-pressed={on} aria-label={`${n.name}${locked?", locked":dormant?", not yet chosen":mastered?`, mastery level ${bs.level}`:""}`} onClick={()=>{ onSelect(n.id); glide(n.pos.x,n.pos.y); }}
+            <button key={n.id} type="button" aria-pressed={on} aria-label={`${mystery?"Undiscovered path":n.name}${locked?", locked":dormant?", not yet chosen":mastered?`, mastery level ${bs.level}`:""}`} onClick={()=>{ onSelect(n.id); glide(n.pos.x,n.pos.y); }}
               style={{position:"absolute",left:X(n.pos.x)-44,top:Y(n.pos.y)-24,width:88,padding:0,background:"none",border:0,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
               <div style={{position:"relative",zIndex:2,width:48,height:48,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",color:ac,
                 border:`${chosen?2:1.5}px ${locked||(n.parents&&!chosen)?"dashed":"solid"} ${edge}`,
@@ -4279,10 +4468,11 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
                     <circle cx="28" cy="28" r={R} fill="none" stroke={C.bord} strokeWidth={SW} opacity="0.7"/>
                     {fill>0 && <circle cx="28" cy="28" r={R} fill="none" stroke={ac} strokeWidth={SW} strokeDasharray={`${Cc*fill} ${Cc}`} strokeLinecap="butt"/>}
                   </svg>); })()}
-                {CM_ICONS[n.id] ? <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={CM_ICONS[n.id]}/></svg>
+                {mystery ? <span style={{...dsp("19px",ac)}}>?</span>
+                  : CM_ICONS[n.id] ? <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={CM_ICONS[n.id]}/></svg>
                   : <span style={{...dsp("19px",ac)}}>{n.name[0]}</span>}
               </div>
-              <span style={{...body("12.5px",on?C.cream:locked?C.dim:C.muted),lineHeight:"14px",textShadow:`0 0 6px ${C.bg}`,marginTop:Math.max(0,starReach-27)}}>{n.name}</span>
+              <span style={{...body("12.5px",on?C.cream:locked?C.dim:C.muted),lineHeight:"14px",textShadow:`0 0 6px ${C.bg}`,marginTop:Math.max(0,starReach-27)}}>{mystery?"?":n.name}</span>
             </button>
           );
         })}
@@ -4312,7 +4502,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
           {mine ? (
             <MyPathSheetBody story={story} node={selNode} sessions={sessions} modes={practiceModes}
               onPick={id=>{ onSelect(id); const nd=myNodes.find(m=>m.id===id); if(nd) glide(nd.pos.x,nd.pos.y); }}
-              onStoryChange={onStoryChange} onOpenForge={onOpenForge}/>
+              onStoryChange={onStoryChange} onOpenForge={customMine ? ()=>{ setTplEdit(customTpl.id); setTplOpen(true); } : onOpenForge} forgeLabel={customMine?"EDIT MAP ›":"THE FORGE ›"}/>
           ) : centerOn ? (
             <div>
               {["Align","Relax","Breath","Attention"].map(x=>(
@@ -8794,9 +8984,21 @@ export default function AscendApp(){
   const updateWay = (fn) => setWay(w=>migrateWay(typeof fn==="function"?fn(w):fn));
   const updateStory = fn => updateWay(w=>({...w, story:migrateStory(fn(migrateStory(w.story)))}));
   const story = storyForged(way) ? way.story : null;
-  const cultMode = cultModeRaw || (story ? "mine" : "paths");
-  const practiceActivities = (way?.story?.practices||[]).map(practiceActivity);
-  const myPractice = cultMode==="mine" && story && mySel.startsWith("p:") ? story.practices.find(p=>`p:${p.id}`===mySel) : null;
+  /* The map template in use: a custom one, or a built-in (Classes / My Path). */
+  const customTpls = classState?.mapTemplates || [];
+  const customTpl = customTpls.find(t=>t.id===classState?.mapTemplateId) || null;
+  const cultMode = customTpl ? (customTpl.kind==="mine"?"mine":"paths") : (cultModeRaw || (story ? "mine" : "paths"));
+  const mapStory = customTpl?.kind==="mine" ? migrateStory(customTpl.story) : story;
+  const updateMapStory = customTpl?.kind==="mine"
+    ? fn=>setClassState(cs=>patchTemplate(cs, customTpl.id, t=>({...t, story:migrateStory(fn(migrateStory(t.story)))})))
+    : updateStory;
+  const pickTemplate = id => {
+    if(id==="classes" || id==="mine"){ setClassState(cs=>({...cs, mapTemplateId:null})); setCultMode(id==="mine"?"mine":"paths"); }
+    else setClassState(cs=>({...cs, mapTemplateId:id}));
+    setMySel("center");
+  };
+  const practiceActivities = [...(way?.story?.practices||[]), ...customTpls.filter(t=>t.kind==="mine").flatMap(t=>t.story?.practices||[])].map(practiceActivity);
+  const myPractice = cultMode==="mine" && mapStory && mySel.startsWith("p:") ? (mapStory.practices||[]).find(p=>`p:${p.id}`===mySel) : null;
   const awardWayXP = (stat) => setCh(p=>{
     const st={...p.stats};
     if(stat && st[stat]!==undefined) st[stat]=(st[stat]||0)+2;
@@ -9299,7 +9501,7 @@ export default function AscendApp(){
 
         {/* content — all tabs stay mounted so internal state (quest screen, library entry) persists */}
         <div style={{flex:1,overflowY:"auto",paddingBottom:"calc(118px + env(safe-area-inset-bottom))"}}>
-          <TabPane active={tab==="character"}><CharacterTab ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities} classState={classState} classGateOpen={classGateOpen} onOpenPath={cid=>{setPathView(cid);setScr("path");}}/></TabPane>
+          <TabPane active={tab==="character"}><CharacterTab active={tab==="character"} ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities} classState={classState} classGateOpen={classGateOpen} onOpenPath={cid=>{setPathView(cid);setScr("path");}}/></TabPane>
           <TabPane active={tab==="quest"}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnchFull(true);setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
             classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid,cid)=>setOpenClassQuest({classId:cid||classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}
             onOpenMyPath={()=>{ setCultMode("mine"); setMySel("center"); setTab("cultivate"); }} lineReq={questLineReq} setClassState={setClassState}/></TabPane>
@@ -9322,7 +9524,7 @@ export default function AscendApp(){
             activities={activities} onRemoveActivity={deleteActivity}
             onAddCategoryItem={(f,{name,unit})=>setActivities(p=>p.some(a=>a.name.toLowerCase()===name.toLowerCase()) ? p
               : [...p,{id:`act_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, name, stat:f.stat, practiceType:f.practiceType||"train", unit, category:f.id, count:0}])}
-            story={story} mode={cultMode} onMode={setCultMode} mySel={mySel} onMySel={setMySel} onStoryChange={updateStory}
+            story={mapStory} forgedStory={story} customTpl={customTpl} onPickTemplate={pickTemplate} onClassState={setClassState} mode={cultMode} onMode={setCultMode} mySel={mySel} onMySel={setMySel} onStoryChange={updateMapStory}
             practiceModes={["sitting","standing","walking",...unlockedClassPracticeTypes.filter(t=>t==="train"||t==="restore")]}
             onOpenForge={()=>{ setTab("quest"); setQuestLineReq({line:"forge", n:Date.now()}); }}/></TabPane>
           <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones} savedPos={lastKnownPos} onLocationConfirmed={setLastKnownPos} active={tab==="map"}
@@ -9335,7 +9537,7 @@ export default function AscendApp(){
             /* Away from Cultivate, the button brings you home to the map.
                On the map, it starts the practice the map has selected. */
             if(tab!=="cultivate" || scr){ setScr(null); setAnch(false); setTab("cultivate"); return; }
-            if(cultMode==="mine" && story){
+            if(cultMode==="mine" && mapStory){
               setAnchStartType(myPractice ? (myPractice.mode||"sitting") : null);
               setSessionPath(myPractice ? myPractice.name : null);
               setSessionClass(null);
