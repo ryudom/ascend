@@ -309,6 +309,48 @@ CLASSES.push({
   ],
 });
 
+CLASSES.push({
+  id: "herbalist",
+  name: "Herbalist",
+  verb: "Brew",
+  blurb: "Cultivate knowledge of plants: gathering, preparing, and taking what restores.",
+  primaryStats: ["wis", "vit", "hrt"],
+  accent: "#A8C66C",
+  trial: [
+    { type: "standing", label: "Stand", minutes: 3, stat: "vit" },
+    { type: "sitting",  label: "Sit",   minutes: 3, stat: "wis" },
+    { type: "walking",  label: "Walk",  minutes: 3, stat: "hrt" },
+  ],
+});
+
+CLASSES.push({
+  id: "wizard",
+  name: "Wizard",
+  verb: "Manifest",
+  blurb: "Understand how reality works. Will it into form. Surrender it to Source.",
+  primaryStats: ["wis", "wil", "ali"],
+  accent: "#9FB4F2",
+  trial: [
+    { type: "standing", label: "Stand", minutes: 3, stat: "wil" },
+    { type: "sitting",  label: "Sit",   minutes: 3, stat: "ali" },
+    { type: "walking",  label: "Walk",  minutes: 3, stat: "wis" },
+  ],
+});
+
+CLASSES.push({
+  id: "sword",
+  name: "Sword Saint",
+  verb: "Wield",
+  blurb: "Feel the Divine in yourself, and let it move through the sword.",
+  primaryStats: ["ali", "hrt", "str"],
+  accent: "#8FD0D6",
+  /* Ten minutes each, with all three centers selected afterward. */
+  trial: [
+    { type: "sitting",  label: "Sit",   minutes: 10, stat: "ali", centers: ["belly","chest","head"] },
+    { type: "standing", label: "Stand", minutes: 10, stat: "str", centers: ["belly","chest","head"] },
+  ],
+});
+
 const CLASS_BY_ID = Object.fromEntries(CLASSES.map(c => [c.id, c]));
 
 /* ── QUEST CHAINS ──────────────────────────────────────────────────────────
@@ -694,6 +736,301 @@ const QUEST_CHAINS = {
       unlocks: [{ kind: "activity", practiceType: "train", name: "Martial Flow", stat: "wil", target: 15, unit: "minutes" }],
     },
   ],
+  herbalist: [
+    {
+      id: "he_trial",
+      title: "Herbalist Trial",
+      isTrial: true,
+      myth: "You stand at the edge of the green world. Before you gather anything, you must be a place where it can land.\n\nAs you practice each form, bring your attention to a specific place. On the review screen, after the timer, choose that center as where your awareness landed.\n\nStand, and rest your attention in the feet and the ground beneath them: where every plant begins.\nSit, and bring it to the belly: the center that receives.\nWalk, and let it settle in the chest: the heart, where care becomes action.\n\nThree forms. Three centers. Gather, prepare, consume. Walk through it, and the Herbalist's way opens.",
+      libId: "lib_he_trial",
+      criteria: "Complete the Herbalist Foundation Trial: 3-min Stand, Sit, Walk.",
+      unlocks: [],
+    },
+    {
+      id: "he_identify",
+      title: "Know It",
+      myth: "Before you gather, you must know.\n\nFind three plants near you and learn their names. Not from a photo: the plant itself, in front of you.\n\nIdentify unlocked. Find it under Gather.",
+      libId: "lib_he_identify",
+      criteria: "Identify 3 plants in person.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Identify", stat: "wis", target: 3, unit: "plants" }],
+    },
+    {
+      id: "he_infuse",
+      title: "Infuse",
+      myth: "Hot water. A plant. Patience.\n\nMake ginger tea: slice it, cover it with hot water, let it steep. Drink it slowly and notice what it does.\n\nMake three. Infuse unlocked. Find it under Prepare.",
+      libId: "lib_he_infuse",
+      criteria: "Make 3 infusions.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Infuse", stat: "hrt", target: 3, unit: "preparations" }],
+    },
+    {
+      id: "he_tea",
+      title: "Sit with It",
+      myth: "Some plants wake you without hurrying you.\n\nMake green tea. Drink it, then sit for ten minutes. Notice what the tea did, and what it didn't.\n\nSit with Tea unlocked. Find it under Consume.",
+      libId: "lib_he_greentea",
+      criteria: "Accumulate 10 minutes of Sit with Tea.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Sit with Tea", stat: "vit", target: 10, unit: "minutes" }],
+    },
+    {
+      id: "he_decoct",
+      title: "Decoct",
+      myth: "Some plants give nothing to a quick steep. Roots, bark and mushrooms must be simmered.\n\nGather turkey tail if you know it, or source it well. Simmer it low and slow, then drink what it gave.\n\nMake two. Decoct unlocked. Find it under Prepare.",
+      libId: "lib_he_decoct",
+      criteria: "Make 2 decoctions.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Decoct", stat: "hrt", target: 2, unit: "preparations" }],
+    },
+    {
+      id: "he_cacao",
+      title: "Cacao",
+      myth: "Not chocolate. The seed, older than the bar.\n\nPrepare real cacao as a warm drink. Hold the cup. Drink it slowly, for ten minutes, with nothing else asking for you.\n\nTaste unlocked. Find it under Consume.",
+      libId: "lib_he_cacao",
+      criteria: "Accumulate 10 minutes of Taste.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Taste", stat: "vit", target: 10, unit: "minutes" }],
+    },
+    {
+      id: "he_blend",
+      title: "Blend",
+      isCapstone: true,
+      myth: "Two plants in one cup. Turmeric and ginger, together. Then a third, of your own choosing.\n\nNotice how they change each other.\n\nMake three blends. Blend unlocked. Find it under Prepare.",
+      libId: "lib_he_blend",
+      criteria: "Make 3 blends.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Blend", stat: "wis", target: 3, unit: "preparations" }],
+    },
+    {
+      id: "he_settle", title: "Settle", minMastery: 2,
+      myth: "A stomach that needs settling. Choose your herbs for a reason.\n\nBlend peppermint, fennel and chamomile, or a mix of your own, and notice what changes.\n\nSettle unlocked. Find it under Prepare.",
+      libId: "lib_he_settle", criteria: "Make 3 blends to settle digestion.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Settle", stat: "hrt", target: 3, unit: "preparations" }],
+    },
+    {
+      id: "he_steady", title: "Steady", minMastery: 3,
+      myth: "You have drunk the tea and sat. Now choose the herb for the sit you want: settled, clear, or both.\n\nPrepare it, then sit for twenty minutes.\n\nHerbal Sit unlocked. Find it under Consume.",
+      libId: "lib_he_steady", criteria: "Accumulate 20 minutes of Herbal Sit.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Herbal Sit", stat: "wis", target: 20, unit: "minutes" }],
+    },
+    {
+      id: "he_syrup", title: "Sweeten", minMastery: 4,
+      myth: "A strong decoction, reduced, and kept in honey.\n\nMake a warming syrup you can reach for in the cold months.\n\nMake two. Syrup unlocked. Find it under Prepare.",
+      libId: "lib_he_syrup", criteria: "Make 2 syrups.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Syrup", stat: "hrt", target: 2, unit: "preparations" }],
+    },
+    {
+      id: "he_tincture", title: "Extract", minMastery: 5,
+      myth: "Time does what heat cannot.\n\nCover a plant you know well with spirit, and wait.\n\nMake one. Tincture unlocked. Find it under Prepare.",
+      libId: "lib_he_tincture", criteria: "Make 1 tincture.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Tincture", stat: "wil", target: 1, unit: "preparations" }],
+    },
+    {
+      id: "he_tonic", title: "Tonic", minMastery: 6,
+      myth: "Some plants work like water on stone.\n\nPrepare a tonic and take it each day for a week. Notice what is slow, and what is lasting.\n\nTonic unlocked. Find it under Prepare.",
+      libId: "lib_he_tonic", criteria: "Prepare and take a tonic on 7 occasions.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Tonic", stat: "vit", target: 7, unit: "preparations" }],
+    },
+    {
+      id: "he_concentrate", title: "Concentrate", minMastery: 7,
+      myth: "Strength is not wisdom.\n\nMake one concentrated preparation, and treat it with more respect than all the others.\n\nMake one. Concentrate unlocked. Find it under Prepare.",
+      libId: "lib_he_concentrate", criteria: "Make 1 concentrated preparation.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Concentrate", stat: "wil", target: 1, unit: "preparations" }],
+    },
+    {
+      id: "he_formula", title: "Formulate", minMastery: 8,
+      myth: "A formula is a question the plants can answer.\n\nName what you want. Choose one plant to lead, one to support, one to bring the rest together.\n\nMake three. Formula unlocked. Find it under Prepare.",
+      libId: "lib_he_formula", criteria: "Make 3 formulas, each for a stated aim.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Formula", stat: "wis", target: 3, unit: "preparations" }],
+    },
+    {
+      id: "he_ferment", title: "Ferment", minMastery: 9,
+      myth: "Living things change what they touch.\n\nStart a ginger bug, feed it, and let it make something new.\n\nMake two. Ferment unlocked. Find it under Prepare.",
+      libId: "lib_he_ferment", criteria: "Make 2 ferments.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Ferment", stat: "hrt", target: 2, unit: "preparations" }],
+    },
+    {
+      id: "he_alchemy", title: "The Alchemist", minMastery: 10,
+      myth: "Transformation is the oldest craft, and it has two sides.\n\nOuter alchemy works with substances. Inner alchemy works with you.\n\nFind a teacher, or follow the questions yourself. Come back when you have begun.",
+      libId: "lib_he_alchemy", criteria: "Begin your study of alchemy, inner and outer, then mark it complete.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Alchemy", stat: "wis" }],
+    },
+  ],
+  wizard: [
+    {
+      id: "wz_trial",
+      title: "Wizard Trial",
+      isTrial: true,
+      myth: "Thought becomes form through three doors: understanding, will, and surrender.\n\nAs you practice each form, bring your attention to a specific place. On the review screen, after the timer, choose that center as where your awareness landed.\n\nStand, and gather your attention in the belly: where will is held.\nSit, and let it rise to the crown: where you open to Source.\nWalk, and rest it at the brow: where you see how things move.\n\nThree forms. Three centers. Walk through it, and the Wizard's way opens.",
+      libId: "lib_wz_trial",
+      criteria: "Complete the Wizard Foundation Trial: 3-min Stand, Sit, Walk.",
+      unlocks: [],
+    },
+    {
+      id: "wz_why",
+      title: "Why",
+      myth: "Choose one ordinary thing. Fire, a seed, a thought.\n\nAsk why. Then ask why again, and keep going, until you reach what no one fully knows.\n\nStudy unlocked. Find it under Understand.",
+      libId: "lib_wz_why",
+      criteria: "Accumulate 20 minutes of Study.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Study", stat: "wis", target: 20, unit: "minutes" }],
+    },
+    {
+      id: "wz_pattern",
+      title: "As Above, So Below",
+      myth: "The same shapes return at every scale.\n\nFind one pattern that repeats, in a shell and a galaxy, a river and a vein, and study it in both.\n\nPattern unlocked. Find it under Understand.",
+      libId: "lib_wz_pattern",
+      criteria: "Accumulate 20 minutes of Pattern.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Pattern", stat: "wis", target: 20, unit: "minutes" }],
+    },
+    {
+      id: "wz_vision",
+      title: "Vision",
+      myth: "What you cannot see, you cannot build.\n\nMake a vision board of what you truly want. A few images, no more. Put it where you will see it every day.\n\nVision Board unlocked. Find it under Will.",
+      libId: "lib_wz_vision",
+      criteria: "Make your vision board, then mark it complete.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Vision Board", stat: "wil" }],
+    },
+    {
+      id: "wz_intend",
+      title: "Intention",
+      myth: "Choose one thing from your board. Small, clear, real.\n\nAct on it every day for a week. Will is not wanting. Will is the step.\n\nIntend unlocked. Find it under Will.",
+      libId: "lib_wz_intend",
+      criteria: "Take 7 actions toward one intention.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Intend", stat: "wil", target: 7, unit: "actions" }],
+    },
+    {
+      id: "wz_surrender",
+      title: "Surrender",
+      myth: "You have seen it. You have acted. Now let it go.\n\nSit with your intention and offer it to Source. Thy will, in whatever words are yours.\n\nSurrender unlocked.",
+      libId: "lib_wz_surrender",
+      criteria: "Accumulate 20 minutes of Surrender.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Surrender", stat: "ali", target: 20, unit: "minutes" }],
+    },
+    {
+      id: "wz_ledger",
+      title: "The Ledger",
+      myth: "The Wizard learns from what happens, not from what was hoped.\n\nWrite down what you intend. Come back when something moves, whether in a week or in ten years. Some things take a decade to fall into place.\n\nOpen three intentions.",
+      libId: "lib_wz_ledger",
+      criteria: "Open 3 intentions in the Ledger.",
+      unlocks: [{ kind: "ledger", target: 3 }],
+    },
+    {
+      id: "wz_work",
+      title: "The Work",
+      isCapstone: true,
+      myth: "Bring one thing from thought into form.\n\nUnderstand what it takes. Will it. Surrender it. Finish it. A shelf, a garden bed, a letter sent, something broken made whole.\n\nWhen it exists, mark it complete.",
+      libId: "lib_wz_work",
+      criteria: "Bring one thing into form, then mark it complete.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "The Work", stat: "wil" }],
+    },
+    {
+      id: "wz_dream", title: "Dream", minMastery: 2,
+      myth: "In dreams, thought becomes form at once.\n\nKeep a dream journal. Check, through the day, whether you are dreaming. One night, you will know.",
+      libId: "lib_wz_dream", criteria: "Keep a dream journal and practice reality checks, then mark it complete.", unlocks: [],
+    },
+    {
+      id: "wz_matter", title: "Matter and Energy", minMastery: 3,
+      myth: "What is a thing made of?\n\nStudy what the sciences say, and where they stop.",
+      libId: "lib_wz_matter", criteria: "Study matter and energy, then mark it complete.", unlocks: [],
+    },
+    {
+      id: "wz_season", title: "A Season", minMastery: 4,
+      myth: "Hold one intention for a season.\n\nOpen it in the Ledger. Act on it every week. Surrender it every week.",
+      libId: "lib_wz_season", criteria: "Hold one intention for a season, then mark it complete.", unlocks: [],
+    },
+    {
+      id: "wz_mind", title: "Mind", minMastery: 5,
+      myth: "The instrument studies itself.\n\nWhat is a thought? What is awareness? Study what is known, and sit with what is not.",
+      libId: "lib_wz_mind", criteria: "Study consciousness, then mark it complete.", unlocks: [],
+    },
+    {
+      id: "wz_wuwei", title: "Wu Wei", minMastery: 6,
+      myth: "Surrender is not only for the sit.\n\nDo the work fully, and let go of its fruit while your hands are still moving.",
+      libId: "lib_wz_wuwei", criteria: "Practice surrender in action, then mark it complete.", unlocks: [],
+    },
+    {
+      id: "wz_hermetic", title: "The Hermetic Principles", minMastery: 7,
+      myth: "An old map of how reality works.\n\nStudy it. Test it against your life. Find a teacher, or follow the questions yourself.",
+      libId: "lib_wz_hermetic", criteria: "Study the Hermetic principles, then mark it complete.", unlocks: [],
+    },
+    {
+      id: "wz_maps", title: "The Maps", minMastery: 8,
+      myth: "Every tradition drew the territory.\n\nStudy two of their maps side by side. Notice where they agree.",
+      libId: "lib_wz_maps", criteria: "Study two maps of reality, then mark it complete.", unlocks: [],
+    },
+    {
+      id: "wz_year", title: "A Year", minMastery: 9,
+      myth: "Hold one intention for a year.\n\nUnderstand it. Will it. Surrender it, again and again.",
+      libId: "lib_wz_year", criteria: "Hold one intention for a year, then mark it complete.", unlocks: [],
+    },
+    {
+      id: "wz_onewill", title: "One Will", minMastery: 10,
+      myth: "There was never your will and Source's will.\n\nThere is one will, moving through you.",
+      libId: "lib_wz_onewill", criteria: "Mark it complete when you are ready.", unlocks: [],
+    },
+  ],
+  sword: [
+    {
+      id: "ss_trial",
+      title: "Sword Saint Trial",
+      isTrial: true,
+      myth: "Before the sword, the one who holds it.\n\nSit for ten minutes. Stand for ten minutes. In each, bring your attention to all three centers at once: the belly, the heart, the head. Let them line up, one above the other, until they feel like a single column.\n\nAfter each session, choose all three centers on the review screen.\n\nWalk through it, and the Sword Saint's way opens.",
+      libId: "lib_ss_trial",
+      criteria: "Complete the Sword Saint Trial: 10-min Sit and 10-min Stand, with belly, heart and head.",
+      unlocks: [],
+    },
+    {
+      id: "ss_sense",
+      title: "Divine Sense",
+      myth: "Line up the three centers. Then let go of effort.\n\nLet will rest, and let attention sink into the belly. Feel what is there when you stop pushing. Feel the Divine in yourself.\n\nDivine Sense unlocked. Find it under Divine Sword.",
+      libId: "lib_ss_sense",
+      criteria: "Accumulate 10 minutes of Divine Sense.",
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Divine Sense", stat: "ali", target: 10, unit: "minutes" }],
+    },
+    {
+      id: "ss_breath",
+      title: "Divine Breath",
+      myth: "Now breathe it.\n\nFind the Divine Sense in the belly. With each breath, let it widen: into the chest, the limbs, the skin, until the whole body is filled.\n\nDivine Breath unlocked. Find it under Divine Sword.",
+      libId: "lib_ss_breath",
+      criteria: "Accumulate 10 minutes of Divine Breath.",
+      unlocks: [{ kind: "activity", practiceType: "standing", name: "Divine Breath", stat: "vit", target: 10, unit: "minutes" }],
+    },
+    {
+      id: "ss_sword",
+      title: "Divine Sword",
+      myth: "Take up the sword. Stand in guard.\n\nLet the Divine Sense flow from the three centers, through the arms and the hands, into the blade, to its tip. Stand still and let it fill the sword.\n\nDivine Sword unlocked.",
+      libId: "lib_ss_sword",
+      criteria: "Accumulate 10 minutes of Divine Sword, standing still.",
+      unlocks: [{ kind: "activity", practiceType: "standing", name: "Divine Sword", stat: "ali", target: 10, unit: "minutes" }],
+    },
+    {
+      id: "ss_motion",
+      title: "Sword in Motion",
+      myth: "Now let the sword move, and keep the current flowing.\n\nRaise. Cut. Return. Five hundred times, and not one of them empty.\n\nSword in Motion unlocked. Find it under Divine Sword.",
+      libId: "lib_ss_motion",
+      criteria: "Make 500 cuts of Sword in Motion.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Sword in Motion", stat: "str", target: 500, unit: "reps" }],
+    },
+    {
+      id: "ss_intent",
+      title: "Intent Action",
+      myth: "Every cut has a purpose behind it.\n\nHold your direction in life. Let it live in the heart and the gut, and move straight from there. Heart, body, action and purpose, as one.\n\nOne thousand cuts. Intent Action unlocked.",
+      libId: "lib_ss_intent",
+      criteria: "Make 1000 cuts of Intent Action.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Intent Action", stat: "wil", target: 1000, unit: "reps" }],
+    },
+    {
+      id: "ss_unity",
+      title: "Sword Unity",
+      myth: "The current and the purpose, in one sword.\n\nLet the Divine Sword fill the blade, and let Intent Action move it. Until you cannot tell which is which.\n\nSword Unity unlocked. Find it under Divine Sword.",
+      libId: "lib_ss_unity",
+      criteria: "Accumulate 15 minutes of Sword Unity.",
+      unlocks: [{ kind: "activity", practiceType: "train", name: "Sword Unity", stat: "ali", target: 15, unit: "minutes" }],
+    },
+    {
+      id: "ss_future",
+      title: "Feel Future",
+      isCapstone: true,
+      myth: "Feel the direction you are going. Then compare it with the Divine Sense.\n\nHold one path, then another, and feel each. Some feel like the Divine. Some do not. Change direction when you need to.\n\nPractice it on the long path of a life, and in the moment of training, with a partner if you can. When you have, mark it complete.\n\nFeel Future unlocked.",
+      libId: "lib_ss_future",
+      criteria: "Practice Feel Future, then mark it complete.",
+      unlocks: [{ kind: "activity", practiceType: "any", name: "Feel Future", stat: "wis" }],
+    },
+  ],
   battlemage: [
     {
       id: "b_trial",
@@ -791,6 +1128,9 @@ const ADVANCED_CLASS_REQS = {
   mystic:     ["healer", "sage"],
   battlemage: ["warrior", "sage"],
   martial:    ["warrior"],
+  herbalist:  ["healer"],
+  wizard:     ["sage"],
+  sword:      ["healer", "warrior"],
 };
 /* The Mastery level each prerequisite class must reach before an advanced
    class can be chosen. Mastery 1 = that class's quest chain complete.
@@ -879,7 +1219,7 @@ function freshClassState() {
 /* Flat for now: every Mastery level costs the same XP (360 XP = 1 hour of
    qualifying practice at the base rate of 1 XP per 10 s). Per class so one
    can be tuned on its own later (Sage earns most easily, via plain Sit). */
-const MASTERY_XP_PER_LEVEL = { warrior: 360, healer: 360, sage: 360, mystic: 360, battlemage: 360, martial: 360 };
+const MASTERY_XP_PER_LEVEL = { warrior: 360, healer: 360, sage: 360, mystic: 360, battlemage: 360, martial: 360, herbalist: 360, wizard: 360, sword: 360 };
 const masteryTotalXPForLevel = (classId, L) => (MASTERY_XP_PER_LEVEL[classId]??360) * Math.max(0,L-1);
 const masteryLevelFromXP = (classId, xp) => {
   let L=1;
@@ -965,6 +1305,18 @@ const TRIAL_WELCOME = {
     title: "Wisdom and Power Combine",
     body: "These techniques require a solid foundation.\n\nInternal mastery shows externally.",
   },
+  sword: {
+    title: "The Living Blade",
+    body: "Divine Sword. Intent Action. Feel Future.\n\nWhat you feel within, the sword carries out.",
+  },
+  wizard: {
+    title: "Thought into Form",
+    body: "Understand. Will. Surrender.\n\nSee how it works. Act on it. Offer it to Source.",
+  },
+  herbalist: {
+    title: "The Green Teachers",
+    body: "Gather. Prepare. Consume.\n\nLearn what the earth already offers.",
+  },
   mystic: {
     title: "Commune with the Divine",
     body: "Become one.",
@@ -978,6 +1330,9 @@ const MASTERY_BONUSES = {
   sage: [],
   mystic: [],
   battlemage: [],
+  herbalist: [],
+  wizard: [],
+  sword: [],
 };
 
 /* Shared: has this path's 7-quest foundation chain been fully completed? */
@@ -1178,6 +1533,21 @@ const FUNDAMENTALS = {
     { id:"ma_throw",    name:"Throw",        unit:"minutes", stat:"str", practiceType:"train", variations:"Breakfalls and rolls first; grips, off-balancing and throws later", sources:[], minMastery:2 },
     { id:"ma_flow",     name:"Flow",         activity:false, unit:"minutes", stat:"wil", variations:"Footwork, forms, shadow work, free movement",  sources:["Footwork","Martial Flow"], legacy:["Martial Flow"], unlockQuest:"w_footwork" },
   ],
+  sword: [
+    { id:"ss_divine", name:"Divine Sword",  activity:false, category:true, unit:"minutes", stat:"ali", practiceType:"standing", variations:"Divine Sense, Divine Breath, the sword still and in motion", sources:["Divine Sense","Divine Breath","Divine Sword","Sword in Motion","Sword Unity"], unlockQuest:"ss_sense" },
+    { id:"ss_intentf", name:"Intent Action", activity:false, category:true, unit:"reps",    stat:"wil", practiceType:"train",    variations:"Cuts moving straight from the heart and gut",                sources:["Intent Action","Sword Unity"], unlockQuest:"ss_intent" },
+    { id:"ss_futuref", name:"Feel Future",   activity:false, category:true, stat:"wis", practiceType:"any",      variations:"The long path of a life, and the moment of training",        sources:["Feel Future"], unlockQuest:"ss_future" },
+  ],
+  wizard: [
+    { id:"wz_understand", name:"Understand", activity:false, category:true, unit:"minutes", stat:"wis", practiceType:"any",     variations:"Study, follow the why, find the pattern", sources:["Study","Pattern"],                 unlockQuest:"wz_why" },
+    { id:"wz_will",       name:"Will",       activity:false, category:true, unit:"actions", stat:"wil", practiceType:"any",     variations:"Vision, intention, action",              sources:["Intend","Vision Board","The Work"], unlockQuest:"wz_vision" },
+    { id:"wz_surrender",  name:"Surrender",  activity:false, category:true, unit:"minutes", stat:"ali", practiceType:"sitting", variations:"Offer the outcome to Source",            sources:["Surrender"],                         unlockQuest:"wz_surrender" },
+  ],
+  herbalist: [
+    { id:"he_gather",  name:"Gather",  activity:false, category:true, unit:"plants",       stat:"wis", practiceType:"any", variations:"Identify, grow, forage, source", sources:["Identify","Forage","Grow","Source"], unlockQuest:"he_identify" },
+    { id:"he_prepare", name:"Prepare", activity:false, category:true, unit:"preparations", stat:"hrt", practiceType:"any", variations:"Infusions, decoctions, blends, syrups, tinctures, tonics, ferments",   sources:["Infuse","Decoct","Blend","Settle","Syrup","Tincture","Tonic","Concentrate","Formula","Ferment","Alchemy"],           unlockQuest:"he_infuse" },
+    { id:"he_consume", name:"Consume", activity:false, category:true, unit:"minutes",      stat:"vit", practiceType:"any", variations:"Drink it slowly, and notice",       sources:["Sit with Tea","Taste","Herbal Sit"],              unlockQuest:"he_tea" },
+  ],
   battlemage: [
     { id:"b_stoke",   name:"Stoke the Furnace", unit:"minutes", stat:"vit", practiceType:"standing", variations:"Breath to the furnace, then movement from core", sources:["Move from Core","Core Flow"], unlockQuest:"b_stoke" },
     { id:"b_accel",   name:"Mind Acceleration", unit:"rounds",  stat:"wis", practiceType:"sitting",  variations:"Rounds of focus, then full release",            sources:[], unlockQuest:"b_accel" },
@@ -1195,8 +1565,11 @@ const CLASS_PRACTICES = {
   mystic:     [{base:"sitting"},  {fund:"m_devotion"}, {fund:"m_communion"}, {fund:"m_henosis"}],
   martial:    [{base:"standing"}, {base:"train"},   {fund:"ma_strike"}, {fund:"ma_flow"}, {fund:"ma_throw"}],
   battlemage: [{base:"standing"}, {base:"train"},   {fund:"b_stoke"}, {fund:"b_accel"}, {fund:"b_barrier"}],
+  herbalist:  [{base:"sitting"},  {base:"restore"}, {fund:"he_gather"}, {fund:"he_prepare"}, {fund:"he_consume"}],
+  wizard:     [{base:"sitting"},  {base:"walking"}, {fund:"wz_understand"}, {fund:"wz_will"}, {fund:"wz_surrender"}],
+  sword:      [{base:"standing"}, {base:"train"},   {fund:"ss_divine"}, {fund:"ss_intentf"}, {fund:"ss_futuref"}],
 };
-const CLASS_DEFAULT_BASE = { warrior:"train", healer:"restore", sage:"sitting", mystic:"sitting", martial:"train", battlemage:"standing" };
+const CLASS_DEFAULT_BASE = { warrior:"train", healer:"restore", sage:"sitting", mystic:"sitting", martial:"train", battlemage:"standing", herbalist:"restore", wizard:"sitting", sword:"standing" };
 const PRACTICE_BASE_LABEL = { sitting:"Sit", standing:"Stand", walking:"Walk", train:"Train", restore:"Restore" };
 /* The picker list for one class, or null when the full Sit/Stand/Walk set should
    show (no class, or its trial still running — every trial needs all three). */
@@ -1411,7 +1784,7 @@ const patchTemplate = (cs, id, fn) => ({ ...cs, mapTemplates:(cs.mapTemplates||[
 const DAILY_DEFAULT_XP = 30;
 /* Base XP for an untimed log: 1 XP per 10 s for minutes; counted units at a
    rate that reads as real effort (20 pushups = 30 XP, a km run ≈ 6 min). */
-const LOG_XP_PER_UNIT = { reps:1.5, movements:1.5, rounds:3, km:36, sits:6 };
+const LOG_XP_PER_UNIT = { reps:1.5, movements:1.5, rounds:3, km:36, sits:6, plants:18, preparations:30, actions:18 };
 const logXP = (unit, n) => unit==="minutes" ? Math.floor((n||0)*6) : Math.round((n||0)*(LOG_XP_PER_UNIT[unit]??1.5));
 const DAILY_UNIT_SHORT = { minutes:"min" };
 const practiceUnit = d => DAILY_UNIT_SHORT[d.unit]||d.unit||"reps";          // the practice's own unit (min, reps, km…)
@@ -2002,6 +2375,20 @@ function SpiralCircle({ t, running, tappable=false, onTap=()=>{} }){
         ))}
         {turns>0.02&&<g transform="translate(91,91)"><circle cx={lx} cy={ly} r="3" fill={C.gold} style={{filter:`drop-shadow(0 0 6px ${C.gold})`}}/></g>}
       </svg>
+    </div>
+  );
+}
+
+/* Where players can reach Dominique for direction (Settings and the foot of the Library). */
+const GUIDE_EMAIL = "dom@divinearts.ca";
+function AskGuide({ quiet=false }){
+  const href=`mailto:${GUIDE_EMAIL}?subject=${encodeURIComponent("Ascend: a question about my practice")}`;
+  return (
+    <div style={{padding:quiet?"18px 4px 6px":"12px 0",borderBottom:quiet?"none":`0.5px solid ${C.bord}`,textAlign:quiet?"center":"left"}}>
+      {!quiet && <div style={{...body("14px",C.cream),marginBottom:"3px"}}>Questions about your practice, or where to go next?</div>}
+      <a href={href} style={{...body(quiet?"12px":"13px",C.sageB),textDecoration:"none"}}>
+        {quiet ? `Write to ${GUIDE_EMAIL}` : `${GUIDE_EMAIL} →`}
+      </a>
     </div>
   );
 }
@@ -4009,6 +4396,816 @@ const LIBRARY_AUTHORED = [
     ],
     practice:"Sit with nothing to achieve and nothing to avoid. Let everything practiced before — pulse, breath, thought, world, other, moment — rest together as one continuous fact rather than separate exercises." },
 
+  /* ── HERBALIST ── Foundations first, then each quest's technique and the herb it introduces. */
+  { id:"lib_he_trial", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_trial",
+    title:"Herbalist Trial", sub:"Ground, belly, heart", sc:"wis",
+    body:[
+      "The Herbalist works in three movements: gather, prepare, consume. The trial gives each a place in the body. Three sessions, three minutes each.",
+      "Stand, and rest attention in the feet and the ground beneath them. Every plant begins here: soil, water, light. Feel what holds you up.",
+      "Sit, and bring attention to the belly. This is where whatever you take in is received. Let it be soft.",
+      "Walk, and let attention rest in the chest. Care turns into action here. The hands that gather and prepare begin in the heart.",
+      "After each session, choose the center your awareness landed on."
+    ],
+    practice:"Stand, Sit and Walk for three minutes each: ground, belly, then heart. Choose that center on the review screen after each one." },
+
+  { id:"lib_he_principles", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_trial",
+    title:"Five Principles", sub:"Ways of seeing a herb", sc:"wis",
+    body:[
+      "Herbalists have always sorted plants by what they do. Divine Arts uses five principles. They are lenses, not boxes. Most plants answer to several, and the first one named in an entry is only where it leads.",
+      "Restoration: returning what has been depleted or disturbed. Digestion, sleep, tension, fatigue. The ground floor of health.",
+      "Regulation: bringing balance instead of pushing in one direction. Neither stimulating nor suppressing, but helping a system find its own level.",
+      "Activation: movement, warmth, circulation, alertness. What wakes things up.",
+      "Protection: supporting resilience and the body's own defenses.",
+      "Cultivation: supporting sustained development of capacity, attention and inner practice. This is where herbalism meets the rest of Ascend.",
+      "A cup of ginger can settle a stomach, warm the body and guard against a chill, all at once. Ask what a plant leads with, and what else it does."
+    ],
+    practice:"Choose any herb or spice in your kitchen. Name the principle it leads with, then one more it might also serve." },
+
+  { id:"lib_he_read", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_trial",
+    title:"Reading a Herb", sub:"The language of qualities", sc:"wis",
+    body:[
+      "Traditional systems describe a plant by its qualities as well as its chemistry. These are not measured. They are what a trained person notices.",
+      "Temperature: hot, warm, neutral, cool or cold. Ginger is warm to hot and brings heat to the body. Mint is cool. This is the felt effect, not the temperature of the cup.",
+      "Moisture: drying, neutral or moistening. Some plants tighten and dry, others soften and soothe.",
+      "Taste: sweet, bitter, pungent, sour, salty or astringent. Taste is the oldest diagnostic. Bitter wakes digestion, pungent warms and moves, astringent tightens, sweet nourishes.",
+      "Action: what it does. Stimulating, relaxing, carminative (easing gas), astringent, nutritive, and so on.",
+      "Speed: some plants act within minutes, like peppermint on a stomach. Others only show over weeks of regular use, like tonics.",
+      "Taste before you read. Make the tea, drink it, and write down what you notice. Then read what tradition says, and see where you agree."
+    ],
+    practice:"Smell and taste a herb before you read about it. Write down its temperature, taste and effect in your own words, then compare." },
+
+  { id:"lib_he_evidence", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_trial",
+    title:"Evidence and Safety", sub:"Natural is not the same as safe", sc:"wis",
+    body:[
+      "Plants are not safe because they are natural. Some of the oldest poisons are plants. Herbalism asks you to hold several kinds of knowledge at once, and to know which is which.",
+      "Traditional: what cultures have used a plant for, over generations. Valuable, and often right. But a tradition's claim is not a measurement.",
+      "Experience: what you or others notice directly. Real, but personal, and easily colored by expectation.",
+      "Research: what has been tested, in labs and in people. Strong evidence is rare for most herbs. Each entry here says which kind of knowledge it rests on.",
+      "Safety: identify with certainty before you eat or drink anything you gathered. If you are not sure, do not use it. Take extra care with concentrated extracts, long-term use, pregnancy, children, liver or kidney conditions, and any medication. Herbs can interact with drugs. Ask a doctor or pharmacist first.",
+      "Ascend teaches you how to learn about plants. It is not medical advice, and it does not replace a doctor."
+    ],
+    practice:"Read the safety paragraph twice. Make it a rule: certain, or not at all." },
+
+  { id:"lib_he_identify", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_identify",
+    title:"Identify", sub:"Know it before you gather it", sc:"wis",
+    body:[
+      "Misidentification is the real danger in gathering plants. Everything else in herbalism rests on this: you must know exactly what is in front of you.",
+      "The whole plant: look at all of it, not one part. Note its size and habit (tree, shrub, vine, herb), where it grows (shade, wet ground, open field, disturbed soil) and the season.",
+      "Leaves: how they attach to the stem (opposite, alternate or in whorls), their shape and edge (smooth, toothed, lobed) and their surface.",
+      "Flowers and fruit: count petals, note color and arrangement. Flowers are often the surest clue.",
+      "Smell and touch: crush a leaf and smell it. Many herbs identify themselves this way. Only handle what you are sure is harmless, since some plants irritate skin.",
+      "Confirm: use two independent sources, such as a regional field guide and a local expert or plant group. A photo app is a starting point, never a verdict.",
+      "Look-alikes: for every plant you learn, learn what it can be mistaken for.",
+      "Rule: if you are not sure, you do not know it yet. Do not eat it, drink it or prepare it."
+    ],
+    practice:"Choose one plant near your home. Look at it every day for a week: leaves, flowers, smell, where it grows. Then learn its name and what it could be mistaken for." },
+
+  { id:"lib_he_infuse", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_infuse",
+    title:"Infuse", sub:"Steeping a plant in hot water", sc:"hrt",
+    body:[
+      "An infusion is the simplest preparation: a plant steeped in hot water. It suits leaves, flowers, soft plant parts and thinly sliced roots like ginger.",
+      "Water: hot, near the boil, poured over the plant. For delicate leaves and flowers, let it cool for a moment first.",
+      "Amount: a small handful of fresh herb, or about a teaspoon of dried, per cup is a typical starting point. For fresh ginger, a few thin slices.",
+      "Cover: cover the cup while it steeps so the aromatic parts stay in the water instead of rising away.",
+      "Time: five to ten minutes for most plants. Longer makes it stronger and, for some, more bitter.",
+      "Taste first: smell it, take a small sip, then drink. Notice the warmth, the taste, and what it does in the body over the next quarter hour."
+    ],
+    practice:"Make ginger tea three times this week, changing one thing each time: the amount, the steeping time, or what you add. Notice what changes." },
+
+  { id:"lib_he_ginger", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_infuse",
+    title:"Ginger", sub:"Zingiber officinale", sc:"vit",
+    body:[
+      "Principles: Restoration first, then Activation and Protection.",
+      "Qualities: warm to hot, pungent, stimulating, carminative.",
+      "Traditional: used across Asia for thousands of years for the stomach, the chest and the cold. In Chinese and Ayurvedic medicine it is a warming herb that moves things along.",
+      "Uses: nausea, indigestion, bloating, sore throat, and the first signs of a chill.",
+      "Research: some of the better evidence of any herb, mainly for nausea. Evidence for pain and inflammation is smaller and mixed.",
+      "Observation: ginger, especially with turmeric, has given noticeable relief from a sore throat and early cold symptoms. This is experience, not a trial result.",
+      "Preparation: a few thin slices of fresh root, covered with hot water and steeped, or simmered a little longer for a stronger, hotter cup. Lemon and honey are traditional companions.",
+      "Safety: large amounts can cause heartburn. Take care with blood-thinning medication, gallstones, and before surgery."
+    ],
+    practice:"Drink a cup of ginger tea slowly. Feel where the warmth goes, and how long it lasts." },
+
+  { id:"lib_he_greentea", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_tea",
+    title:"Green Tea", sub:"Camellia sinensis", sc:"vit",
+    body:[
+      "Principles: Activation first, then Cultivation and Regulation.",
+      "Qualities: cooling, bitter and astringent. Contains caffeine, L-theanine and catechins.",
+      "Traditional: grown and drunk in China for thousands of years, and long used by monastic communities to stay clear and awake through long hours of sitting.",
+      "Research: caffeine together with L-theanine has been linked, in several small studies, to better attention and a calmer kind of alertness. This is the effect people describe as relaxed alertness.",
+      "Preparation: water just off the boil, not rolling, about two to three minutes of steeping. Too hot or too long turns it bitter.",
+      "Matcha: the whole leaf, ground to a powder and whisked into water. You drink the leaf itself, so it carries more caffeine and theanine than a steeped cup. Treat it as a stronger variant of the same plant.",
+      "Safety: caffeine affects sleep, anxiety and the heart in sensitive people, and is limited in pregnancy. Avoid it late in the day. Concentrated green tea extracts in capsules have been linked to liver problems. The cup is not the capsule.",
+      "Sit with Tea: drink the tea, then sit for ten minutes. Notice whether you feel alert without tension, or tense without ease, or neither. This is what the plant is for."
+    ],
+    practice:"Make green tea and drink it slowly. Then sit for ten minutes, and note in a line how your attention felt." },
+
+  { id:"lib_he_decoct", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_decoct",
+    title:"Decoct", sub:"Simmering the tough parts", sc:"hrt",
+    body:[
+      "Roots, bark, seeds, berries and mushrooms keep their goodness locked behind tough tissue. A quick steep barely touches it. A decoction simmers it out.",
+      "Method: put the plant in cold water, bring it to a gentle simmer, cover, and keep it low. Strain, and drink warm.",
+      "Time: about twenty minutes for firm roots. Tough mushrooms like turkey tail take an hour or more.",
+      "Water: some boils away. Top it up, and keep the lid on to hold in what rises.",
+      "Pot: use stainless steel, glass or enamel. Avoid aluminum.",
+      "Keep: a decoction lasts a day or two in the refrigerator. Smell it before you drink.",
+      "Start mild and taste as you go. Stronger is not better."
+    ],
+    practice:"Simmer one tough plant until the water has changed color and taste. Taste it at twenty minutes and again at sixty. Note the difference." },
+
+  { id:"lib_he_turkeytail", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_decoct",
+    title:"Turkey Tail", sub:"Trametes versicolor", sc:"vit",
+    body:[
+      "Principles: Protection first, then Regulation.",
+      "Qualities: traditionally sweet and neutral. In the cup: mild, woody and slightly earthy.",
+      "Traditional: known in Chinese medicine as yun zhi, the cloud mushroom, and used as a tonic for resilience.",
+      "Research: extracts made from it have been studied in clinical research, notably in Japan and China, as an addition to cancer care. These are standardized extracts, not a cup of tea, and evidence for everyday use is limited.",
+      "Identify: thin, leathery fans in overlapping tiers on dead hardwood logs and stumps, with colored concentric bands and a velvety top. Turn it over. The underside is pale with tiny pores. The common look-alike, false turkey tail, has a smooth underside with no pores.",
+      "Gather: only what you can name with certainty. Take it away from roads, industrial sites and treated wood, since mushrooms absorb what is around them. If you cannot identify it, buy it dried from a good source.",
+      "Preparation: simmer dried or fresh pieces as a decoction, an hour or more, then strain.",
+      "Safety: generally considered very safe, though any mushroom can upset a stomach. Take care with mushroom allergies, and with immune-suppressing medication. If you are being treated for cancer or any serious illness, speak to your care team before using it."
+    ],
+    practice:"If turkey tail grows near you, find it, turn it over and look for the pores. If it doesn't, source it dried and simmer it for an hour." },
+
+  { id:"lib_he_cacao", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_cacao",
+    title:"Cacao", sub:"Theobroma cacao", sc:"vit",
+    body:[
+      "Principles: Activation first, then Restoration.",
+      "Qualities: bitter, rich and mildly stimulating. Contains theobromine, a little caffeine, flavanols and magnesium.",
+      "Traditional: the Maya and the Aztec drank it, unsweetened and often spiced, in daily life and in ceremony. It was once used as money. Chocolate as we know it is a recent invention.",
+      "Research: cacao flavanols have been linked to modest improvements in blood vessel function and in some measures of thinking. The effects are small.",
+      "Preparation: use pure cacao paste or ceremonial-grade cacao, not a sweetened bar. Chop it, warm it gently in water without boiling, and whisk until smooth. Add warm spices if you like, and little or no sugar.",
+      "Consume: hold the cup, then drink it slowly. This is the practice. Notice the warmth, the taste, and how you feel ten minutes later.",
+      "Safety: it is a stimulant, so it can disturb sleep and raise anxiety or heartbeat in sensitive people. It is toxic to dogs. Some cacao products contain traces of cadmium and lead, so choose sources that test for them."
+    ],
+    practice:"Prepare cacao as a warm drink and take ten minutes to finish it, with nothing else in your hands." },
+
+  { id:"lib_he_blend", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_blend",
+    title:"Blend", sub:"Complementary plants in one cup", sc:"wis",
+    body:[
+      "A formula is a conversation between plants. Traditional herbalists balance a blend: one herb that leads, one that supports, and one that helps the others work or taste better.",
+      "Start with two: know each one alone first. Taste them separately, then together, then add a third.",
+      "Change one thing at a time: one plant, one amount, one steeping time. Otherwise you will not know what did what.",
+      "Keep notes: what you used, how it tasted, how you felt. A blend you can repeat is a blend you understand.",
+      "Safety: more plants means more chances of interaction. Never combine a herb you have not tried alone, and check any blend against any medication you take.",
+      "A simple pattern: a warming digestive herb, a calming herb and a restorative one."
+    ],
+    practice:"Blend ginger and turmeric, then add a third herb you know well. Write down what each one adds." },
+
+  { id:"lib_he_turmeric", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_blend",
+    title:"Turmeric", sub:"Curcuma longa", sc:"vit",
+    body:[
+      "Principles: Restoration first, then Regulation and Protection.",
+      "Qualities: warm, bitter and pungent, a little drying.",
+      "Traditional: a kitchen spice and a medicine in India and across Asia for thousands of years, used for digestion, joints, skin and general nourishment.",
+      "Research: its main compound, curcumin, has been studied for inflammation and joint discomfort, with modest results. On its own it is poorly absorbed.",
+      "Preparation: simmer fresh root or powder in water or milk. Black pepper and a little fat, such as coconut milk or ghee, help the body absorb it. It stains fabric and skin.",
+      "Observation: with ginger, it has been part of a warming drink that gave relief from a sore throat. This is experience, not a trial result.",
+      "Safety: food amounts are generally fine. Concentrated curcumin supplements have been linked to rare liver problems. Take care with blood-thinning medication, gallbladder problems, and before surgery."
+    ],
+    practice:"Make a cup of turmeric and ginger with a pinch of black pepper. Taste the way each one shows up." },
+
+  /* ── HERBALIST MASTERY ── each level: a preparation skill, then the herbs it opens. */
+  { id:"lib_he_settle", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_settle",
+    title:"Settle", sub:"Blending for a purpose", sc:"hrt",
+    body:[
+      "Until now you made single herbs and simple blends. Now you choose herbs for a reason: you decide what is needed, and let the plants answer.",
+      "Name the need: bloating after a heavy meal, a stomach tight with worry, a sluggish feeling after eating. A clear aim lets you see what helped.",
+      "Pattern: one warming or moving herb, one gentle or calming herb, one that restores. Peppermint moves and cools, fennel warms and eases gas, chamomile soothes.",
+      "Method: infuse covered for ten minutes, sip it slowly after a meal, and write down how your stomach feels before and after. Change one herb or one amount next time.",
+      "Limits: a settled stomach is a small job. Severe or lasting pain, repeated vomiting, blood, fever or weight loss are for a doctor, not a tea."
+    ],
+    practice:"After your next meal, make a digestive blend and sip it slowly. Note how your stomach felt before and after." },
+
+  { id:"lib_he_peppermint", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_settle", unlockMastery:{ herbalist:2 },
+    title:"Peppermint", sub:"Mentha × piperita", sc:"vit",
+    body:[
+      "Principles: Activation first, then Restoration.",
+      "Qualities: cool, pungent, aromatic. Carminative and antispasmodic.",
+      "Traditional: used from Europe to the Middle East for the stomach and the head. A cup of mint after a meal is one of the oldest habits in herbalism.",
+      "Research: enteric-coated peppermint oil has reasonable evidence for easing irritable bowel symptoms. The tea is gentler and less studied.",
+      "Preparation: fresh or dried leaves, covered, steeped five to ten minutes. The scent clears the head before you taste it.",
+      "Safety: it can worsen heartburn and reflux. Take care with gallstones. Keep concentrated peppermint oil away from children's faces."
+    ],
+    practice:"Smell fresh mint, then taste the tea. Notice how it feels cool even though the cup is hot." },
+
+  { id:"lib_he_fennel", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_settle", unlockMastery:{ herbalist:2 },
+    title:"Fennel", sub:"Foeniculum vulgare", sc:"vit",
+    body:[
+      "Principles: Restoration first, then Regulation.",
+      "Qualities: warm, sweet, aromatic. Carminative.",
+      "Traditional: eaten after meals across the Mediterranean and India, often as candied or roasted seeds, to ease digestion and freshen the breath.",
+      "Research: limited. Some small studies suggest it eases bloating and cramping.",
+      "Preparation: lightly crush the seeds, cover with hot water and steep covered for ten minutes.",
+      "Safety: people allergic to carrot-family plants may react. Concentrated fennel oil is not for casual use, and fennel tea for infants should be discussed with a doctor."
+    ],
+    practice:"Chew a few seeds after a meal, then compare with a cup of fennel tea." },
+
+  { id:"lib_he_chamomile", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_settle", unlockMastery:{ herbalist:2 },
+    title:"Chamomile", sub:"Matricaria chamomilla", sc:"hrt",
+    body:[
+      "Principles: Restoration first, then Regulation.",
+      "Qualities: cool, gently bitter, soothing. Mildly relaxing and carminative.",
+      "Traditional: used in Egypt, Greece and across Europe for the stomach, for sleep and for nervous tension.",
+      "Research: small studies suggest modest benefits for mild anxiety and for digestion. It is a gentle plant and the evidence is gentle too.",
+      "Preparation: a spoonful of dried flowers per cup, covered, steeped about ten minutes.",
+      "Safety: people allergic to daisy-family plants, including ragweed, may react."
+    ],
+    practice:"Drink chamomile in the evening and notice what changes in your body and your thoughts after twenty minutes." },
+
+  { id:"lib_he_steady", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_steady",
+    title:"Steady", sub:"Choosing the herb for the sit", sc:"wis",
+    body:[
+      "Herbs can support meditation by addressing different obstacles. They are not interchangeable, and none of them is the practice.",
+      "Settling: reduces unnecessary mental activity. Lemon balm and passionflower lean this way.",
+      "Clarity: supports alertness and attention. Green tea leans this way.",
+      "Relaxed alertness: calm without dullness. The aim of most sitting practice, and the quiet gift of green tea and lemon balm.",
+      "Grounding: settledness in the body and emotions. Tulsi is traditionally used for this.",
+      "Sedation is not the goal. A herb that makes you sleepy has not helped you sit.",
+      "Method: drink a cup twenty to thirty minutes before you sit, then sit as usual. Try the same sit on another day without the herb and compare.",
+      "The point is a clear and stable awareness, not a quiet mind produced from outside."
+    ],
+    practice:"Sit twenty minutes after a cup of lemon balm or tulsi. Next day sit the same way without it. Note the difference in a line." },
+
+  { id:"lib_he_lemonbalm", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_steady", unlockMastery:{ herbalist:3 },
+    title:"Lemon Balm", sub:"Melissa officinalis", sc:"hrt",
+    body:[
+      "Principles: Regulation first, then Cultivation.",
+      "Qualities: cool, lemon-scented, gently calming and uplifting.",
+      "Traditional: grown in monastery gardens across Europe, long used for nervous tension, low spirits and the stomach.",
+      "Research: small studies suggest a calming effect and some benefit to attention and mood. The evidence is modest.",
+      "Preparation: fresh or dried leaves, covered, steeped about ten minutes. Fresh leaves are far more fragrant.",
+      "Safety: take care with thyroid conditions and with sedative medication."
+    ],
+    practice:"Crush a fresh leaf and breathe it in for a full minute before you drink the tea." },
+
+  { id:"lib_he_passionflower", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_steady", unlockMastery:{ herbalist:3 },
+    title:"Passionflower", sub:"Passiflora incarnata", sc:"wis",
+    body:[
+      "Principles: Regulation first, then Restoration.",
+      "Qualities: cool and calming. Traditionally used when the mind will not stop.",
+      "Traditional: used in the Americas and later in European herbalism for restlessness and sleeplessness.",
+      "Research: small studies suggest benefits for anxiety and sleep. Results are mixed.",
+      "Preparation: dried aerial parts, covered, steeped ten minutes. The taste is grassy and mild.",
+      "Safety: it can cause drowsiness. Avoid combining with sedatives or alcohol. Avoid in pregnancy."
+    ],
+    practice:"Notice the pace of your thoughts before the cup and twenty minutes after." },
+
+  { id:"lib_he_tulsi", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_steady", unlockMastery:{ herbalist:3 },
+    title:"Tulsi", sub:"Ocimum tenuiflorum", sc:"hrt",
+    body:[
+      "Principles: Regulation first, then Cultivation and Protection.",
+      "Qualities: warm, pungent, aromatic.",
+      "Traditional: a sacred plant in India, grown in homes and temple courtyards and offered in daily devotion. In Ayurveda it is a tonic for stress, breath and vitality, sometimes called the Queen of Herbs. Its devotional meaning is part of what it is. Learn it with respect.",
+      "Research: small studies suggest benefits for stress and blood sugar. The evidence is limited.",
+      "Preparation: fresh or dried leaves, covered, steeped about ten minutes.",
+      "Safety: it may lower blood sugar. Take care with diabetes medication and blood thinners, and avoid in pregnancy."
+    ],
+    practice:"Drink tulsi slowly, and notice whether it settles you or lifts you." },
+
+  { id:"lib_he_syrup", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_syrup",
+    title:"Sweeten", sub:"Syrups", sc:"hrt",
+    body:[
+      "A syrup is a strong decoction preserved in honey or sugar. It keeps a plant's warmth for the cold months and makes bitter or sharp herbs easy to take.",
+      "Method: simmer the plant in water, covered, then strain. Return the liquid to the pot and simmer it uncovered until reduced by about half. Let it cool until just warm, then stir in about an equal amount of honey.",
+      "Keep: bottle it, refrigerate, and use within a few weeks. Smell it before using.",
+      "Warming syrup: ginger, cinnamon and a little cayenne is a classic starting mix.",
+      "Honey: never give honey to infants under one year.",
+      "Garlic: never store fresh garlic in oil or honey at room temperature. Garlic preparations are made fresh and refrigerated."
+    ],
+    practice:"Make a small batch of ginger and cinnamon syrup. Take a spoonful when you feel cold." },
+
+  { id:"lib_he_cinnamon", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_syrup", unlockMastery:{ herbalist:4 },
+    title:"Cinnamon", sub:"Cinnamomum species", sc:"vit",
+    body:[
+      "Principles: Activation first, then Regulation.",
+      "Qualities: warm, sweet, pungent.",
+      "Traditional: one of the oldest spices in trade. Used in Chinese, Ayurvedic and European medicine to warm the body and ease digestion.",
+      "Research: some studies suggest a modest effect on blood sugar. The evidence is mixed.",
+      "Preparation: simmer a stick in water for ten to twenty minutes. Ground cinnamon can be stirred into drinks or food.",
+      "Safety: common cassia cinnamon contains coumarin, which can stress the liver in large, regular amounts. Ceylon cinnamon has far less. Take care with diabetes medication."
+    ],
+    practice:"Smell a stick of cinnamon, then taste the simmered water. Notice where the warmth settles." },
+
+  { id:"lib_he_garlic", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_syrup", unlockMastery:{ herbalist:4 },
+    title:"Garlic", sub:"Allium sativum", sc:"vit",
+    body:[
+      "Principles: Protection first, then Activation.",
+      "Qualities: hot and pungent.",
+      "Traditional: eaten and used as medicine from Egypt to China for thousands of years, for the chest, the stomach and the cold.",
+      "Research: some evidence of a modest effect on blood pressure and cholesterol. Evidence that it prevents colds is weak.",
+      "Preparation: crush or chop it and let it rest about ten minutes before cooking or eating. This lets its active compounds form.",
+      "Safety: it can irritate the stomach and may add to blood-thinning medication, and should be mentioned before surgery. Never store fresh garlic in oil at room temperature."
+    ],
+    practice:"Crush a clove and wait ten minutes before using it. Smell the difference." },
+
+  { id:"lib_he_cayenne", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_syrup", unlockMastery:{ herbalist:4 },
+    title:"Cayenne", sub:"Capsicum annuum", sc:"vit",
+    body:[
+      "Principles: Activation.",
+      "Qualities: hot and pungent.",
+      "Traditional: grown in the Americas for thousands of years, and used worldwide for warmth, circulation and the stomach.",
+      "Research: its heat compound, capsaicin, is used in creams for pain. Evidence for most other uses is limited.",
+      "Preparation: start with a pinch in a drink or syrup, and add very little at a time.",
+      "Safety: keep it away from the eyes and mucous membranes, and wash your hands. It can upset the stomach."
+    ],
+    practice:"Add a pinch to warm water with honey and lemon. Notice how far the heat travels." },
+
+  { id:"lib_he_tincture", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_tincture",
+    title:"Extract", sub:"Tinctures", sc:"wil",
+    body:[
+      "A tincture draws a plant's constituents into alcohol, which some plants give up more readily than water. It keeps for years and is used in small amounts.",
+      "Method (folk): chop the herb, fill a clean jar about half to two thirds, and cover completely with a high-proof spirit such as 40 percent vodka. Seal, shake daily, store out of light for four to six weeks, then strain and bottle.",
+      "Label: write the plant, the date and the spirit on the jar the day you make it. An unlabelled jar is a hazard.",
+      "Start gentle: use a plant you know well and that has no strong effects.",
+      "Alternatives: vinegar and glycerin make milder extracts for people who avoid alcohol.",
+      "Safety: tinctures are not for children, pregnancy or people avoiding alcohol. Check any medication before using one. Do not make tinctures of plants you have not identified with certainty."
+    ],
+    practice:"Make a small jar of a gentle herb you know well. Label it, date it, and put it somewhere you will see it." },
+
+  { id:"lib_he_lavender", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_tincture", unlockMastery:{ herbalist:5 },
+    title:"Lavender", sub:"Lavandula angustifolia", sc:"hrt",
+    body:[
+      "Principles: Restoration first, then Regulation.",
+      "Qualities: cool, aromatic, relaxing to body and emotions.",
+      "Traditional: used since Roman times in baths, linens and sachets, and in European medicine for tension, headache and sleep.",
+      "Research: a standardized lavender oil capsule has been studied for anxiety with positive results. Home preparations are not the same.",
+      "Preparation: a few buds per cup are enough. Too much tastes soapy.",
+      "Safety: do not swallow essential oil. It can cause drowsiness, and some people are allergic."
+    ],
+    practice:"Breathe lavender before bed for a week and see whether the sit before sleep changes." },
+
+  { id:"lib_he_valerian", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_tincture", unlockMastery:{ herbalist:5 },
+    title:"Valerian", sub:"Valeriana officinalis", sc:"wis",
+    body:[
+      "Principles: Restoration first, then Regulation.",
+      "Qualities: warm, bitter and heavy. A sedative root with a strong, earthy smell.",
+      "Traditional: used in Europe since antiquity for restlessness and sleep. In European folklore it was associated with protection and charms, and is sometimes remembered as a magician's herb. That reputation is not universal.",
+      "Research: mixed. Some trials suggest a modest effect on sleep, others none.",
+      "Preparation: usually as a tincture or capsule. The tea is strong and unpleasant. Use it in the evening, not before a sit.",
+      "Safety: it causes drowsiness, and can cause headache or vivid dreams. Do not combine with alcohol or sedatives, and do not drive after. Not for pregnancy or children. Long-term use is not well studied."
+    ],
+    practice:"Notice what you want from it. If you want to sit with a clear mind, this is the wrong herb." },
+
+  { id:"lib_he_tonic", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_tonic",
+    title:"Tonic", sub:"Slow plants, patient use", sc:"vit",
+    body:[
+      "A tonic is not a quick fix. It supports the body over weeks, usually taken daily in modest amounts.",
+      "Three kinds of effect: stimulation lifts activity for a while, energization supports your ability to keep going, restoration supports recovery. A tonic should lean toward the last two.",
+      "Method: simmer a root such as astragalus, covered, for an hour or more. Take a small cup each day, or add it to soup or broth.",
+      "Course: take a tonic for a few weeks, then rest from it. Notice what you feel when you stop.",
+      "Record: sleep, energy, appetite and mood each week. Slow changes are easy to miss.",
+      "Honest about evidence: most tonics rest on tradition and experience. Say so to yourself."
+    ],
+    practice:"Choose one tonic. Take it every day for a week, and write one line each night on how your energy felt." },
+
+  { id:"lib_he_moringa", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_tonic", unlockMastery:{ herbalist:6 },
+    title:"Moringa", sub:"Moringa oleifera", sc:"vit",
+    body:[
+      "Principles: Restoration first, then Protection.",
+      "Qualities: mild, green and slightly bitter. Nutritive.",
+      "Traditional: eaten across India, Africa and Southeast Asia for thousands of years. The leaves, pods and seeds are food as well as medicine.",
+      "Research: the leaves are rich in protein, vitamins and minerals. Claims beyond nutrition rest on small studies.",
+      "Preparation: the leaf powder in smoothies, soups or tea, or the fresh leaves cooked like spinach.",
+      "Safety: use the leaves. The root and bark are not safe for regular use. Avoid in pregnancy, and take care with thyroid and diabetes medication."
+    ],
+    practice:"Add a little leaf powder to a meal and notice the taste and how you feel afterwards." },
+
+  { id:"lib_he_astragalus", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_tonic", unlockMastery:{ herbalist:6 },
+    title:"Astragalus", sub:"Astragalus membranaceus", sc:"vit",
+    body:[
+      "Principles: Restoration first, then Protection and Cultivation.",
+      "Qualities: slightly warm and sweet. A tonic root.",
+      "Traditional: huang qi in Chinese medicine, a leading herb for tonifying qi, the body's sustained vitality. Usually simmered in soups, broths and decoctions for weeks.",
+      "Research: some laboratory and small human studies on immune function. Evidence of benefit in daily life is limited.",
+      "Preparation: simmer a few slices with water for an hour or more, or add to soup. The taste is mild and sweet.",
+      "Safety: take care with immune-suppressing medication and autoimmune conditions. Safety in pregnancy is not well established."
+    ],
+    practice:"Put a few slices in a pot of soup and notice how the broth tastes by the end." },
+
+  { id:"lib_he_ginseng", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_tonic", unlockMastery:{ herbalist:6 },
+    title:"Panax Ginseng", sub:"Panax ginseng", sc:"vit",
+    body:[
+      "Principles: Activation first, then Cultivation.",
+      "Qualities: warm, sweet and bitter. A tonic root, stimulating to many people.",
+      "Traditional: used in Korea and China for over two thousand years for stamina, recovery and vitality. Prized for the body of the root, grown for years.",
+      "Research: some trials suggest modest benefits for fatigue. Results are mixed.",
+      "Preparation: simmer a thin slice of root, or take it in short courses.",
+      "Safety: it can disturb sleep and raise heart rate or blood pressure. It can interact with blood thinners and diabetes medication. Avoid in pregnancy. Take it in courses with breaks, not continuously."
+    ],
+    practice:"Take it only in the morning, and notice what it does to your sleep." },
+
+  { id:"lib_he_concentrate", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_concentrate",
+    title:"Concentrate", sub:"Stronger preparations", sc:"wil",
+    body:[
+      "A concentrate draws more of a plant into less volume. It is more powerful, and for the same reason it deserves more caution.",
+      "Double extraction: some plants, especially tough mushrooms such as reishi, give up different constituents to water and to alcohol. Simmer in water for an hour or more, strain, then soak the plant in alcohol for weeks, strain, and combine the two liquids.",
+      "Standardized extracts: commercial products set to a measured amount of one constituent. They are not the same as a home preparation, and neither is better in every way.",
+      "Stronger is not better. A concentrated preparation can overshoot what the body needs, and amplifies any interaction.",
+      "Source: if you buy, choose suppliers that test for identity, contaminants and strength.",
+      "Rule: smaller amounts, longer breaks, and a conversation with a doctor or pharmacist if you take any medication."
+    ],
+    practice:"Make one concentrate from a herb you know well. Take a smaller amount than you think you need." },
+
+  { id:"lib_he_ashwagandha", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_concentrate", unlockMastery:{ herbalist:7 },
+    title:"Ashwagandha", sub:"Withania somnifera", sc:"vit",
+    body:[
+      "Principles: Restoration first, then Regulation and Cultivation.",
+      "Qualities: warm, bitter and earthy. A tonic root.",
+      "Traditional: a rasayana in Ayurveda, a rejuvenative taken for strength, calm and resilience. Its name refers to the smell of a horse.",
+      "Research: several small trials suggest modest reductions in stress and improvements in sleep. Quality varies.",
+      "Preparation: root powder simmered in milk or water, or in capsules.",
+      "Safety: rare cases of liver injury have been reported. It can affect the thyroid and cause drowsiness. Avoid in pregnancy, and take care with autoimmune conditions. It is a nightshade."
+    ],
+    practice:"Take it in the evening and watch your sleep over a week." },
+
+  { id:"lib_he_rhodiola", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_concentrate", unlockMastery:{ herbalist:7 },
+    title:"Rhodiola", sub:"Rhodiola rosea", sc:"vit",
+    body:[
+      "Principles: Activation first, then Regulation.",
+      "Qualities: cool and bitter. A mountain root of the far north.",
+      "Traditional: used in Scandinavia, Siberia and Central Asia for stamina and endurance in harsh conditions.",
+      "Research: small trials suggest benefits for fatigue and stress. Results are modest.",
+      "Preparation: usually as a tincture or capsule, in the morning.",
+      "Safety: it can cause restlessness or poor sleep. Take care with anxiety, with bipolar disorder and with stimulants. Wild rhodiola is over-harvested, so choose cultivated sources."
+    ],
+    practice:"Take it only in the morning, and notice whether it sharpens you or makes you restless." },
+
+  { id:"lib_he_reishi", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_concentrate", unlockMastery:{ herbalist:7 },
+    title:"Reishi", sub:"Ganoderma lucidum", sc:"vit",
+    body:[
+      "Principles: Cultivation first, then Protection and Restoration.",
+      "Qualities: bitter, tough and woody.",
+      "Traditional: lingzhi in China, the mushroom of spiritual potency, associated in Daoist practice with calm of spirit and long life. A tonic for resilience and nourishment.",
+      "Research: limited human evidence. Some small studies suggest effects on immune function and fatigue.",
+      "Preparation: a long decoction of an hour or two, or a double extraction. It is too bitter and woody to eat.",
+      "Safety: it can cause dry mouth, stomach upset and, rarely, liver problems. It may add to blood-thinning medication. Take care with immune-suppressing medication."
+    ],
+    practice:"Simmer it slowly and sip the bitter cup in silence. Notice how long the taste lasts." },
+
+  { id:"lib_he_formula", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_formula",
+    title:"Formulate", sub:"The structure of a formula", sc:"wis",
+    body:[
+      "A formula has a purpose, and each plant in it has a job. A pile of useful herbs is not a formula.",
+      "Traditional structure: Chinese medicine names the roles chief, deputy, assistant and envoy. One herb leads, another supports it, another balances or softens it, and another carries the rest to where they are needed. You can borrow the idea.",
+      "Method: state the aim in a sentence. Choose a lead herb. Add a supporting herb. Add one that balances or improves the taste. Keep the number small.",
+      "One change at a time: otherwise you will not learn which plant did what.",
+      "Record: the aim, the herbs, how it tasted, how you felt, and what you would change.",
+      "Safety: more herbs means more chances of interaction, with each other and with medication. Beyond everyday use, work with a trained practitioner."
+    ],
+    practice:"Write one sentence about what you need. Build a three-herb formula around it and keep notes for a week." },
+
+  { id:"lib_he_ferment", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_ferment",
+    title:"Ferment", sub:"Letting life do the work", sc:"hrt",
+    body:[
+      "Fermentation lets microbes transform a plant. It changes taste, texture and what the plant offers, and it keeps living preparations alive.",
+      "Ginger bug: a starter made of grated ginger, sugar and water. Feed it a spoonful of each daily for a few days, covered with a cloth, until it fizzes. Add a few spoonfuls to sweetened herbal tea, bottle it, and let it carbonate for a day or two.",
+      "Clean: use clean jars and utensils. Fermentation favors the right microbes, but cleanliness helps.",
+      "Trust your senses: pleasantly sour and fizzy is good. Fuzzy mold or a rotten smell means discard it and start again.",
+      "Pressure: sealed bottles of fizzing liquid build pressure. Open them carefully, and refrigerate when ready.",
+      "Not for everything: fermenting low-acid foods in oil or in sealed jars carries real risk. Begin with ginger bug and learn from a good source before going further."
+    ],
+    practice:"Start a ginger bug and feed it daily. Watch it change, and note the day it first fizzes." },
+
+  { id:"lib_he_alchemy", unlock:0, section:"Path Skills", pathId:"herbalist", pathName:"Herbalist", skillUnlockQuest:"he_alchemy",
+    title:"The Alchemist", sub:"Inner and outer", sc:"wis",
+    body:[
+      "Alchemy has always had two sides, and the old traditions rarely separated them.",
+      "Outer alchemy: working with substances and their transformations. Plants, minerals, fire, extraction, fermentation, the long craft of separating, purifying and recombining. Its history includes chemistry, medicine and a great many accidents.",
+      "Inner alchemy: working with yourself. The refinement of body, breath and mind, until what is coarse becomes subtle. Daoist traditions call it neidan. Western traditions speak of the Great Work. It is practiced through the same disciplines you have been walking since the first Sit.",
+      "Divine Arts holds them together: working consciously with substances in ways that support human development and connection with the Divine. The definition is open, and will grow through practice, not before it.",
+      "No single page can teach this. Find a teacher, or follow the questions yourself through the texts and traditions. Take your time, and trust slow understanding over quick results.",
+      "Safety: outer alchemy has a long record of harm. Historical alchemists poisoned themselves with mercury, arsenic and lead. Do not work with toxic substances, and do not work with psychoactive plants. Do not attempt fire or distillation without a teacher.",
+      "Complexity or concentration does not make a preparation better."
+    ],
+    practice:"Choose one question about alchemy, inner or outer, and follow it for a week. Write down what you find, and what you still do not know." },
+
+  /* ── WIZARD ── Understand, Will, Surrender. */
+  { id:"lib_wz_trial", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_trial",
+    title:"Wizard Trial", sub:"Belly, crown, brow", sc:"wil",
+    body:[
+      "The Wizard brings thought into form through three movements: understanding how things work, willing them, and surrendering them to Source. The trial gives each a place in the body. Three sessions, three minutes each.",
+      "Stand, and gather attention in the belly. Will is held low, not in the head. Feel it settle and steady.",
+      "Sit, and let attention rise to the crown. Open upward, without reaching. This is where you meet what is larger than you.",
+      "Walk, and rest attention at the brow. Watch how the world moves around you: cause, pattern, consequence.",
+      "After each session, choose the center your awareness landed on."
+    ],
+    practice:"Stand, Sit and Walk for three minutes each: belly, crown, then brow. Choose that center on the review screen after each one." },
+
+  { id:"lib_wz_way", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_trial",
+    title:"The Wizard's Way", sub:"Understand, Will, Surrender", sc:"wis",
+    body:[
+      "The Wizard seeks to understand, as deeply as possible, how reality works, and to use will to bring thought into form. It does this in union with Source, not against it.",
+      "Understand: study the mechanics. Physics and biology, the mind, and the maps the traditions drew. The deeper you see, the more precisely you can act.",
+      "Will: hold an intention clearly, and act on it. Will is not wanting. Will is the step taken.",
+      "Surrender: offer the outcome to Source. You plant, and something larger decides when and how it grows. Surrender is not giving up. It is what lets will move without force.",
+      "Mystic and Wizard: the Mystic seeks union for its own sake. The Wizard seeks union in order to create.",
+      "An honest note: if something does not come to pass, it is not proof that you failed to believe. Reality is larger than any one will. The Ledger exists so you can learn from what actually happens."
+    ],
+    practice:"Name one thing you want. Ask: do I understand what it takes? Am I acting on it? Can I let go of how it turns out?" },
+
+  { id:"lib_wz_why", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_why",
+    title:"Why", sub:"Following a question down", sc:"wis",
+    body:[
+      "Every ordinary thing rests on something deeper. A child's chain of whys is one of the oldest tools of understanding.",
+      "Method: choose one thing, such as fire, a seed or a thought. Ask why it happens. Look up or work out the answer, then ask why about that answer. Write each layer down.",
+      "Keep going: after a few layers you reach chemistry, then physics, then questions science is still working on. Mark where knowledge ends and guesses begin.",
+      "Honesty: when you reach what no one fully knows, say so. Do not fill the gap with a pleasing story.",
+      "Two kinds of answer: how something happens, and why it exists at all. Science answers the first. The second belongs to philosophy and the traditions. Keep them apart, and learn from both."
+    ],
+    practice:"Take one ordinary thing down five layers of why. Write the last layer, and whether anyone truly knows the answer." },
+
+  { id:"lib_wz_pattern", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_pattern",
+    title:"As Above, So Below", sub:"Patterns across scales", sc:"wis",
+    body:[
+      "As above, so below is a Hermetic saying: the same principles appear at every level of reality. Modern science finds something similar: many patterns recur across scales.",
+      "Spirals: in shells, sunflower seeds, hurricanes and galaxies.",
+      "Branching: in rivers, lungs, trees, blood vessels and lightning.",
+      "Cycles: in breath, days, seasons, populations and economies.",
+      "Networks: in neurons, roots and fungi, cities and friendships.",
+      "Method: choose one pattern. Study it at two scales and ask what is truly the same and what only looks similar. Some resemblances share a cause, others are coincidence.",
+      "Then turn it inward: where does this pattern appear in your own life?"
+    ],
+    practice:"Choose one pattern. Find it in nature, then in your own life. Write what each teaches about the other." },
+
+  { id:"lib_wz_vision", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_vision",
+    title:"Vision", sub:"The vision board", sc:"wil",
+    body:[
+      "A vision board makes what you want visible. It turns a vague wish into something you see every day.",
+      "Start from your values: if you have forged My Path, build the board from your values and your ideal. The board is the picture of the story you have already named.",
+      "Few and true: a handful of images, each one something you truly want, not what you think you should want. Remove anything that does not move you.",
+      "Specific: a particular place, a kind of work, a way of feeling in the body. Specific images are easier to act on.",
+      "Visible: put it where you will see it daily, on paper, a wall or a screen.",
+      "Research: studies by Gabriele Oettingen found that imagining only the outcome can lower the drive to act. People do better when they picture the outcome, then the obstacle in the way, then plan what they will do. Pair the board with action and surrender: that is the rest of this path.",
+      "Revisit it: a board is a living thing. Change it when you change."
+    ],
+    practice:"Make your board. For each image, write one obstacle and one action you could take this week." },
+
+  { id:"lib_wz_intend", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_intend",
+    title:"Intention", sub:"Will is the step", sc:"wil",
+    body:[
+      "An intention is a clear decision about what you will bring into being. Will is what carries it from thought into form.",
+      "Clear: state it in one sentence, in the present or as a commitment. Vague intentions produce vague results.",
+      "Small enough to act on: choose something you can take a step toward today.",
+      "Action: each day, one action, however small. An email sent, a page written, a phone call made. The step is the will.",
+      "Notice resistance: when you avoid the step, notice what you feel. That is part of the study.",
+      "Hold it lightly: will without surrender becomes force. The next quest is the other half."
+    ],
+    practice:"Write one intention in a sentence. Each day this week, take one action toward it and log it." },
+
+  { id:"lib_wz_surrender", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_surrender",
+    title:"Surrender", sub:"Offering the outcome", sc:"ali",
+    body:[
+      "Surrender is not giving up. It is giving over: doing your part fully, then offering the result to Source.",
+      "Why it matters: will alone grips. Gripping creates tension, fear and narrow sight. Surrender lets will move freely, and opens you to outcomes larger than you planned.",
+      "Method: sit, and bring your intention to mind. Feel how much you want it. Then offer it. Thy will, not mine, or whatever words are true for you. Feel the grip loosen, and stay with that.",
+      "In the body: surrender often feels like an exhale, a softening in the belly and chest, a lightness at the crown.",
+      "Repeat: surrender is rarely done once. The grip returns. Offer it again."
+    ],
+    practice:"Sit with one intention for ten minutes. Each time you notice gripping, exhale and offer it again." },
+
+  { id:"lib_wz_ledger", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_ledger",
+    title:"The Ledger", sub:"An honest record, with no deadline", sc:"wis",
+    body:[
+      "The Ledger is where you record what you intend and what actually happens. It is how the Wizard studies manifestation in their own life.",
+      "Open an intention: write it in one line. It is dated the day you open it.",
+      "Add notes: whenever something moves. An action, a sign, a setback, a surprise. Next week, or years from now.",
+      "No deadline: some things take a decade to fall into place. An intention can stay open as long as it is alive.",
+      "Close it, if you want: came to pass, changed shape, or released. Released is not failure. Sometimes the wanting was the lesson.",
+      "Read it back: once a year or so, read the whole Ledger. Patterns appear over years that cannot be seen in a week.",
+      "The Ledger is found in this quest. Open it whenever you need it."
+    ],
+    practice:"Open three intentions. Add a note to one of them when something moves." },
+
+  { id:"lib_wz_work", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_work",
+    title:"The Work", sub:"Thought into form", sc:"wil",
+    body:[
+      "The Work is the Wizard's first manifestation with proof you can touch: one real thing brought from thought into form.",
+      "Choose something small and concrete: a shelf, a garden bed, a letter written and sent, something broken made whole.",
+      "Understand: learn what it takes. Materials, steps, skills.",
+      "Will: decide, and act until it is done.",
+      "Surrender: offer the outcome. It may come out differently than you imagined.",
+      "Finish it: an unfinished work is still a thought. The Wizard finishes.",
+      "Afterwards, write it in the Ledger. You have done the thing this path is about."
+    ],
+    practice:"Choose one small thing to bring into form this week. Finish it." },
+
+  { id:"lib_wz_dream", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_dream",
+    title:"Dream", sub:"Lucid dreaming", sc:"wis",
+    body:[
+      "A lucid dream is one in which you know you are dreaming. In it, thought and form are very close: you can study how intention shapes experience directly.",
+      "Dream journal: keep a notebook by the bed. Write whatever you remember the moment you wake, before you move. Recall grows with practice.",
+      "Reality checks: several times a day, ask honestly whether you are dreaming. Look at text twice, or check your hands. The habit carries into dreams.",
+      "Intention before sleep: as you fall asleep, repeat that you will recognize the next dream. This method was developed by the researcher Stephen LaBerge.",
+      "Once lucid: stay calm, or you will wake. Look at your hands, touch the ground, then explore.",
+      "Rest first: sleep matters more than lucidity. Do not trade good sleep for dream practice. Sleep paralysis can happen and is harmless, though frightening."
+    ],
+    practice:"Keep a dream journal for two weeks. Do five reality checks each day." },
+
+  { id:"lib_wz_matter", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_matter",
+    title:"Matter and Energy", sub:"What things are made of", sc:"wis",
+    body:[
+      "Matter is not what it seems. Solid things are made of atoms, which are mostly empty space held in place by fields and forces.",
+      "Energy and mass: Einstein showed that mass is a form of energy. A small amount of matter holds an enormous amount of it.",
+      "Fields: modern physics describes particles as excitations in fields that fill all of space.",
+      "Where it stops: no one knows what most of the universe is made of. Dark matter and dark energy are names for what is not yet understood.",
+      "Honesty: in quantum physics, observation means measurement, an interaction with the system. It is not proof that consciousness creates reality. Be wary of anyone who says it is.",
+      "Study it well and the real picture is stranger and more beautiful than the shortcuts."
+    ],
+    practice:"Choose one question about matter or energy. Study it from a good source until you can explain it simply." },
+
+  { id:"lib_wz_season", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_season",
+    title:"A Season", sub:"Holding will over time", sc:"wil",
+    body:[
+      "Many intentions fail not because they are wrong but because they are dropped. A season, about three months, teaches will to last.",
+      "Choose: one intention that matters, too large for a week, small enough for a season.",
+      "Open it in the Ledger, with the date.",
+      "Each week: take at least one real action, and sit once to surrender it.",
+      "Notice: the season will have its own rhythm. Effort rises and falls. Keep going through the low weeks.",
+      "At the end, write what happened, whether or not it came to pass."
+    ],
+    practice:"Open a season's intention in the Ledger today. Write the first action you will take this week." },
+
+  { id:"lib_wz_mind", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_mind",
+    title:"Mind", sub:"The instrument studies itself", sc:"wis",
+    body:[
+      "Every act of will passes through the mind. To understand reality, the Wizard must understand the one doing the understanding.",
+      "What science knows: thoughts, emotions and perceptions correlate with activity in the brain. Attention can be trained, and practice changes the brain.",
+      "What it does not: why any of this is experienced at all. Philosophers call this the hard problem of consciousness. It is still open.",
+      "What the traditions say: many hold that awareness is primary, and the world appears within it. Vedanta, Buddhism and Western mysticism each describe this differently.",
+      "Your own evidence: you have spent many hours watching your mind. That is study too.",
+      "Hold both: the brain, and the awareness that knows it. Do not let either swallow the other."
+    ],
+    practice:"Sit for twenty minutes. Notice the difference between a thought and the awareness that knows it." },
+
+  { id:"lib_wz_wuwei", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_wuwei",
+    title:"Wu Wei", sub:"Surrender in action", sc:"ali",
+    body:[
+      "Wu wei is a Daoist idea, often translated as effortless action. It is not doing nothing. It is acting in harmony with how things move, without forcing.",
+      "The Bhagavad Gita teaches the same in another language: you have a right to your action, but not to its fruits.",
+      "In practice: give the work your full attention and skill. Let go of the outcome while your hands are still moving.",
+      "Signs of forcing: tension, hurry, arguing with what is. Signs of flow: ease, timing, the next step appearing.",
+      "Surrender in the sit becomes surrender in the day."
+    ],
+    practice:"Choose one task today. Do it as well as you can, and each time you catch yourself gripping the result, let it go." },
+
+  { id:"lib_wz_hermetic", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_hermetic",
+    title:"The Hermetic Principles", sub:"An old map of reality", sc:"wis",
+    body:[
+      "Hermeticism is a Western tradition drawn from texts attributed to Hermes Trismegistus, written in the early centuries of the common era.",
+      "The seven principles commonly taught today come from The Kybalion, published in 1908. They are a modern summary, not an ancient text.",
+      "Mentalism: the All is mind. Correspondence: as above, so below. Vibration: nothing rests, everything moves. Polarity: everything has its opposite. Rhythm: everything flows, out and in. Cause and effect: every cause has its effect. Gender: masculine and feminine principles are in everything.",
+      "Use it as a map: test each principle against your life. Keep what you find true. Notice what is metaphor.",
+      "Go deeper: this is a whole tradition. Find a teacher, or read the original texts and their scholars, and follow the questions yourself."
+    ],
+    practice:"Choose one principle. For a week, look for it in your life, and write where it holds and where it does not." },
+
+  { id:"lib_wz_maps", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_maps",
+    title:"The Maps", sub:"How the traditions drew reality", sc:"wis",
+    body:[
+      "Every tradition drew a map of how reality is layered, and how the human being moves through it.",
+      "Kabbalah: the Tree of Life, ten emanations through which the divine becomes the world.",
+      "Vedanta: five sheaths, from the body through breath, mind and wisdom to bliss, around the Self.",
+      "Daoism: the three treasures, essence, energy and spirit, refined one into the next.",
+      "Use them side by side: notice where they agree. That agreement may point at something real.",
+      "A map is not the territory: each was drawn in a culture and a language. Respect the source, and do not mistake the drawing for the ground.",
+      "Go deeper: each is a lifetime's study. Find a teacher, or follow the questions yourself."
+    ],
+    practice:"Choose two maps. Draw them side by side, and mark where they line up." },
+
+  { id:"lib_wz_year", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_year",
+    title:"A Year", sub:"The long will", sc:"wil",
+    body:[
+      "A year turns will into a way of life. Seasons pass, energy changes, and the intention has to survive them all.",
+      "Choose: the intention that matters most to you now.",
+      "Open it in the Ledger, with the date.",
+      "Rhythm: act every week. Surrender every week. Review at each change of season.",
+      "Allow it to change shape: in a year, the intention may grow, narrow or become something else. Note it in the Ledger.",
+      "At the end, read the year back. Write what you understand now that you did not before."
+    ],
+    practice:"Open your year's intention in the Ledger. Write the four dates you will review it." },
+
+  { id:"lib_wz_onewill", unlock:0, section:"Path Skills", pathId:"wizard", pathName:"Wizard", skillUnlockQuest:"wz_onewill",
+    title:"One Will", sub:"Will and Source as one", sc:"ali",
+    body:[
+      "Every tradition that goes deep enough arrives here: the will you have been training was never separate from Source.",
+      "Christian mystics say thy will be done. Daoists speak of following the Dao. Vedanta says the Self and the absolute are not two.",
+      "In practice: intention arises, and you notice it was given. Action follows, and you notice it is carried. Surrender stops being an act, and becomes how you live.",
+      "This is not passivity. The Wizard still studies, chooses and works, often more fully than before.",
+      "No page can bring you here. Practice, teachers and time can."
+    ],
+    practice:"Sit, and let intention arise without choosing it. Notice where it comes from." },
+
+  /* ── SWORD SAINT ── Divine Sword, Intent Action, Feel Future. */
+  { id:"lib_ss_trial", unlock:0, section:"Path Skills", pathId:"sword", pathName:"Sword Saint", skillUnlockQuest:"ss_trial",
+    title:"Sword Saint Trial", sub:"The three centers as one", sc:"ali",
+    body:[
+      "The Sword Saint's practice rests on one thing: the three centers lined up as a single column. The trial builds it before any sword is held.",
+      "Belly: the lower center, below the navel. Often called the lower dantien. This is where attention will rest.",
+      "Heart: the center of the chest.",
+      "Head: the center behind the brow.",
+      "Sit for ten minutes, then stand for ten. In each, feel all three at once, one above the other. If you lose one, find it again, without strain.",
+      "After each session, select all three centers on the review screen: belly, heart and head."
+    ],
+    practice:"Sit ten minutes and stand ten minutes, holding belly, heart and head as one column. Select all three after each session." },
+
+  { id:"lib_ss_wood", unlock:0, section:"Path Skills", pathId:"sword", pathName:"Sword Saint", skillUnlockQuest:"ss_trial",
+    title:"The Wooden Sword", sub:"What to train with, and safely", sc:"str",
+    body:[
+      "Train with a wooden sword (a bokken) or a plain straight stick about the length of your arm and body together. Never a live blade outside a school, under a teacher.",
+      "Space: clear room in every direction, overhead too. Check behind you before you begin. Outdoors is best.",
+      "Grip: two hands, a fist's width apart. The lower hand at the very end of the handle, the upper hand just below the guard. Hold mostly with the last three fingers, wrists soft.",
+      "Guard: feet a little apart, one forward. The tip points at the throat of an imagined opponent, hands in front of the belly. The sword extends from the center, not from the arms.",
+      "Partners: slow, with no contact, and only with someone who agrees. Speed comes years later, if at all.",
+      "Stop if anything hurts. Wrists, elbows and shoulders adapt slowly."
+    ],
+    practice:"Find your sword. Hold it in guard for one minute and feel where it connects to your center." },
+
+  { id:"lib_ss_sense", unlock:0, section:"Path Skills", pathId:"sword", pathName:"Sword Saint", skillUnlockQuest:"ss_sense",
+    title:"Divine Sense", sub:"Feeling the Divine in yourself", sc:"ali",
+    body:[
+      "Divine Sense is the ability to feel the Divine nature in yourself. Everything in this class grows from it.",
+      "Line up: bring belly, heart and head into one column, as in the trial.",
+      "Release: let go of will and effort. Stop trying to feel anything. As effort drops, attention sinks on its own into the belly, the lower dantien.",
+      "Rest: let attention rest there. Notice what is present when nothing is being pushed: often warmth, fullness, quiet, a sense of being held or of something larger.",
+      "Don't chase it: if you grab at the feeling, it fades. Release again, and let it return.",
+      "This sense becomes your reference. Later you will compare other feelings against it."
+    ],
+    practice:"Sit, line up the three centers, then release all effort. Rest in the belly for ten minutes and note what you feel there." },
+
+  { id:"lib_ss_breath", unlock:0, section:"Path Skills", pathId:"sword", pathName:"Sword Saint", skillUnlockQuest:"ss_breath",
+    title:"Divine Breath", sub:"Breathing it into the body", sc:"vit",
+    body:[
+      "Divine Breath takes the Divine Sense from the belly and fills the body with it.",
+      "Begin with Divine Sense: three centers aligned, effort released, attention resting low.",
+      "Inhale: breathe gently into the belly and feel the sense there grow.",
+      "Exhale: let it spread outward, into the chest, the arms, the legs, the skin.",
+      "Each breath widens it a little more, until the whole body feels filled.",
+      "Never force the breath. Slow, quiet and natural. If you feel dizzy, return to normal breathing."
+    ],
+    practice:"Stand and breathe Divine Sense outward for ten minutes, until it reaches the hands and the feet." },
+
+  { id:"lib_ss_sword", unlock:0, section:"Path Skills", pathId:"sword", pathName:"Sword Saint", skillUnlockQuest:"ss_sword",
+    title:"Divine Sword", sub:"Letting it flow into the blade", sc:"ali",
+    body:[
+      "Divine Sword extends the Divine Sense beyond the body, into the sword.",
+      "Stand in guard: three centers aligned, effort released, attention low.",
+      "Breathe it outward as in Divine Breath, until it reaches the hands.",
+      "Then let it continue: through the handle, along the blade, to the tip. The sword becomes part of you, not a thing you are holding.",
+      "Stay still: this practice is stationary. Ten minutes in guard, with the current running from belly to tip.",
+      "Signs: the sword feels lighter, or alive, or simply connected. If it feels heavy and separate, return to the belly and begin again."
+    ],
+    practice:"Stand in guard for ten minutes and feel the current move from the three centers to the tip of the sword." },
+
+  { id:"lib_ss_motion", unlock:0, section:"Path Skills", pathId:"sword", pathName:"Sword Saint", skillUnlockQuest:"ss_motion",
+    title:"Sword in Motion", sub:"The cut", sc:"str",
+    body:[
+      "Now the sword moves, and the current must keep flowing through every cut.",
+      "Raise: lift the sword overhead along the center line, from the belly, not the shoulders.",
+      "Cut: bring it straight down the center line. Stop with the tip at the height of an imagined opponent's head or chest. Exhale as you cut.",
+      "Return: back to guard, unhurried, still connected.",
+      "Footwork: step forward with the cut, back with the return, or stay planted at first.",
+      "Quality over speed: a slow cut with the Divine Sword running through it is worth more than a hundred empty ones. When you lose the current, stop and find it again."
+    ],
+    practice:"Make cuts in sets of 50, resting between sets. Count only the cuts in which the current stayed alive, until you reach 500." },
+
+  { id:"lib_ss_intent", unlock:0, section:"Path Skills", pathId:"sword", pathName:"Sword Saint", skillUnlockQuest:"ss_intent",
+    title:"Intent Action", sub:"Moving from the heart and gut", sc:"wil",
+    body:[
+      "Intent Action is movement with purpose behind it. No gap between knowing and doing.",
+      "Purpose: hold a direction in your life, something you are moving toward. Let it be felt in the heart and the gut, not only thought in the head.",
+      "Heart and gut: practice moving straight from that connection. The cut begins there, not in the mind.",
+      "Alignment: heart, body, action and purpose lined up, the way the three centers line up in stillness.",
+      "No hesitation: when the cut is decided, it is already moving.",
+      "Off the mat: the same practice works in life. Notice when action comes from the heart and gut, and when it comes from doubt or habit."
+    ],
+    practice:"Before each set, name your direction in one word. Cut from the heart and gut, not from the head, until you reach 1000." },
+
+  { id:"lib_ss_unity", unlock:0, section:"Path Skills", pathId:"sword", pathName:"Sword Saint", skillUnlockQuest:"ss_unity",
+    title:"Sword Unity", sub:"Divine Sword and Intent Action, blended", sc:"ali",
+    body:[
+      "Sword Unity brings the two together: the Divine current filling the sword, and purpose moving it.",
+      "Begin still: Divine Sense, Divine Breath, then Divine Sword in guard.",
+      "Add purpose: let your direction come alive in the heart and gut.",
+      "Then move: cut, step, turn, and return. The current fills the blade. The purpose moves it.",
+      "Blend until there are not two things happening, but one.",
+      "If either drops, the current or the purpose, slow down until both return."
+    ],
+    practice:"Practice for fifteen minutes, moving only when both the current and the purpose are present." },
+
+  { id:"lib_ss_future", unlock:0, section:"Path Skills", pathId:"sword", pathName:"Sword Saint", skillUnlockQuest:"ss_future",
+    title:"Feel Future", sub:"Feeling the direction, and changing it", sc:"wis",
+    body:[
+      "Feel Future is feeling where a direction leads, and being able to change direction or position in time.",
+      "The reference: begin in Divine Sense. That feeling is the measure.",
+      "The long path: hold one direction in your life in mind, a choice, a relationship, a project, and feel where it leads. Then compare that feeling with the Divine Sense. Does it widen, settle, warm? Or narrow, tighten, dim?",
+      "Compare: hold a different direction, and feel again. Notice which ones feel like the Divine, and which do not.",
+      "The immediate path: in training, with a partner if you can, feel which way the attack is coming before it arrives, and change position. Alone, move and turn by feel, not by plan.",
+      "Honesty: a feeling is information, not certainty. Check it against what actually happens, and learn from the difference.",
+      "Change direction: the practice is not only feeling the future, but moving when it asks you to."
+    ],
+    practice:"Sit in Divine Sense. Hold two possible directions in your life, one at a time, and compare each with it. Write which felt closer to the Divine." },
+
 ];
 /* Any quest without a written page still gets one, so Library links never dead-end. */
 const LIBRARY_ENTRIES = [
@@ -4177,9 +5374,6 @@ const CM_ICONS = {
 };
 /* Planned paths: on the map, no quest chain yet. */
 const CM_COMING = [
-  { id:"sword",     name:"Sword Saint", parents:["healer","warrior"], accent:"#8FD0D6", blurb:"Healer and Warrior, joined.", foundations:["Divine Sword","Intent Action","Feel Future"] },
-  { id:"wizard",    name:"Wizard",      parents:["sage"],             accent:"#9FB4F2", blurb:"A class that grows from Sage." },
-  { id:"herbalist", name:"Herbalist",   parents:["healer"],           accent:"#A8C66C", blurb:"Healing through plants and preparations." },
 ];
 const CM_ANGLE = { sage:0, healer:120, warrior:240 };
 /* The Forge (My Path) opens once this Act I chapter is complete. */
@@ -4192,10 +5386,13 @@ const TRIAL_FOCUS = {
   mystic:     { sitting:"crown", standing:"chest", walking:"belly" },
   battlemage: { standing:"chest", sitting:"head", walking:"belly" },
   martial:    { standing:"crown, then the ground" },
+  herbalist:  { standing:"ground", sitting:"belly", walking:"chest" },
+  wizard:     { standing:"belly", sitting:"crown", walking:"brow" },
+  sword:      { sitting:"belly, heart and head", standing:"belly, heart and head" },
 };
 const CM_ORBITS = [0, 180, 320, 460, 600];
 /* The session mode a chosen path opens in when you press Cultivate. */
-const CLASS_MODE = { warrior:"train", martial:"train", healer:"restore", sage:"sitting", mystic:"sitting", battlemage:"standing" };
+const CLASS_MODE = { warrior:"train", martial:"train", healer:"restore", sage:"sitting", mystic:"sitting", battlemage:"standing", herbalist:"restore", wizard:"sitting", sword:"standing" };
 const MODE_LABEL = { train:"Train", restore:"Restore", sitting:"Sit", standing:"Stand", walking:"Walk" };
 
 function cmNodes(){
@@ -4780,8 +5977,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
         style={{position:"absolute",left:0,top:0,width:"100%",height:`${mapH}px`,overflow:"hidden",touchAction:"none",cursor:"grab"}}>
         <div aria-hidden="true" style={{position:"absolute",left:0,top:0,right:0,height:"84px",pointerEvents:"none",zIndex:3,background:`linear-gradient(to bottom, ${C.bg} 0%, ${C.bg} 55%, transparent 100%)`}}/>
         <div style={{position:"absolute",left:"20px",top:"12px",pointerEvents:"none",zIndex:4}}>
-          <div style={{...dsp("8px",C.muted,400,"0.24em")}}>ASCEND: INFINITE POTENTIAL</div>
-          <div style={{...dsp("15px",C.cream,400,"0.14em"),marginTop:"3px"}}>CULTIVATE</div>
+          <div style={{...dsp("15px",C.cream,400,"0.14em")}}>CULTIVATE</div>
         </div>
         {devMode && !mine && (centerOn || (selNode?.real && openIds.has(selNode.id))) && (()=>{
           const lv = centerOn ? presenceLevel : masteryLevelFromXP(selNode.id, classState?.mastery?.[selNode.id]?.xp||0);
@@ -5442,7 +6638,101 @@ function ClassQuestSection({ classId, questProgress={}, inquireAnswered={}, epil
 
 /* Quest reader — shows a single class quest's myth, a library link, a complete
    button, and for Inquire, the five tappable questions with checkmarks. */
+/* The Wizard's Ledger: intentions with no deadline. Notes can be added any
+   time, years later; closing (came to pass / changed shape / released) is
+   optional. Lives in classState.ledger. */
+const LEDGER_CLOSE = { passed:"Came to pass", changed:"Changed shape", released:"Released" };
+function ledgerAge(opened){
+  if(!opened) return "";
+  const a=new Date(opened+"T00:00:00"), b=new Date(localDateStr()+"T00:00:00");
+  const days=Math.max(0,Math.round((b-a)/86400000));
+  if(days===0) return "today";
+  if(days<31) return `${days} day${days===1?"":"s"}`;
+  const months=Math.floor(days/30.44);
+  if(months<12) return `${months} month${months===1?"":"s"}`;
+  const years=Math.floor(days/365.25);
+  return `${years} year${years===1?"":"s"}`;
+}
+function LedgerPanel({ ledger=[], onLedger=()=>{}, accent=C.sageB }){
+  const [text,setText]=useState("");
+  const [openId,setOpenId]=useState(null);
+  const [note,setNote]=useState("");
+  const add=()=>{
+    const t=text.trim(); if(!t) return;
+    const id="lgr"+Date.now().toString(36);
+    onLedger(l=>[{id,text:t,opened:localDateStr(),notes:[],closed:null},...l]);
+    setText("");
+  };
+  const addNote=(id)=>{
+    const t=note.trim(); if(!t) return;
+    onLedger(l=>l.map(e=>e.id===id?{...e,notes:[...(e.notes||[]),{date:localDateStr(),text:t}]}:e));
+    setNote("");
+  };
+  const close=(id,how)=>onLedger(l=>l.map(e=>e.id===id?{...e,closed:how?{how,date:localDateStr()}:null}:e));
+  const fmtDate=d=>{ try{ return new Date(d+"T00:00:00").toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"}); }catch(e){ return d; } };
+  const sorted=[...ledger.filter(e=>!e.closed),...ledger.filter(e=>e.closed)];
+  const inp={width:"100%",boxSizing:"border-box",background:"transparent",border:`0.5px solid ${C.bord}`,borderRadius:"6px",
+    padding:"10px 12px",...body("14px",C.cream),outline:"none"};
+  const small=(c=C.dim)=>({...body("11px",c),fontStyle:"italic"});
+  return (
+    <div style={{margin:"6px 0 22px"}}>
+      <div style={{...dsp("9px",accent,400,"0.16em"),marginBottom:"6px"}}>THE LEDGER</div>
+      <div style={{...small(),marginBottom:"12px"}}>No deadlines. Come back whenever something moves.</div>
+      <div style={{display:"flex",gap:"8px",marginBottom:"14px"}}>
+        <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")add();}}
+          placeholder="An intention, in one line…" aria-label="New intention" style={inp}/>
+        <button onClick={add} disabled={!text.trim()}
+          style={{padding:"0 14px",background:"none",border:`0.5px solid ${text.trim()?accent:C.bord}`,borderRadius:"6px",
+            ...dsp("9px",text.trim()?accent:C.dim,400,"0.14em"),cursor:text.trim()?"pointer":"default",flexShrink:0}}>OPEN</button>
+      </div>
+      {sorted.length===0 && <div style={small()}>Nothing open yet.</div>}
+      {sorted.map(e=>{
+        const isOpen=openId===e.id;
+        return (
+          <div key={e.id} style={{borderTop:`0.5px solid ${C.bord}`,padding:"10px 0"}}>
+            <button onClick={()=>{setOpenId(isOpen?null:e.id);setNote("");}} aria-expanded={isOpen}
+              style={{display:"block",width:"100%",textAlign:"left",background:"none",border:"none",padding:0,cursor:"pointer"}}>
+              <div style={{...body("15px",e.closed?C.muted:C.cream),lineHeight:1.4}}>{e.text}</div>
+              <div style={{...small(),marginTop:"3px"}}>
+                Opened {fmtDate(e.opened)} · {ledgerAge(e.opened)}
+                {(e.notes||[]).length>0 && ` · ${(e.notes||[]).length} note${(e.notes||[]).length===1?"":"s"}`}
+                {e.closed && <span style={{color:accent}}> · {LEDGER_CLOSE[e.closed.how]}</span>}
+              </div>
+            </button>
+            {isOpen && (
+              <div style={{marginTop:"10px",paddingLeft:"10px",borderLeft:`1px solid ${accent}55`}}>
+                {(e.notes||[]).map((n,i)=>(
+                  <div key={i} style={{marginBottom:"8px"}}>
+                    <div style={small()}>{fmtDate(n.date)}</div>
+                    <div style={{...body("13px",C.txt),lineHeight:1.5}}>{n.text}</div>
+                  </div>
+                ))}
+                <textarea value={note} onChange={ev=>setNote(ev.target.value)} rows={2}
+                  placeholder="What moved: an action, a sign, a setback, a surprise…" aria-label="Add a note"
+                  style={{...inp,resize:"vertical",fontSize:"13px"}}/>
+                <div style={{display:"flex",flexWrap:"wrap",gap:"8px",marginTop:"8px",alignItems:"center"}}>
+                  <button onClick={()=>addNote(e.id)} disabled={!note.trim()}
+                    style={{padding:"7px 12px",background:"none",border:`0.5px solid ${note.trim()?accent:C.bord}`,borderRadius:"6px",
+                      ...dsp("8px",note.trim()?accent:C.dim,400,"0.14em"),cursor:note.trim()?"pointer":"default"}}>ADD NOTE</button>
+                  {e.closed
+                    ? <button onClick={()=>close(e.id,null)} style={{background:"none",border:"none",...small(C.muted),cursor:"pointer",padding:"4px"}}>Reopen</button>
+                    : Object.entries(LEDGER_CLOSE).map(([k,l])=>(
+                        <button key={k} onClick={()=>close(e.id,k)}
+                          style={{background:"none",border:"none",...small(C.muted),cursor:"pointer",padding:"4px"}}>{l}</button>
+                      ))}
+                </div>
+                {!e.closed && <div style={{...small(),marginTop:"4px"}}>Closing is optional. An intention can stay open as long as it is alive.</div>}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=false, activities=[], jEnt=[], sessions=[], questStartedOn=null,
+                            ledger=[], onLedger=()=>{},
                             onBack, onComplete, onOpenLib, onOpenInquire }){
   const cls = CLASS_BY_ID[classId];
   const q = (QUEST_CHAINS[classId]||[]).find(x=>x.id===questId);
@@ -5465,6 +6755,7 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
   const isReflectQuest = !!reflectUnlock;
   const groupUnlock = (q.unlocks||[]).find(u=>u.kind==="groups");
   const groupState = groupUnlock ? groupsStatus(groupUnlock, sessions, questStartedOn) : [];
+  const ledgerUnlock = (q.unlocks||[]).find(u=>u.kind==="ledger");
 
   return (
     <Overlay title={q.title} onBack={onBack}>
@@ -5569,6 +6860,8 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
         </div>
       )}
 
+      {ledgerUnlock && <LedgerPanel ledger={ledger} onLedger={onLedger} accent={accent}/>}
+
       {/* Library link */}
       <button onClick={()=>onOpenLib(q.libId)}
         style={{display:"block",marginTop:"6px",marginBottom:"16px",background:"none",border:"none",
@@ -5607,6 +6900,10 @@ function ClassQuestReader({ classId, questId, inquireAnswered={}, questDone=fals
           <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
             {groupUnlock.scope==="single" ? "Select all four in one session, and log your counts." : "Log a real test of each, any session, any order."}
           </div>
+        </div>
+      ) : ledgerUnlock ? (
+        <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
+          {ledger.length}/{ledgerUnlock.target} intentions open. It completes on its own.
         </div>
       ) : (q.unlocks||[]).some(u=>u.kind==="vowDays") ? (
         <div style={{...body("12px",C.dim),fontStyle:"italic"}}>
@@ -5835,7 +7132,7 @@ function tieInfo(d, ties){
     || (CLASS_BY_ID[d.cid] ? {key:d.cid, name:CLASS_BY_ID[d.cid].name, color:AC(CLASS_BY_ID[d.cid].accent)} : null)
     || {key:"none", name:"", color:C.dim};
 }
-const SUGGEST_TARGET = { minutes:10, reps:20, movements:20, km:3, rounds:5 };
+const SUGGEST_TARGET = { minutes:10, reps:20, movements:20, km:3, rounds:5, plants:1, preparations:1, actions:1 };
 
 function RoundBtn({ label, on=false, color, onClick, children, disabled=false }){
   return (
@@ -5894,11 +7191,13 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
     setClassState(c=>setDailyAmount(c, d.id, before+n, day));
     setLastLog({id:d.id, text:`Logged ${fmtDailyAmt(n)} ${dailyUnit(d)}`, undo:()=>setClassState(c=>setDailyAmount(c, d.id, before, day))});
   };
+  /* ✓ finishes the current round; once done it logs another (20 pushups, five
+     times in a day = ×5). Check and Do not are once a day, so ✓ toggles them. */
   const finish = d => {
-    const p=prog(d), left=Math.max(0,(d.target||1)-p);
     if(d.kind==="check"||d.kind==="vow") return setClassState(c=>toggleVowCheck(c, d.id, day));
-    if(d.kind==="amount") return isDone(d) ? setClassState(c=>setDailyAmount(c, d.id, 0, day)) : addAmount(d, left);
-    if(d.kind==="practice"){ if(lastLog?.id===d.id && isDone(d)){ lastLog.undo(); setLastLog(null); return; } if(!isDone(d)) logPractice(d, d.measure==="xp" ? unitsForXP(d.unit, left) : left); }
+    const tgt=d.target||1, amt=tgt-(prog(d)%tgt);
+    if(d.kind==="amount") return addAmount(d, amt);
+    if(d.kind==="practice") logPractice(d, d.measure==="xp" ? unitsForXP(d.unit, amt) : amt);
   };
 
   const start = d => { setOpenId(null); setEditId(null); onStart(d); };
@@ -5945,7 +7244,11 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
       )}
       <div style={{borderTop:`0.5px solid ${C.bord}`}}>
         {rows.map(d=>{
-          const t=tieInfo(d, ties), col=t.color, p=prog(d), done=p>=(d.target||1), frac=Math.min(1,p/(d.target||1));
+          const t=tieInfo(d, ties), col=t.color, p=prog(d), tgt=d.target||1;
+          /* rounds completed today: grey at 0, bright at 1, brighter and glowing with each round after */
+          const times = (d.kind==="check"||d.kind==="vow") ? (p>=tgt?1:0) : Math.floor(p/tgt+1e-9);
+          const done = times>=1, lvl=Math.min(times,5);
+          const into = done ? (p-times*tgt)/tgt : p/tgt;   // progress into the next round
           const numeric = d.kind==="class"||d.kind==="practice"||d.kind==="amount";
           const loggable = d.kind==="practice"||d.kind==="amount";
           const open=openId===d.id, editing=editId===d.id;
@@ -5953,26 +7256,29 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
           const sub = showLog ? null : [scope?null:t.name, dailyTargetText(d)].filter(Boolean).join(" · ");
           const k=kindKey(d);
           return (
-            <div key={d.id} style={{borderBottom:`0.5px solid ${C.bord}`,position:"relative"}}>
+            <div key={d.id} style={{borderBottom:`0.5px solid ${C.bord}`,position:"relative",background:lvl>=2?`${col}${["","","0b","13","1b","24"][lvl]}`:"transparent",transition:"background .4s"}}>
               <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"10px 2px"}}>
                 <button onClick={()=>{ setOpenId(open?null:d.id); if(open) setEditId(null); }} aria-expanded={open}
                   style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:"11px",background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left"}}>
-                  <span style={{width:"2px",height:"26px",background:col,borderRadius:"1px",flexShrink:0,opacity:done?0.5:1}}/>
+                  <span style={{width:lvl>=4?"4px":lvl>=2?"3px":"2px",height:"26px",borderRadius:"2px",flexShrink:0,
+                    background:done?col:C.dim, opacity:done?[0,0.75,0.88,0.96,1,1][lvl]:0.45,
+                    boxShadow:lvl>=2?`0 0 ${3*lvl}px ${col}`:"none",transition:"all .4s"}}/>
                   <span style={{flex:1,minWidth:0}}>
-                    <span style={{display:"block",...body("14px",done?C.muted:C.cream),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.kind==="vow"?"Do not: ":""}{d.label}</span>
+                    <span style={{display:"block",...body("14px",done?C.cream:C.muted),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.kind==="vow"?"Do not: ":""}{d.label}</span>
                     {showLog
                       ? <span style={{display:"block",...body("11px",col),marginTop:"1px"}}>{lastLog.text} · <span role="button" tabIndex={0} onClick={e=>{ e.stopPropagation(); lastLog.undo(); setLastLog(null); }} style={{textDecoration:"underline",cursor:"pointer"}}>Undo</span></span>
                       : sub && <span style={{display:"block",...body("11px",C.dim),marginTop:"1px"}}>{sub}</span>}
                   </span>
                 </button>
                 {numeric && !done && p>0 && <span style={{...body("12px",C.muted),flexShrink:0}}>{fmtDailyAmt(p)}<span style={{color:C.dim}}> / {d.target}</span></span>}
-                {d.kind==="class" && !done && <RoundBtn label={`Start a session for ${d.label}`} color={col} onClick={()=>start(d)}><PlayGlyph c={col}/></RoundBtn>}
-                {d.kind==="practice" && d.unit==="minutes" && !done && <RoundBtn label={`Time ${d.label}`} color={col} onClick={()=>start(d)}><PlayGlyph c={col}/></RoundBtn>}
+                {times>=2 && <span aria-label={`${times} times today`} style={{...dsp("11px",col,400,"0.04em"),flexShrink:0}}>×{times}</span>}
+                {d.kind==="class" && <RoundBtn label={`Start a session for ${d.label}`} color={col} onClick={()=>start(d)}><PlayGlyph c={col}/></RoundBtn>}
+                {d.kind==="practice" && d.unit==="minutes" && <RoundBtn label={`Time ${d.label}`} color={col} onClick={()=>start(d)}><PlayGlyph c={col}/></RoundBtn>}
                 {d.kind!=="class"
-                  ? <RoundBtn label={done?`${d.label}: done today`:`Mark ${d.label} done`} on={done} color={col} onClick={()=>finish(d)}>{done?"✓":""}</RoundBtn>
+                  ? <RoundBtn label={(d.kind==="check"||d.kind==="vow") ? (done?`${d.label}: done today`:`Mark ${d.label} done`) : (done?`Do ${d.label} again`:`Mark ${d.label} done`)} on={done} color={col} onClick={()=>finish(d)}>{done?"✓":""}</RoundBtn>
                   : done && <RoundBtn label={`${d.label}: done today`} on color={col} disabled>✓</RoundBtn>}
               </div>
-              {numeric && !done && p>0 && <div style={{position:"absolute",left:"15px",right:0,bottom:"-0.5px",height:"2px",background:"transparent"}}><div style={{height:"100%",width:`${frac*100}%`,background:col,opacity:0.7}}/></div>}
+              {numeric && into>0 && <div style={{position:"absolute",left:"15px",right:0,bottom:"-0.5px",height:"2px",background:"transparent"}}><div style={{height:"100%",width:`${Math.min(1,into)*100}%`,background:col,opacity:done?0.45:0.7}}/></div>}
               {open && (
                 <div style={{padding:"0 2px 12px 15px"}}>
                   {loggable && (
@@ -6088,7 +7394,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   const [view,setView]               = useState("overview");
   /* Act I reads only real, timed sessions; quick logs from Daily don't count. */
   const realSessions = useMemo(()=>sessions.filter(s=>!s.logged),[sessions]);
-  const [questLine,setQuestLine]     = useState(()=>(storyForged(way) || !completedChapters.includes(FORGE_AFTER_CHAPTER))?"path":"forge"); // "forge" | "chant" | "path" (Presence + the classes)
+  const [questLine,setQuestLine]     = useState(()=>((classState?.dailies||[]).length>0 || storyForged(way) || (classState?.chosenClasses||[]).some(c=>trialComplete(c))) ? "daily" : (storyForged(way) || !completedChapters.includes(FORGE_AFTER_CHAPTER))?"path":"forge"); // "forge" | "chant" | "path" (Presence + the classes)
   const [openClasses,setOpenClasses] = useState(()=>classState?.activeClass ? {[classState.activeClass]:true} : {}); // class accordions in the Class tab; the active class starts open
   /* A newly active class opens, so its next step is in view */
   useEffect(()=>{ const ac=classState?.activeClass; if(ac) setOpenClasses(p=>p[ac]?p:{...p,[ac]:true}); },[classState?.activeClass]);
@@ -6493,12 +7799,12 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   const forgeOpen = storyForged(way) || completedChapters.includes(FORGE_AFTER_CHAPTER);
   const dailyOpen = (classState?.dailies||[]).length>0 || storyForged(way) || (classState?.chosenClasses||[]).some(c=>trialComplete(c));
   const switcherItems = [
+    { id:"daily", label:"Daily", show:dailyOpen, state: "" },
+    { id:"path", label:crucibleDone?"Class":"Crucible", show:true, state: "" },
     { id:"forge", label:"Forge", icon:true, show:forgeOpen,
       state: forgeNew ? "new" : "" },
     { id:"chant", label:"Voice", show: chantGateOpen && !chantUnlocked,
       state: chantNew ? "new" : "" },
-    { id:"path", label:crucibleDone?"Class":"Crucible", show:true, state: "" },
-    { id:"daily", label:"Daily", show:dailyOpen, state: "" },
   ].filter(x=>x.show);
 
   const heroTitle = questLine==="chant" ? "Voice"
@@ -8111,6 +9417,7 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
           </div>
         </div>
       )}
+      <AskGuide quiet/>
     </div>
   );
 }
@@ -8459,6 +9766,9 @@ function SettingsScreen({ onBack, name, setName, theme, setTheme,
     <Overlay title="Settings" onBack={onBack} devBadge={
       <button onClick={devMode?disableDevMode:enableDevMode} style={{position:"absolute",top:"6px",left:"50%",transform:"translateX(-50%)",zIndex:5,background:"none",border:"none",cursor:"pointer",padding:"2px 5px",fontSize:"8px",fontFamily:"monospace",letterSpacing:"0.12em",color:devMode?"rgba(180,100,100,0.85)":"rgba(150,150,150,0.3)",lineHeight:1}}>DEV</button>
     }>
+      <SL title="Guidance"/>
+      <AskGuide/>
+      <div style={{height:"18px"}}/>
       <SL title="Preferences"/>
       <div style={{padding:"12px 0",borderBottom:`0.5px solid ${C.bord}`}}>
         <div style={{...body("14px",C.cream),marginBottom:"2px"}}>Display Anchor Time</div>
@@ -9373,6 +10683,14 @@ export default function AscendApp(){
   };
 
   const toggleVowToday = (id) => setClassState(cs=>toggleVowCheck(cs, id));
+  /* The Ledger: completes once enough intentions are open (outcomes never gate it). */
+  useEffect(()=>{
+    const q=findQuest("wz_ledger"); if(!q || classState?.questProgress?.wz_ledger) return;
+    const need=(q.unlocks||[]).find(u=>u.kind==="ledger")?.target||3;
+    if((classState?.ledger||[]).length<need) return;
+    if(!questActiveOrDone("wizard","wz_ledger",classState.questProgress,c=>classTrialDone(classState,c),classState.mastery?.wizard?.xp||0)) return;
+    completeClassQuest("wz_ledger");
+  },[classState?.ledger, classState?.questProgress]);
   /* Discipline: completes once a Warrior Do not has been kept on enough days. */
   useEffect(()=>{
     const q=findQuest("w_discipline"); if(!q || classState?.questProgress?.w_discipline) return;
@@ -10352,6 +11670,7 @@ export default function AscendApp(){
         )}
         {openClassQuest&&<ClassQuestReader classId={openClassQuest.classId} questId={openClassQuest.questId}
           inquireAnswered={classState?.inquireAnswered||{}} questDone={!!classState?.questProgress?.[openClassQuest.questId]} activities={activities} jEnt={jEnt} sessions={sessions} questStartedOn={classState?.questStartedOn?.[openClassQuest.questId]||null}
+          ledger={classState?.ledger||[]} onLedger={fn=>setClassState(cs=>({...cs, ledger: fn(cs?.ledger||[])}))}
           onBack={()=>setOpenClassQuest(null)}
           onComplete={()=>{completeClassQuest(openClassQuest.questId);setOpenClassQuest(null);}}
           onOpenLib={(id)=>{setOpenClassQuest(null);setTab("library");setLibOpenId(id);}}
