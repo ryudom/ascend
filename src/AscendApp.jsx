@@ -1267,6 +1267,7 @@ function weightedElapsedSeconds(events, totalElapsed, activities){
    already paid via session duration × multiplier — counting their minutes
    again here would double-pay the same time. */
 const COUNT_BONUS_PER_UNIT = 0.08; // ~0.08 XP per rep/km — e.g. 100 pushups ≈ 8 XP, a few minutes' worth
+/* Unused since Nov 2026: session XP is now time or counts, whichever is more (see handleDone). */
 function countBonusXP(loggedCounts, activitiesById){
   let bonus=0;
   Object.entries(loggedCounts).forEach(([id,v])=>{
@@ -1800,22 +1801,48 @@ const patchTemplate = (cs, id, fn) => ({ ...cs, mapTemplates:(cs.mapTemplates||[
    penalises a missed day. XP stays a measure of actual practice. */
 const DAILY_DEFAULT_XP = 30;
 /* Base XP for an untimed log: 1 XP per 10 s for minutes; counted units at a
-   rate that reads as real effort (20 pushups = 30 XP, a km run ≈ 6 min). */
-const LOG_XP_PER_UNIT = { reps:1.5, movements:1.5, rounds:3, km:36, sits:6, plants:18, preparations:30, actions:18 };
-const logXP = (unit, n) => unit==="minutes" ? Math.floor((n||0)*6) : Math.round((n||0)*(LOG_XP_PER_UNIT[unit]??1.5));
+   rate that reads as real effort (1 rep = 1 XP, about 10 s of a real set with
+   rest; a km run ≈ 6 min). Also what counts earn inside a timed session. */
+const LOG_XP_PER_UNIT = { reps:1, movements:1, rounds:3, km:36, sits:6, plants:18, preparations:30, actions:18 };
+const logXP = (unit, n) => unit==="minutes" ? Math.floor((n||0)*6) : Math.round((n||0)*(LOG_XP_PER_UNIT[unit]??1));
 const DAILY_UNIT_SHORT = { minutes:"min" };
 const practiceUnit = d => DAILY_UNIT_SHORT[d.unit]||d.unit||"reps";          // the practice's own unit (min, reps, km…)
 const dailyUnit = d => (d.kind==="class" || (d.kind==="practice" && d.measure==="xp")) ? "XP" : (d.kind==="practice"||d.kind==="amount") ? practiceUnit(d) : "";
 /* How much of a practice's own unit makes up `xp` (for ✓ on an XP-measured practice daily). */
-const unitsForXP = (unit, xp) => unit==="minutes" ? Math.max(1,Math.ceil(xp/6)) : Math.max(1,Math.ceil(xp/(LOG_XP_PER_UNIT[unit]??1.5)));
-const dailyTargetText = d => d.kind==="vow" ? "Do not" : d.kind==="check" ? "" : `${d.target} ${dailyUnit(d)}`;
+const unitsForXP = (unit, xp) => unit==="minutes" ? Math.max(1,Math.ceil(xp/6)) : Math.max(1,Math.ceil(xp/(LOG_XP_PER_UNIT[unit]??1)));
+/* Everyone's first daily: the three anchors, off the cushion. It is the last
+   step of Act I chapter 2 ("Into the Day"): marking it once adds it to the
+   Daily list. Players already past chapter 2 get it added once. Each ✓ is one
+   return; repeat it as often as you like and the row brightens. */
+const ANCHOR_DAILY_AFTER_CHAPTER = 2;
+const makeAnchorDaily = () => ({ id:newDailyId(), cid:"presence", kind:"amount", unit:"times", target:1, anchor:true,
+  label:"Align · Relax · Breathe", sub:"Anywhere, as often as you like" });
+/* Chapter 2's last step: the anchors carried into an ordinary moment once. */
+const anchorStepDone = cs => !!cs?.anchorReturned
+  || (cs?.dailies||[]).some(d=>d.anchor && Object.values(cs?.dailyAmounts?.[d.id]||{}).some(v=>v>0));
+/* Mark one return on the anchor daily, adding the daily first if needed. */
+function markAnchorReturn(cs, day=localDateStr()){
+  let c = cs||{};
+  let d = (c.dailies||[]).find(x=>x.anchor);
+  if(!d){ d = makeAnchorDaily(); c = {...c, dailies:[...(c.dailies||[]), d]}; }
+  c = setDailyAmount(c, d.id, (c.dailyAmounts?.[d.id]?.[day]||0)+1, day);
+  return {...c, anchorDailyAdded:true, anchorReturned:true};
+}
+const dailyTargetText = d => d.sub ? d.sub : d.kind==="vow" ? "Do not" : d.kind==="check" ? "" : `${d.target} ${dailyUnit(d)}`;
 const fmtDailyAmt = n => { const r=Math.round((n||0)*10)/10; return Number.isInteger(r) ? String(r) : r.toFixed(1); };
 const newDailyId = () => "d"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+/* A daily can be tied to several places: d.cid/d.value is the first tie (its
+   colour, and for an XP daily which sessions count); d.also holds more tie
+   keys ("presence", a class id, "mine", "mine:<value>"). */
+const tieKeyOf = d => !d.cid ? "none" : d.cid==="mine" && d.value ? "mine:"+d.value : d.cid;
+const dailyTieKeys = d => [tieKeyOf(d), ...(d.also||[])].filter(k=>k && k!=="none");
+const tiedTo = (d, key) => dailyTieKeys(d).includes(key);
+const tiedToMine = d => dailyTieKeys(d).some(k=>k==="mine" || k.startsWith("mine:"));
 /* Add a plain XP daily (about 5 min) for a class, My Path ("mine") or Presence,
    unless one already exists. Used by the offers at the Forge and at a trial's end. */
 function withStarterDaily(cs, cid){
   const ds = cs?.dailies||[];
-  if(ds.some(d=>d.cid===cid && d.kind==="class")) return cs;
+  if(ds.some(d=>tiedTo(d,cid) && d.kind==="class")) return cs;
   const label = cid==="mine" ? "Any practice XP" : cid==="presence" ? "Presence XP" : `${CLASS_BY_ID[cid]?.name||cid} XP`;
   return {...cs, dailies:[...ds, {id:newDailyId(), cid, kind:"class", label, target:DAILY_DEFAULT_XP}]};
 }
@@ -1848,7 +1875,7 @@ function setDailyAmount(cs, id, n, day=localDateStr()){
 /* Distinct days a class's Do nots were kept. */
 function vowDaysOf(classState, cid){
   const days=new Set();
-  (classState?.dailies||[]).filter(d=>d.kind==="vow" && d.cid===cid).forEach(d=>(classState.dailyChecks?.[d.id]||[]).forEach(x=>days.add(x)));
+  (classState?.dailies||[]).filter(d=>d.kind==="vow" && tiedTo(d,cid)).forEach(d=>(classState.dailyChecks?.[d.id]||[]).forEach(x=>days.add(x)));
   return [...days];
 }
 /* Today's progress, in the daily's own unit (XP, minutes, reps…; 0/1 for check and Do not). */
@@ -1864,7 +1891,7 @@ function dailyProgress(d, sessions, cs, day=localDateStr()){
       const a=(s.activities||[]).find(x=>x.name===d.match);
       if(!a) return;
       let v=s.loggedCounts?.[a.id];
-      if(d.measure==="xp"){ sum += d.unit==="minutes" ? (s.xp||0) : logXP(d.unit||"reps", v||0); return; }
+      if(d.measure==="xp"){ sum += (d.unit==="minutes" || (s.activities||[]).length===1) ? (s.xp||0) : logXP(d.unit||"reps", v||0); return; }
       if(v==null && d.unit==="minutes") v=(s.elapsed||0)/60;
       sum += v||0;
     }
@@ -1879,7 +1906,7 @@ function dailySetFill(ds, classState, sessions, day=localDateStr()){
   return ds.reduce((t,d)=>t+dailyFrac(d,sessions,classState,day),0)/ds.length;
 }
 function classDailyFill(cid, classState, sessions, day=localDateStr()){
-  return dailySetFill((classState?.dailies||[]).filter(d=>d.cid===cid), classState, sessions, day);
+  return dailySetFill((classState?.dailies||[]).filter(d=>tiedTo(d,cid)), classState, sessions, day);
 }
 /* Nov 2026: practice dailies record their practice's unit and keep their XP
    target (measure "xp"); Do nots become a 0/1 mark. Needs the activity list to
@@ -2589,7 +2616,7 @@ function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, librar
      the same as a quick log from Daily; otherwise time decides, as always. */
   const countXPLive = activeActIds.reduce((tt,id)=>{ const a=activities.find(x=>x.id===id); const v=parseFloat(actCounts[id]); return tt + (a && a.unit!=="minutes" && v>0 ? logXP(a.unit||"reps", v) : 0); },0);
   const hasCounts = countXPLive>0;
-  const xp = (elapsed<60 && hasCounts) ? countXPLive : Math.floor(weightedSecsLive / 10);  // 1 XP per 10 weighted s (multiplier-aware)
+  const xp = Math.max(Math.floor(weightedSecsLive / 10), countXPLive);  // time (1 XP per 10 weighted s) or counts, whichever is more
   /* Every activity is scoped to the practice type it was created/unlocked
      under — shows only when it matches the current session type, or is "any".
      Mastery-bonus activities (e.g. Cold Exposure) have the further condition
@@ -3740,10 +3767,10 @@ const DEFAULT_MOOD = { bg1:"#0d1410", bg2:"#0d1410", accent:"#7aa060", wisp:"rgb
 const CHAPTER_REQUIREMENTS = {
   1: { needsRead:true },
   2: { needsRead:true, subQuests:true,
-      practice:{ desc:"Read each Anchor in the Library, then practice after each one.",
-        check:(ss,libReadAt)=>{
+      practice:{ desc:"Read each Anchor in the Library, then practice after each one. Then carry them into the day.",
+        check:(ss,libReadAt,pins,chStats,jEnt,way,cs)=>{
           const q=ss.filter(s=>s.xp>0).length;
-          return ANCHOR_SUBQUESTS.every(sq=>libReadAt[sq.libId]!==undefined && q>libReadAt[sq.libId]);
+          return ANCHOR_SUBQUESTS.every(sq=>libReadAt[sq.libId]!==undefined && q>libReadAt[sq.libId]) && anchorStepDone(cs);
         }
       }
     },
@@ -5740,6 +5767,77 @@ function CategoryAddForm({ f, taken=[], onAdd, onCancel }){
   );
 }
 
+/* The centre of the class map: Presence. Its dailies, the three base
+   practices (Sit, Stand, Walk) broken down like a class's Fundamentals, and
+   the four it all rests on, each opening its Library page. */
+const PRESENCE_FOUR = [
+  { name:"Align",     lib:"alignment", line:"The vertical axis: crown to ground." },
+  { name:"Relax",     lib:"release",   line:"Soften everything that isn't holding you up." },
+  { name:"Breath",    lib:"breath",    line:"Let it move on its own." },
+  { name:"Attention", lib:null,        line:"Rest it where the practice asks." },
+];
+function presenceBreakdown(sessions){
+  const out={};
+  ["sitting","standing","walking"].forEach(t=>{
+    const ss=(sessions||[]).filter(s=>s.typeId===t);
+    const days=new Set(ss.map(sessionDay));
+    out[t]={ days:days.size, xp:ss.reduce((a,s)=>a+(s.xp||0),0),
+      mins:Math.round(ss.reduce((a,s)=>a+(s.elapsed||0),0)/60),
+      longest:Math.round(Math.max(0,...ss.map(s=>s.elapsed||0))/60),
+      last:ss.length ? [...days].sort().pop() : null };
+  });
+  return out;
+}
+function PresenceSheetBody({ classState, onClassState, sessions=[], activities=[], storyValues=[], forged=false, gateOpen=false,
+  onQuickLog, onUndoLog, onStartDaily, onGoDaily=()=>{}, onGoQuests=()=>{}, onOpenLib=()=>{} }){
+  const [openRow,setOpenRow]=useState(null);
+  const br=useMemo(()=>presenceBreakdown(sessions),[sessions]);
+  const hasPresenceDaily=(classState?.dailies||[]).some(d=>tiedTo(d,"presence"));
+  const fmtH = m => m>=60 ? `${Math.floor(m/60)} h ${m%60} min` : `${m} min`;
+  const fmtDay = d => { try{ return new Date(d+"T00:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"}); }catch(e){ return d; } };
+  const head = t => <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"10px 0 4px"}}>{t}</div>;
+  return (
+    <div>
+      {(gateOpen || hasPresenceDaily) && (<>
+        {head("DAILY")}
+        <DailyList classState={classState} setClassState={onClassState} sessions={sessions} activities={activities}
+          values={storyValues} forged={forged} scope="presence" showHeader={false}
+          onQuickLog={onQuickLog} onUndoLog={onUndoLog} onStart={onStartDaily}/>
+        <button onClick={()=>onGoDaily("presence")} style={{margin:"6px 0 6px",background:"none",border:"none",cursor:"pointer",padding:"4px 0",...body("13px",C.sageB)}}>All dailies ›</button>
+      </>)}
+      {head("PRACTICE")}
+      {[["sitting","Sit"],["standing","Stand"],["walking","Walk"]].map(([t,l])=>{
+        const b=br[t], open=openRow===t;
+        return (
+          <div key={t} style={{borderBottom:`0.5px solid ${C.bord}`}}>
+            <button onClick={()=>setOpenRow(o=>o===t?null:t)} aria-expanded={open}
+              style={{width:"100%",display:"flex",alignItems:"baseline",gap:"8px",padding:"7px 0",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
+              <span style={{...body("14px",C.cream),flex:1}}>{l}</span>
+              <span style={{...body("12px",C.muted)}}>{b.days} {b.days===1?"day":"days"}</span>
+              <span style={{...dsp("9px",C.gold,400,"0.08em"),minWidth:"58px",textAlign:"right"}}>{b.xp} XP</span>
+            </button>
+            {open && (
+              <div style={{...body("12px",C.dim),padding:"0 0 9px",lineHeight:1.6}}>
+                {b.days ? <>{fmtH(b.mins)} in all · longest {fmtH(b.longest)} · last {fmtDay(b.last)}</> : "Not practiced yet."}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {head("THE FOUR")}
+      {PRESENCE_FOUR.map(x=>(
+        <button key={x.name} onClick={()=>x.lib && onOpenLib(x.lib)} disabled={!x.lib}
+          style={{width:"100%",display:"flex",alignItems:"baseline",gap:"10px",padding:"8px 0",background:"none",border:"none",borderBottom:`0.5px solid ${C.bord}`,cursor:x.lib?"pointer":"default",textAlign:"left"}}>
+          <span style={{...body("15px",C.cream),minWidth:"78px"}}>{x.name}</span>
+          <span style={{...body("12px",C.dim),fontStyle:"italic",flex:1}}>{x.line}</span>
+          {x.lib && <span style={{...body("12px",C.dim)}}>›</span>}
+        </button>
+      ))}
+      <button onClick={()=>onGoQuests("presence")} style={{marginTop:"14px",padding:"8px 16px",background:"transparent",border:`0.5px solid ${C.gold}`,borderRadius:"6px",cursor:"pointer",...dsp("8.5px",C.gold,400,"0.16em")}}>THE CRUCIBLE ›</button>
+    </div>
+  );
+}
+
 function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pathSel="center", onSelect:onPathSelect=()=>{}, onOpenPath=()=>{}, onChoosePath=()=>{},
   activities=[], onAddCategoryItem=()=>{}, onRemoveActivity=()=>{},
   onOpenClassQuest=()=>{}, onOpenLib=()=>{}, onAcknowledgeTrial=()=>{}, devMode=false, onDevSkipTrial=()=>{},
@@ -5857,8 +5955,8 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
   /* Bands for the centre (Presence, or My Path as a whole) and each My Path value. */
   const centreFills = useMemo(()=>{
     const ds=classState?.dailies||[], f=list=>dailySetFill(list, classState, todaySessions, today);
-    const out={ presence:f(ds.filter(d=>d.cid==="presence")), mine:f(ds.filter(d=>d.cid==="mine")) };
-    storyValues.forEach(v=>{ out["v:"+v]=f(ds.filter(d=>d.cid==="mine" && d.value===v)); });
+    const out={ presence:f(ds.filter(d=>tiedTo(d,"presence"))), mine:f(ds.filter(tiedToMine)) };
+    storyValues.forEach(v=>{ out["v:"+v]=f(ds.filter(d=>tiedTo(d,"mine:"+v))); });
     return out;
   },[classState?.dailies, classState?.dailyChecks, classState?.dailyAmounts, todaySessions, today, storyValues.join("|")]); // eslint-disable-line
   const cMode = st&&st.chosen&&trialDone ? CLASS_MODE[selNode.id] : null;
@@ -6136,12 +6234,10 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
               onPick={id=>{ onSelect(id); const nd=myNodes.find(m=>m.id===id); if(nd) glide(nd.pos.x,nd.pos.y); }}
               onStoryChange={onStoryChange} onOpenForge={customMine ? ()=>{ setTplEdit(customTpl.id); setTplOpen(true); } : onOpenForge} forgeLabel={customMine?"EDIT MAP ›":"THE FORGE ›"}/>
           ) : centerOn ? (
-            <div>
-              {["Align","Relax","Breath","Attention"].map(x=>(
-                <div key={x} style={{...body("15px",C.cream),padding:"9px 0",borderBottom:`0.5px solid ${C.bord}`}}>{x}</div>
-              ))}
-              <button onClick={()=>onGoQuests("presence")} style={{marginTop:"14px",padding:"8px 16px",background:"transparent",border:`0.5px solid ${C.gold}`,borderRadius:"6px",cursor:"pointer",...dsp("8.5px",C.gold,400,"0.16em")}}>THE CRUCIBLE ›</button>
-            </div>
+            <PresenceSheetBody classState={classState} onClassState={onClassState} sessions={sessions} activities={activities}
+              storyValues={storyValues} forged={!!story?.name} gateOpen={gateOpen}
+              onQuickLog={onQuickLog} onUndoLog={onUndoLog} onStartDaily={onStartDaily}
+              onGoDaily={onGoDaily} onGoQuests={onGoQuests} onOpenLib={onOpenLib}/>
           ) : !selNode.real ? (selNode.foundations ? (
             <div>
               <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"6px 0 4px"}}>FOUNDATIONS</div>
@@ -6153,7 +6249,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
             <TrialSteps cls={CLASS_BY_ID[selNode.id]} classState={classState} devMode={devMode} onDevSkipTrial={onDevSkipTrial}/>
           ) : st.chosen && !celebrated ? (
             <TrialCompleteScreen classId={selNode.id} onContinue={()=>onAcknowledgeTrial(selNode.id)}
-              hasDaily={(classState?.dailies||[]).some(d=>d.cid===selNode.id)} onAddDaily={()=>onClassState(cs=>withStarterDaily(cs, selNode.id))}/>
+              hasDaily={(classState?.dailies||[]).some(d=>tiedTo(d,selNode.id))} onAddDaily={()=>onClassState(cs=>withStarterDaily(cs, selNode.id))}/>
           ) : (<>
             {showTabs && (
               <div role="tablist" style={{display:"flex",gap:"6px",margin:"4px 0 10px"}}>
@@ -7145,7 +7241,7 @@ function dailyTies(classState, values=[], forged=false){
   (classState?.chosenClasses||[]).filter(c=>classTrialDone(classState,c)).forEach(c=>t.push({key:c, cid:c, value:null, name:CLASS_BY_ID[c]?.name||c, color:AC(CLASS_BY_ID[c]?.accent)||C.sageB}));
   return t;
 }
-const tieKeyOf = d => !d.cid ? "none" : d.cid==="mine" && d.value ? "mine:"+d.value : d.cid;
+const keyCV = k => k.startsWith("mine:") ? {cid:"mine", value:k.slice(5)} : {cid:k, value:undefined};
 function tieInfo(d, ties){
   const k=tieKeyOf(d);
   return ties.find(t=>t.key===k) || (d.cid==="mine" ? ties.find(t=>t.key==="mine") : null)
@@ -7153,6 +7249,21 @@ function tieInfo(d, ties){
     || {key:"none", name:"", color:C.dim};
 }
 const SUGGEST_TARGET = { minutes:10, reps:20, movements:20, km:3, rounds:5, plants:1, preparations:1, actions:1 };
+
+/* A number input that can be cleared and retyped: commits whole numbers >= min
+   as you type, and restores the last good value if left empty. */
+function NumField({ value, onCommit, min=1, label, style }){
+  const [txt,setTxt]=useState(String(value??""));
+  useEffect(()=>{ setTxt(t=>Math.round(+t)===value && t!=="" ? t : String(value??"")); },[value]);
+  const ok = t => t!=="" && Number.isFinite(+t) && Math.round(+t)>=min;
+  return (
+    <input type="number" inputMode="numeric" min={min} value={txt} aria-label={label}
+      onChange={e=>{ const t=e.target.value; setTxt(t); if(ok(t) && Math.round(+t)!==value) onCommit(Math.round(+t)); }}
+      onBlur={()=>{ if(!ok(txt)) setTxt(String(value??"")); }}
+      onKeyDown={e=>{ if(e.key==="Enter") e.currentTarget.blur(); }}
+      style={style}/>
+  );
+}
 
 function RoundBtn({ label, on=false, color, onClick, children, disabled=false }){
   return (
@@ -7183,7 +7294,7 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
   const cs=classState||{};
   const todaySessions=useMemo(()=>sessions.filter(x=>sessionDay(x)===day),[sessions,day]);
   const ties=useMemo(()=>dailyTies(cs, values, forged),[cs.chosenClasses, cs.trialProgress, values, forged]); // eslint-disable-line
-  const all=(cs.dailies||[]).filter(d=>!scope || d.cid===scope);
+  const all=(cs.dailies||[]).filter(d=>!scope || tiedTo(d,scope));
   const [openId,setOpenId]=useState(null);   // row showing its stepper / actions
   const [editId,setEditId]=useState(null);   // row showing its settings
   const [pending,setPending]=useState(0);    // stepper amount waiting to be logged
@@ -7195,6 +7306,12 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
   const upd = fn => setClassState(c=>({...c, dailies:fn(c.dailies||[])}));
   const patch = (id, ch) => upd(ds=>ds.map(x=>x.id===id?{...x,...ch}:x));
   const prog = d => dailyProgress(d, todaySessions, cs, day);
+  /* Ties toggle: tap to add or remove; the first one stays the colour. */
+  const setTies = (d, keys) => {
+    if(!keys.length) return patch(d.id,{cid:null, value:undefined, also:undefined});
+    patch(d.id,{...keyCV(keys[0]), also: keys.length>1 ? keys.slice(1) : undefined});
+  };
+  const toggleTie = (d, k) => { const ks=dailyTieKeys(d); setTies(d, ks.includes(k) ? ks.filter(x=>x!==k) : [...ks, k]); };
   const isDone = d => prog(d) >= (d.target||1);
   const tieOrder = d => { const i=ties.findIndex(t=>t.key===tieKeyOf(d)); return i<0 ? (d.cid==="mine"?0:ties.length) : i; };
   const rows=[...all].sort((a,b)=>(isDone(a)-isDone(b)) || (tieOrder(a)-tieOrder(b)));
@@ -7209,7 +7326,7 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
   const addAmount = (d, n) => {
     const before=prog(d);
     setClassState(c=>setDailyAmount(c, d.id, before+n, day));
-    setLastLog({id:d.id, text:`Logged ${fmtDailyAmt(n)} ${dailyUnit(d)}`, undo:()=>setClassState(c=>setDailyAmount(c, d.id, before, day))});
+    setLastLog({id:d.id, text: dailyUnit(d)==="times" ? (n===1?"Logged once":`Logged ${fmtDailyAmt(n)} times`) : `Logged ${fmtDailyAmt(n)} ${dailyUnit(d)}`, undo:()=>setClassState(c=>setDailyAmount(c, d.id, before, day))});
   };
   /* ✓ finishes the current round; once done it logs another (20 pushups, five
      times in a day = ×5). Check and Do not are once a day, so ✓ toggles them. */
@@ -7229,7 +7346,7 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
 
   /* suggestions: practices the tied classes already have, plus an XP goal */
   const suggestions = !showSuggestions ? [] : ties.filter(t=>CLASS_BY_ID[t.cid] && (!scope || t.cid===scope)).flatMap(t=>{
-    const have=(cs.dailies||[]).filter(d=>d.cid===t.cid);
+    const have=(cs.dailies||[]).filter(d=>tiedTo(d,t.cid));
     const out=[];
     if(!have.some(d=>d.kind==="class")) out.push({key:t.cid+":xp", text:`${t.name} XP · ${DAILY_DEFAULT_XP}`, color:t.color,
       make:()=>({kind:"class", cid:t.cid, label:`${t.name} XP`, target:DAILY_DEFAULT_XP})});
@@ -7240,7 +7357,14 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
         make:()=>({kind:"practice", cid:t.cid, match:a.name, label:a.name, unit, target})});
     });
     return out;
-  }).slice(0,4);
+  });
+  /* Presence: its own XP goal, when scoped to it (the centre's sheet). */
+  if(showSuggestions && scope==="presence" && !(cs.dailies||[]).some(d=>tiedTo(d,"presence") && d.kind==="class")){
+    const pt=ties.find(t=>t.key==="presence");
+    if(pt) suggestions.unshift({key:"presence:xp", text:`Presence XP · ${DAILY_DEFAULT_XP}`, color:pt.color,
+      make:()=>({kind:"class", cid:"presence", label:"Presence XP", target:DAILY_DEFAULT_XP})});
+  }
+  suggestions.splice(4);
 
   const inp = {background:C.bg,color:C.cream,border:`0.5px solid ${C.bord}`,borderRadius:"5px",padding:"7px 9px",...body("13px",C.cream),boxSizing:"border-box"};
   const chip = (on,col=C.gold) => ({padding:"6px 10px",borderRadius:"6px",cursor:"pointer",background:on?`${col}22`:"none",border:`0.5px solid ${on?col:C.bord}`,...dsp("8.5px",on?C.cream:C.muted,400,"0.1em")});
@@ -7273,7 +7397,8 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
           const loggable = d.kind==="practice"||d.kind==="amount";
           const open=openId===d.id, editing=editId===d.id;
           const showLog = lastLog?.id===d.id;
-          const sub = showLog ? null : [scope?null:t.name, dailyTargetText(d)].filter(Boolean).join(" · ");
+          const tieNames = dailyTieKeys(d).filter(k=>k!==scope).map(k=>(ties.find(tt=>tt.key===k)||tieInfo(keyCV(k),ties)).name).filter(Boolean);
+          const sub = showLog ? null : [tieNames.join(" + ")||null, dailyTargetText(d)].filter(Boolean).join(" · ");
           const k=kindKey(d);
           return (
             <div key={d.id} style={{borderBottom:`0.5px solid ${C.bord}`,position:"relative",background:lvl>=2?`${col}${["","","0b","13","1b","24"][lvl]}`:"transparent",transition:"background .4s"}}>
@@ -7348,24 +7473,23 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
                       {numeric && (
                         <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
                           <span style={{...body("12px",C.dim)}}>Target</span>
-                          <input type="number" min="1" value={d.target} aria-label="Target"
-                            onChange={e=>patch(d.id,{target:Math.max(1,Math.round(+e.target.value||0))})} style={{...inp,width:"74px"}}/>
+                          <NumField value={d.target} min={1} label="Target" onCommit={n=>patch(d.id,{target:n})} style={{...inp,width:"74px"}}/>
                           <span style={{...body("12px",C.dim)}}>{dailyUnit(d)}{d.kind==="class"?` · about ${Math.max(1,Math.round(d.target/6))} min`:d.kind==="practice"&&d.measure==="xp"?` · about ${unitsForXP(d.unit,d.target)} ${practiceUnit(d)}`:""}</span>
                         </div>
                       )}
                       <div>
-                        <div style={{...dsp("8px",C.dim,400,"0.16em"),marginBottom:"6px"}}>TIED TO</div>
+                        <div style={{...dsp("8px",C.dim,400,"0.16em"),marginBottom:"6px"}}>TIED TO <span style={{...body("10px",C.dim),letterSpacing:0,fontStyle:"italic",textTransform:"none"}}>· choose one or more</span></div>
                         <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
-                          <button onClick={()=>patch(d.id,{cid:null,value:undefined})} style={chip(!d.cid)}>NONE</button>
+                          <button onClick={()=>setTies(d,[])} style={chip(!dailyTieKeys(d).length)}>NONE</button>
                           {ties.filter(tt=>tt.cid!=="mine").map(tt=>(
-                            <button key={tt.key} onClick={()=>patch(d.id,{cid:tt.cid,value:undefined})} style={chip(tieKeyOf(d)===tt.key,tt.color)}>{tt.name.toUpperCase()}</button>
+                            <button key={tt.key} aria-pressed={tiedTo(d,tt.key)} onClick={()=>toggleTie(d,tt.key)} style={chip(tiedTo(d,tt.key),tt.color)}>{tt.name.toUpperCase()}</button>
                           ))}
                         </div>
                         {ties.some(tt=>tt.cid==="mine") && (<>
                           <div style={{...dsp("8px",C.dim,400,"0.16em"),margin:"10px 0 6px"}}>MY PATH</div>
                           <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
                             {ties.filter(tt=>tt.cid==="mine").map(tt=>(
-                              <button key={tt.key} onClick={()=>patch(d.id,{cid:"mine",value:tt.value||undefined})} style={chip(tieKeyOf(d)===tt.key,tt.color)}>{tt.value?tt.name.toUpperCase():"ALL"}</button>
+                              <button key={tt.key} aria-pressed={tiedTo(d,tt.key)} onClick={()=>toggleTie(d,tt.key)} style={chip(tiedTo(d,tt.key),tt.color)}>{tt.value?tt.name.toUpperCase():"ALL"}</button>
                             ))}
                           </div>
                         </>)}
@@ -7414,7 +7538,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   const [view,setView]               = useState("overview");
   /* Act I reads only real, timed sessions; quick logs from Daily don't count. */
   const realSessions = useMemo(()=>sessions.filter(s=>!s.logged),[sessions]);
-  const [questLine,setQuestLine]     = useState(()=>((classState?.dailies||[]).length>0 || storyForged(way) || (classState?.chosenClasses||[]).some(c=>trialComplete(c))) ? "daily" : (storyForged(way) || !completedChapters.includes(FORGE_AFTER_CHAPTER))?"path":"forge"); // "forge" | "chant" | "path" (Presence + the classes)
+  const [questLine,setQuestLine]     = useState(()=>(completedChapters.includes(ACT1_FINAL_CHAPTER) && ((classState?.dailies||[]).length>0 || storyForged(way) || (classState?.chosenClasses||[]).some(c=>trialComplete(c)))) ? "daily" : (storyForged(way) || !completedChapters.includes(FORGE_AFTER_CHAPTER))?"path":"forge"); // "forge" | "chant" | "path" (Presence + the classes)
   const [openClasses,setOpenClasses] = useState(()=>classState?.activeClass ? {[classState.activeClass]:true} : {}); // class accordions in the Class tab; the active class starts open
   /* A newly active class opens, so its next step is in view */
   useEffect(()=>{ const ac=classState?.activeClass; if(ac) setOpenClasses(p=>p[ac]?p:{...p,[ac]:true}); },[classState?.activeClass]);
@@ -7496,7 +7620,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
     if(!req || req.autoComplete) return true;
     if(!req.practice) return true;
     if(req.libRequired && !req.libRequired.every(id=>libReadAt[id]!==undefined)) return false;
-    return req.practice.check(realSessions, libReadAt, pins, chStats, jEnt, way);
+    return req.practice.check(realSessions, libReadAt, pins, chStats, jEnt, way, classState);
   };
   const questComplete = n => {
     const req = CHAPTER_REQUIREMENTS[n];
@@ -7640,6 +7764,33 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                           </div>
                         );
                       })}
+                      {/* Into the Day: the anchors off the cushion, once; this adds the anchor daily */}
+                      {(()=>{
+                        const threeDone = rDone && ANCHOR_SUBQUESTS.every(sq=>{const pr=libReadAt[sq.libId]; return pr!==undefined&&qualSessions>pr;});
+                        const done = anchorStepDone(classState);
+                        return (
+                          <div style={{padding:"11px 14px",background:done?"rgba(163,192,137,0.04)":threeDone?SC.surf:"transparent",border:`0.5px solid ${done?SC.sageB:SC.bord}`,borderRadius:"6px",marginBottom:"6px"}}>
+                            <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:threeDone&&!done?"8px":"0"}}>
+                              <div style={{width:"6px",height:"6px",borderRadius:"50%",background:done?SC.sageB:threeDone?SC.gold:SC.dim,flexShrink:0}}/>
+                              <div style={{flex:1}}>
+                                <span style={{...dsp("10px",done?SC.sageB:threeDone?SC.cream:SC.muted,400,"0.1em")}}>Into the Day</span>
+                                <span style={{...body("10px",SC.dim),marginLeft:"6px"}}>Off the cushion</span>
+                              </div>
+                              {done&&<span style={{color:SC.sageB,fontSize:"11px"}}>✓</span>}
+                            </div>
+                            {threeDone&&!done&&(
+                              <div style={{paddingLeft:"14px"}}>
+                                <div style={{...body("12px",SC.muted),lineHeight:1.55,marginBottom:"8px"}}>The anchors are not only for practice. In an ordinary moment, walking, waiting, working: align, relax, breathe. Then mark it.</div>
+                                <button onClick={()=>setClassState(cs=>markAnchorReturn(cs))} style={{display:"flex",alignItems:"center",gap:"5px",background:"transparent",border:`0.5px solid ${SC.bord}`,borderRadius:"4px",padding:"5px 10px",cursor:"pointer"}}>
+                                  <span style={{fontSize:"9px",color:SC.dim}}>○</span>
+                                  <span style={{...body("10px",SC.muted)}}>I came back to them</span>
+                                </button>
+                              </div>
+                            )}
+                            {done&&<div style={{...body("10px",SC.dim),fontStyle:"italic",paddingLeft:"14px",marginTop:"4px"}}>It's on your Daily now: Align · Relax · Breathe, as often as you like.</div>}
+                          </div>
+                        );
+                      })()}
                       {!rDone&&<div style={{...body("11px",SC.dim),fontStyle:"italic",marginTop:"6px",textAlign:"center"}}>Read the chapter above to begin.</div>}
                     </div>
                   );
@@ -8114,7 +8265,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                             )
                           ) : !celebrated ? (
                             <TrialCompleteScreen classId={cid} onContinue={()=>onAcknowledgeTrial(cid)}
-                              hasDaily={(classState?.dailies||[]).some(d=>d.cid===cid)} onAddDaily={()=>setClassState(cs=>withStarterDaily(cs, cid))}/>
+                              hasDaily={(classState?.dailies||[]).some(d=>tiedTo(d,cid))} onAddDaily={()=>setClassState(cs=>withStarterDaily(cs, cid))}/>
                           ) : (
                             <ClassQuestSection classId={cid} questProgress={classState.questProgress}
                               inquireAnswered={classState.inquireAnswered} epilogueRevealed={classState.epilogueRevealed}
@@ -8136,7 +8287,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
         {/* ── The Forge — the player-authored questline ── */}
         {questLine==="forge" && (
           <ForgeStoryView way={way} onWayChange={onWayChange} onOpenMyPath={onOpenMyPath}
-            hasMineDaily={(classState?.dailies||[]).some(d=>d.cid==="mine")} onAddMineDaily={()=>setClassState(cs=>withStarterDaily(cs,"mine"))}/>
+            hasMineDaily={(classState?.dailies||[]).some(tiedToMine)} onAddMineDaily={()=>setClassState(cs=>withStarterDaily(cs,"mine"))}/>
         )}
       </div>
     </div>
@@ -10703,6 +10854,12 @@ export default function AscendApp(){
   };
 
   const toggleVowToday = (id) => setClassState(cs=>toggleVowCheck(cs, id));
+  /* The anchor daily arrives once, when the anchors have been taught. */
+  useEffect(()=>{
+    if(!classState || classState.anchorDailyAdded) return;
+    if(!(completedChapters||[]).includes(ANCHOR_DAILY_AFTER_CHAPTER)) return;
+    setClassState(cs=>cs?.anchorDailyAdded ? cs : {...cs, anchorDailyAdded:true, dailies:[...(cs?.dailies||[]), makeAnchorDaily()]});
+  },[completedChapters, classState?.anchorDailyAdded]);
   /* The Ledger: completes once enough intentions are open (outcomes never gate it). */
   useEffect(()=>{
     const q=findQuest("wz_ledger"); if(!q || classState?.questProgress?.wz_ledger) return;
@@ -11028,14 +11185,16 @@ export default function AscendApp(){
        flat bonus per logged rep/km (not minutes — those already earn via
        duration so a second count-bonus would double-pay the same time). */
     const activitiesById = Object.fromEntries((activeActivities||[]).map(a=>[a.id,a]));
-    const bonusXP = countBonusXP(loggedCounts||{}, activitiesById);
     const baseSecs = isA ? 0 : (weightedElapsed!=null ? weightedElapsed : (elapsedSecs??0));
     /* Counted reps/km saved from a short session (under a minute, i.e. just
        logging what was done) earn the same base XP as a quick log from Daily. */
     const countXP = Object.entries(loggedCounts||{}).reduce((t,[id,v])=>{ const a=activitiesById[id]; return t + (a && a.unit!=="minutes" ? logXP(a.unit||"reps", v) : 0); },0);
+    /* Session XP = time or counts, whichever is more: 1 XP per 10 weighted
+       seconds, or the counted reps/km at their quick-log rate. Never both
+       (no double pay), and no cliff at one minute: a timed set and a quick
+       log of the same reps earn the same. */
     const xpE = isA ? 0 : logged ? Math.max(0,Math.round(loggedXP||0))
-      : ((elapsedSecs||0)<60 && countXP>0) ? countXP
-      : Math.floor(baseSecs/10) + Math.round(bonusXP);
+      : Math.max(Math.floor(baseSecs/10), countXP);
     const {sg:sgRaw}=isA?{sg:{}}:rewards(typeId||"sitting",xpE,activeActivities);
     // backward compat: old sessions stored a string, new ones store an array
     const lands = Array.isArray(awarenessLanding) ? awarenessLanding : (awarenessLanding ? [awarenessLanding] : []);
