@@ -1067,11 +1067,11 @@ const QUEST_CHAINS = {
     },
     {
       id: "b_accel",
-      title: "Mind Acceleration",
+      title: "Hyper Focus",
       myth: "The Sage learned to watch attention. The Battlemage learns to drive it.\n\nSit. Feel the warmth of the furnace below, and draw it upward — not literally, but the way you'd lean your whole weight into something. Then narrow your attention to a single point: the breath at the nostrils, a sound, a spot in front of you. For ten seconds, hold it there with everything you have. Sharp. Bright. Nothing else gets in.\n\nThen release completely, and rest before the next round. The release is half the practice. Attention that can't let go is only tension wearing a sharper face.\n\nTen rounds. Count each one honestly.\n\nYou are learning that focus isn't something you have. It's something you can do.",
       libId: "lib_b_accel",
       criteria: "Complete 10 rounds of 10-second acceleration.",
-      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Mind Acceleration", stat: "wis", target: 10, unit: "rounds" }],
+      unlocks: [{ kind: "activity", practiceType: "sitting", name: "Hyper Focus", stat: "wis", target: 10, unit: "rounds" }],
     },
     {
       id: "b_barrier",
@@ -1095,7 +1095,7 @@ const QUEST_CHAINS = {
       isCapstone: true,
       myth: "Everything so far, you've practiced alone. Now the field meets something that moves back.\n\nFind a partner, a game, a ball, a sparring drill — anything with another body in it and an element you can't predict. Hold the Barrier from the heart. Bring the acceleration to the moment something comes toward you. Notice what you see before you think, what your body does before you decide, what the field registers that your eyes haven't yet.\n\nPlay. Keep it light enough to stay safe, and real enough to matter. Afterward, write a few lines: what met the field, and what happened when it did.\n\nThree centers, working as one, with someone else in the room. This is the way of the Battlemage.",
       libId: "lib_b_proving",
-      criteria: "Accumulate 30 minutes of Barrier and Mind Acceleration in practice with others, and write a reflection after one of those sessions.",
+      criteria: "Accumulate 30 minutes of Barrier and Hyper Focus in practice with others, and write a reflection after one of those sessions.",
       unlocks: [
         { kind: "activity", practiceType: "train", name: "The Proving Ground", stat: "wil", target: 30, unit: "minutes" },
         { kind: "sessionNote", activity: "The Proving Ground" },
@@ -1346,8 +1346,20 @@ const MASTERY_BONUSES = {
    the change is silently left with the OLD metadata forever, since nothing
    ever re-creates or re-checks it otherwise. This NEVER touches `count` —
    real, earned progress is never reset just because a definition changed. */
+/* Renamed practices: old name -> new. Applied to activities, sessions and
+   dailies on load and import, so history and quest progress carry over. */
+const ACTIVITY_RENAMES = { "Mind Acceleration":"Hyper Focus" };
+const renameAct = n => ACTIVITY_RENAMES[n] || n;
+function migrateSessionNames(sessions){
+  if(!Array.isArray(sessions)) return sessions;
+  return sessions.map(x=>{
+    if(!Array.isArray(x?.activities) || !x.activities.some(a=>ACTIVITY_RENAMES[a?.name])) return x;
+    return { ...x, activities: x.activities.map(a=>ACTIVITY_RENAMES[a?.name] ? { ...a, name: renameAct(a.name) } : a) };
+  });
+}
 function migrateActivityMetadata(activities){
   if(!Array.isArray(activities)) return activities;
+  activities = activities.map(a=>ACTIVITY_RENAMES[a?.name] ? { ...a, name: renameAct(a.name) } : a);
   const unlockByName = {};
   Object.values(QUEST_CHAINS).forEach(chain=>{
     chain.forEach(q=>(q.unlocks||[]).forEach(u=>{
@@ -1433,6 +1445,11 @@ function migrateClassState(cs, activities){
     out = { ...out, [m.flag]:true,
       questProgress: (m.past.some(id=>q[id]) && !q[m.credit]) ? { ...q, [m.credit]:true } : q };
   });
+  if(Array.isArray(out.dailies) && out.dailies.some(d=>ACTIVITY_RENAMES[d.match]||ACTIVITY_RENAMES[d.label])){
+    out = { ...out, dailies: out.dailies.map(d=>({ ...d,
+      ...(ACTIVITY_RENAMES[d.match]?{match:renameAct(d.match)}:{}),
+      ...(ACTIVITY_RENAMES[d.label]?{label:renameAct(d.label)}:{}) })) };
+  }
   return migrateDailies(out, activities);
 }
 
@@ -1550,7 +1567,7 @@ const FUNDAMENTALS = {
   ],
   battlemage: [
     { id:"b_stoke",   name:"Stoke the Furnace", unit:"minutes", stat:"vit", practiceType:"standing", variations:"Breath to the furnace, then movement from core", sources:["Move from Core","Core Flow"], unlockQuest:"b_stoke" },
-    { id:"b_accel",   name:"Mind Acceleration", unit:"rounds",  stat:"wis", practiceType:"sitting",  variations:"Rounds of focus, then full release",            sources:[], unlockQuest:"b_accel" },
+    { id:"b_accel",   name:"Hyper Focus", unit:"rounds",  stat:"wis", practiceType:"sitting",  variations:"Rounds of focus, then full release",            sources:[], unlockQuest:"b_accel" },
     { id:"b_barrier", name:"Barrier",           unit:"minutes", stat:"hrt", practiceType:"standing", variations:"The field, in stillness and in the world",       sources:["The Shifting Field","The Proving Ground"], unlockQuest:"b_barrier" },
   ],
 };
@@ -4213,14 +4230,17 @@ const LIBRARY_AUTHORED = [
     practice:"Move continuously for 20 minutes in one session, returning to the belly each time a movement starts elsewhere." },
 
   { id:"lib_b_accel", unlock:0, section:"Path Skills", pathId:"battlemage", pathName:"Battlemage", skillUnlockQuest:"b_accel",
-    title:"Mind Acceleration", sub:"Focus as an action", sc:"wis",
+    title:"Hyper Focus", sub:"Focus as an action", sc:"wis",
     body:[
-      "Mind Acceleration trains attention like an interval workout: a short burst of total focus, then complete rest.",
+      "Hyper Focus trains attention like an interval workout: a short burst of total focus, then complete rest.",
       "Sit upright. Feel the lower belly for a few breaths. Then choose a single point: the breath at the nostrils, a sound, a spot on the floor. For ten seconds, put all of your attention there. Nothing else gets in.",
       "Then let go completely. Let attention go wide and soft for twenty or thirty seconds. The release is as important as the focus. Attention that can't let go is just tension.",
-      "Count only the rounds where the focus really held. Ten honest rounds."
+      "Hyper means above. This is focus raised above its normal level, into the present moment, as far as it will go.",
+      "Count only the rounds where the focus really held. Ten honest rounds.",
+      "Lengthen it over time: ten seconds is where it starts, not where it ends. When ten seconds holds cleanly, go to twenty, then thirty, then a minute and beyond. Keep the rest between rounds. The aim is to hold that raised level longer, not to strain harder.",
+      "In motion: Hyper Focus comes alive when the world is moving at you. Sports, trail running, sparring, any moment with real stimulus or danger. The same raised attention, held through the action: every root and rock on the trail, every shift in a partner's weight. Stay within your skill. The point is to meet the moment fully, not to seek danger to feel it."
     ],
-    practice:"Choose Mind Acceleration under Activities when you Sit. Ten seconds of full focus on one point, then twenty to thirty seconds of rest. Ten rounds." },
+    practice:"Choose Hyper Focus under Activities when you Sit. Ten seconds of full focus on one point, then twenty to thirty seconds of rest. Ten rounds. Lengthen the focus as it steadies." },
 
   { id:"lib_b_barrier", unlock:0, section:"Path Skills", pathId:"battlemage", pathName:"Battlemage", skillUnlockQuest:"b_barrier",
     title:"Barrier", sub:"The field around you", sc:"hrt",
@@ -4246,11 +4266,11 @@ const LIBRARY_AUTHORED = [
     title:"The Proving Ground", sub:"The field meets another", sc:"wil",
     body:[
       "Until now you've practiced alone. The Proving Ground adds another person and something you can't predict.",
-      "Find a partner and something with movement in it: light sparring, a ball game, a push-hands drill, tag. Hold the Barrier from the chest. When something comes toward you, sharpen attention like in Mind Acceleration, then release it.",
+      "Find a partner and something with movement in it: light sparring, a ball game, a push-hands drill, tag. Hold the Barrier from the chest. When something comes toward you, sharpen attention like in Hyper Focus, then release it.",
       "Notice what you see before you think, and what the body does before you decide.",
       "Keep it safe. Agree on the intensity beforehand, go lighter than you think you need to, and stop if anyone is uncomfortable. Afterward, write a short note in the session: what met the field, and what happened."
     ],
-    practice:"Practice with a partner or game, holding Barrier and Mind Acceleration together. Log the minutes until 30 are reached, and write a reflection after one of those sessions." },
+    practice:"Practice with a partner or game, holding Barrier and Hyper Focus together. Log the minutes until 30 are reached, and write a reflection after one of those sessions." },
 
   /* ── HEALER LIBRARY (fully written) ── */
   { id:"lib_h_heart", unlock:0, section:"Path Skills", pathId:"healer", pathName:"Healer", skillUnlockQuest:"h_heart",
@@ -10144,7 +10164,7 @@ export default function AscendApp(){
 
   const [types,setTypes]=useState(P.types ?? TYPES);
   const [library,setLibrary]=useState(P.library ?? Object.fromEntries(TYPES.map(t=>[t.id,[]])));
-  const [sessions,setSessions]=useState(P.sessions ?? INIT_S);
+  const [sessions,setSessions]=useState(()=>migrateSessionNames(P.sessions ?? INIT_S));
   const [pathView,setPathView]=useState(null); // classId whose Path portal is open
   const [jEnt,setJEnt]=useState(P.jEnt ?? [
   ]);
@@ -10365,7 +10385,7 @@ export default function AscendApp(){
     const Pr=loadPersisted();
     setDevMode(false);
     setCh(migrateCh(Pr.ch)??{name:"",totalXP:0,title:"Seeker",stats:{vit:0,str:0,wil:0,hrt:0,voi:0,wis:0,ali:0},_statsFmt:"xp"});
-    setSessions(Pr.sessions??INIT_S); setJEnt(Pr.jEnt??[]);
+    setSessions(migrateSessionNames(Pr.sessions??INIT_S)); setJEnt(Pr.jEnt??[]);
     setPins(Pr.pins??[]);
     setRevealZones(Pr.revealZones??[]);
     setZonesMigrated(Pr.zonesMigrated??false);
@@ -10456,7 +10476,7 @@ export default function AscendApp(){
       writeStorage(JSON.stringify(data));
       const mc=migrateCh(data.ch);
       if(mc) setCh(mc);
-      if(data.sessions) setSessions(data.sessions);
+      if(data.sessions) setSessions(migrateSessionNames(data.sessions));
       if(data.jEnt) setJEnt(data.jEnt);
       if(data.pins) setPins(data.pins);
       if(data.revealZones){
@@ -10585,7 +10605,7 @@ export default function AscendApp(){
       if(P2?.v){
         const mc = migrateCh(P2.ch);
         if(mc) setCh(mc);
-        if(P2.sessions) setSessions(P2.sessions);
+        if(P2.sessions) setSessions(migrateSessionNames(P2.sessions));
         if(P2.jEnt) setJEnt(P2.jEnt);
         if(P2.pins) setPins(P2.pins);
         if(P2.revealZones) setRevealZones(P2.revealZones);
