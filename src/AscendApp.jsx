@@ -1048,7 +1048,7 @@ const QUEST_CREDIT_MIGRATIONS = [
   { flag:"stretchToHealer",        past:["h_tension"],                    credit:"h_stretch" },
   { flag:"warriorDisciplineAdded", past:["w_measure","w_cold","w_proving"], credit:"w_discipline" },
 ];
-function migrateClassState(cs){
+function migrateClassState(cs, activities){
   if(!cs || typeof cs!=="object") return cs;
   let out = cs;
   const qp = out.questProgress;
@@ -1078,7 +1078,7 @@ function migrateClassState(cs){
     out = { ...out, [m.flag]:true,
       questProgress: (m.past.some(id=>q[id]) && !q[m.credit]) ? { ...q, [m.credit]:true } : q };
   });
-  return out;
+  return migrateDailies(out, activities);
 }
 
 /* ── Quest requirement checks: the ONE place that decides whether a quest's
@@ -1394,19 +1394,40 @@ function duplicateTemplate(cs, src){
 const patchTemplate = (cs, id, fn) => ({ ...cs, mapTemplates:(cs.mapTemplates||[]).map(t=>t.id===id?fn(t):t) });
 
 /* ── DAILIES ───────────────────────────────────────────────────────────────
-   Per-class daily targets measured in XP (1 XP = 10 s of practice, so 30 XP ≈
-   5 min). Kinds: "class" (any XP that counts for the class), "practice" (one
-   named activity; countable activities pay DAILY_REP_XP per rep so 20 pushups
-   reads as real effort), "vow" (a do-not, checked by hand, worth its target).
-   Day rolls over at local midnight; nothing here penalises a missed day. */
+   A daily is one line on the Today list. Kinds:
+   - "class"    an XP goal: any practice that counts for its tie (a class;
+                Presence, My Path or no tie = any practice). Target in XP.
+   - "practice" one named practice (d.match; d.unit = its unit: minutes, reps,
+                km…). Target in that unit, or in XP when d.measure==="xp".
+                Real sessions fill it; ✓ or the stepper saves an untimed record
+                at base XP (see quickLog in App).
+   - "amount"   the player's own minutes or count with no practice behind it
+                (d.unit "minutes" | "reps"). Logged by hand; no XP.
+   - "check"    the player's own words, done or not. No XP.
+   - "vow"      a Do not, kept or not. No XP.
+   Tie: d.cid = a class id | "presence" | "mine" (My Path; d.value = one of its
+   values, optional) | null. Day rolls over at local midnight; nothing here
+   penalises a missed day. XP stays a measure of actual practice. */
 const DAILY_DEFAULT_XP = 30;
+/* Base XP for an untimed log: 1 XP per 10 s for minutes; counted units at a
+   rate that reads as real effort (20 pushups = 30 XP, a km run ≈ 6 min). */
+const LOG_XP_PER_UNIT = { reps:1.5, movements:1.5, rounds:3, km:36, sits:6 };
+const logXP = (unit, n) => unit==="minutes" ? Math.floor((n||0)*6) : Math.round((n||0)*(LOG_XP_PER_UNIT[unit]??1.5));
+const DAILY_UNIT_SHORT = { minutes:"min" };
+const practiceUnit = d => DAILY_UNIT_SHORT[d.unit]||d.unit||"reps";          // the practice's own unit (min, reps, km…)
+const dailyUnit = d => (d.kind==="class" || (d.kind==="practice" && d.measure==="xp")) ? "XP" : (d.kind==="practice"||d.kind==="amount") ? practiceUnit(d) : "";
+/* How much of a practice's own unit makes up `xp` (for ✓ on an XP-measured practice daily). */
+const unitsForXP = (unit, xp) => unit==="minutes" ? Math.max(1,Math.ceil(xp/6)) : Math.max(1,Math.ceil(xp/(LOG_XP_PER_UNIT[unit]??1.5)));
+const dailyTargetText = d => d.kind==="vow" ? "Do not" : d.kind==="check" ? "" : `${d.target} ${dailyUnit(d)}`;
+const fmtDailyAmt = n => { const r=Math.round((n||0)*10)/10; return Number.isInteger(r) ? String(r) : r.toFixed(1); };
+const newDailyId = () => "d"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 /* Add a plain XP daily (about 5 min) for a class, My Path ("mine") or Presence,
    unless one already exists. Used by the offers at the Forge and at a trial's end. */
 function withStarterDaily(cs, cid){
   const ds = cs?.dailies||[];
   if(ds.some(d=>d.cid===cid && d.kind==="class")) return cs;
   const label = cid==="mine" ? "Any practice XP" : cid==="presence" ? "Presence XP" : `${CLASS_BY_ID[cid]?.name||cid} XP`;
-  return {...cs, dailies:[...ds, {id:"d"+Date.now().toString(36), cid, kind:"class", label, target:DAILY_DEFAULT_XP}]};
+  return {...cs, dailies:[...ds, {id:newDailyId(), cid, kind:"class", label, target:DAILY_DEFAULT_XP}]};
 }
 /* A quiet offer card: one daily, keep it or not. */
 function DailyOffer({ text, accent, added=false, onAdd }){
@@ -1422,12 +1443,17 @@ function DailyOffer({ text, accent, added=false, onAdd }){
     </div>
   );
 }
-const DAILY_REP_XP = 1.5;
 const sessionDay = s => s.day || s.date;
-/* Flip today's "kept" mark on a Do not. */
+/* Flip today's mark on a Do not or a check daily. */
 function toggleVowCheck(cs, id, day=localDateStr()){
   const cur=cs.dailyChecks?.[id]||[];
   return {...cs, dailyChecks:{...(cs.dailyChecks||{}), [id]: cur.includes(day)?cur.filter(x=>x!==day):[...cur,day]}};
+}
+/* Set today's hand-logged amount on an "amount" daily (keeps two weeks). */
+function setDailyAmount(cs, id, n, day=localDateStr()){
+  const cur={...(cs.dailyAmounts?.[id]||{}), [day]:Math.max(0,n)};
+  const keep=Object.fromEntries(Object.entries(cur).sort((a,b)=>a[0]<b[0]?1:-1).slice(0,14));
+  return {...cs, dailyAmounts:{...(cs.dailyAmounts||{}), [id]:keep}};
 }
 /* Distinct days a class's Do nots were kept. */
 function vowDaysOf(classState, cid){
@@ -1435,29 +1461,48 @@ function vowDaysOf(classState, cid){
   (classState?.dailies||[]).filter(d=>d.kind==="vow" && d.cid===cid).forEach(d=>(classState.dailyChecks?.[d.id]||[]).forEach(x=>days.add(x)));
   return [...days];
 }
-function dailyProgress(d, sessions, checks, day){
-  if(d.kind==="vow") return (checks?.[d.id]||[]).includes(day) ? d.target : 0;
+/* Today's progress, in the daily's own unit (XP, minutes, reps…; 0/1 for check and Do not). */
+function dailyProgress(d, sessions, cs, day=localDateStr()){
+  if(d.kind==="vow" || d.kind==="check") return (cs?.dailyChecks?.[d.id]||[]).includes(day) ? (d.target||1) : 0;
+  if(d.kind==="amount") return cs?.dailyAmounts?.[d.id]?.[day] || 0;
   let sum=0;
   (sessions||[]).forEach(s=>{
     if(sessionDay(s)!==day) return;
     if(d.kind==="class"){
-      if(d.cid==="presence" || d.cid==="mine" || masteryPathsForSession(s).includes(d.cid)) sum += s.xp||0;
+      if(!d.cid || d.cid==="presence" || d.cid==="mine" || masteryPathsForSession(s).includes(d.cid)) sum += s.xp||0;
     } else {
       const a=(s.activities||[]).find(x=>x.name===d.match);
       if(!a) return;
-      const cnt=s.loggedCounts?.[a.id];
-      sum += (a.unit && a.unit!=="minutes" && cnt) ? cnt*DAILY_REP_XP : (s.xp||0);
+      let v=s.loggedCounts?.[a.id];
+      if(d.measure==="xp"){ sum += d.unit==="minutes" ? (s.xp||0) : logXP(d.unit||"reps", v||0); return; }
+      if(v==null && d.unit==="minutes") v=(s.elapsed||0)/60;
+      sum += v||0;
     }
   });
   return sum;
 }
-/* 0..1 fill for a class: Σ min(progress,target) / Σ target. */
-function classDailyFill(cid, classState, sessions, day=localDateStr()){
-  const ds=(classState?.dailies||[]).filter(d=>d.cid===cid);
+const dailyFrac = (d, sessions, cs, day) => Math.min(1, dailyProgress(d,sessions,cs,day)/(d.target||1));
+/* 0..1 fill for a set of dailies: the mean of each one's completion, so a
+   check, 20 reps and 30 XP weigh the same. null when there are none. */
+function dailySetFill(ds, classState, sessions, day=localDateStr()){
   if(!ds.length) return null;
-  let got=0,tot=0;
-  ds.forEach(d=>{ got+=Math.min(dailyProgress(d,sessions,classState.dailyChecks,day), d.target); tot+=d.target; });
-  return tot>0 ? got/tot : 0;
+  return ds.reduce((t,d)=>t+dailyFrac(d,sessions,classState,day),0)/ds.length;
+}
+function classDailyFill(cid, classState, sessions, day=localDateStr()){
+  return dailySetFill((classState?.dailies||[]).filter(d=>d.cid===cid), classState, sessions, day);
+}
+/* Nov 2026: practice dailies record their practice's unit and keep their XP
+   target (measure "xp"); Do nots become a 0/1 mark. Needs the activity list to
+   know each practice's unit, so it only runs when one is passed. */
+function migrateDailies(cs, activities){
+  if(!cs || cs.dailiesV2 || !Array.isArray(activities)) return cs;
+  const ds=(cs.dailies||[]).map(d=>{
+    if(d.kind==="vow") return {...d, target:1};
+    if(d.kind!=="practice" || d.unit) return d;
+    const a=activities.find(x=>x.name===d.match);
+    return {...d, unit: a ? (a.unit||"reps") : "minutes", measure:"xp", target: d.target||DAILY_DEFAULT_XP};
+  });
+  return {...cs, dailies:ds, dailiesV2:true};
 }
 
 
@@ -2136,7 +2181,11 @@ function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, librar
   const typeLabel = curPractice?.label || (allTypes.find(tp=>tp.id===pType)||CORE[0]).label;
   const dur = Math.max(1,Math.floor(elapsed/60));
   const weightedSecsLive = weightedElapsedSeconds(multEventsRef.current, t, activities);
-  const xp = Math.floor(weightedSecsLive / 10);  // 1 XP per 10 weighted s (multiplier-aware)
+  /* Counted reps/km: saving straight away (under a minute) earns their base XP,
+     the same as a quick log from Daily; otherwise time decides, as always. */
+  const countXPLive = activeActIds.reduce((tt,id)=>{ const a=activities.find(x=>x.id===id); const v=parseFloat(actCounts[id]); return tt + (a && a.unit!=="minutes" && v>0 ? logXP(a.unit||"reps", v) : 0); },0);
+  const hasCounts = countXPLive>0;
+  const xp = (elapsed<60 && hasCounts) ? countXPLive : Math.floor(weightedSecsLive / 10);  // 1 XP per 10 weighted s (multiplier-aware)
   /* Every activity is scoped to the practice type it was created/unlocked
      under — shows only when it matches the current session type, or is "any".
      Mastery-bonus activities (e.g. Cold Exposure) have the further condition
@@ -2605,7 +2654,7 @@ function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, librar
           </div>
           )}
 
-          {unlocks.pin && elapsed>=10 && (<>
+          {unlocks.pin && (elapsed>=10 || hasCounts) && (<>
           <button
             onClick={()=>setPinSession(p=>!p)}
             style={{width:"100%",display:"flex",alignItems:"center",gap:"12px",padding:"11px 14px",background:pinSession?`rgba(${C.sageRGB},0.08)`:"transparent",border:`0.5px solid ${pinSession?C.sageB:C.bord}`,borderRadius:"6px",cursor:"pointer",marginBottom:pinSession?"10px":"0",transition:"all .2s",textAlign:"left"}}
@@ -2640,7 +2689,7 @@ function AnchorPortal({ sessionTitle="CULTIVATE", onClose, onDone, types, librar
         {/* SAVE — only appears once the session is long enough to actually
             save something real. Under 10s, RESUME/DISCARD below are the
             only options — no dead end, just no premature save. */}
-        {elapsed>=10 && (
+        {(elapsed>=10 || hasCounts) && (
         <button onClick={ret} style={{position:"absolute",bottom:"-7px",left:"50%",transform:"translateX(-50%)",zIndex:10,border:"none",background:"none",cursor:"pointer",padding:0,filter:`drop-shadow(0 0 14px rgba(201,168,76,0.5))`}}>
           <svg width="82" height="103" viewBox="0 0 70 88" style={{display:"block"}}>
             <circle cx="35" cy="30" r="28" fill={C.surf}/>
@@ -4477,7 +4526,8 @@ function CategoryAddForm({ f, taken=[], onAdd, onCancel }){
 function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pathSel="center", onSelect:onPathSelect=()=>{}, onOpenPath=()=>{}, onChoosePath=()=>{},
   activities=[], onAddCategoryItem=()=>{}, onRemoveActivity=()=>{},
   onOpenClassQuest=()=>{}, onOpenLib=()=>{}, onAcknowledgeTrial=()=>{}, devMode=false, onDevSkipTrial=()=>{},
-  story=null, mode="paths", onMode=()=>{}, mySel="center", onMySel=()=>{}, onStoryChange=()=>{}, practiceModes=["sitting","standing","walking"], onOpenForge=()=>{}, presenceLevel=1, onDevSetMastery=()=>{}, onDevSetPresence=()=>{}, onGoQuests=()=>{}, onGoDaily=()=>{}, onToggleVow=()=>{}, forgedStory=null, customTpl=null, onPickTemplate=()=>{}, onClassState=()=>{}, next=null }){
+  story=null, mode="paths", onMode=()=>{}, mySel="center", onMySel=()=>{}, onStoryChange=()=>{}, practiceModes=["sitting","standing","walking"], onOpenForge=()=>{}, presenceLevel=1, onDevSetMastery=()=>{}, onDevSetPresence=()=>{}, onGoQuests=()=>{}, onGoDaily=()=>{}, onToggleVow=()=>{}, forgedStory=null, customTpl=null, onPickTemplate=()=>{}, onClassState=()=>{}, next=null, onQuickLog=()=>null, onUndoLog=()=>{}, onStartDaily=()=>{} }){
+  const storyValues = (story?.values||[]).map(v=>typeof v==="string"?v:(v?.name||v?.label||"")).filter(Boolean);
   const customMine = customTpl?.kind==="mine";
   const hasStory=!!(story && story.name && (story.values?.length || customMine));
   const mine = mode==="mine" && hasStory;
@@ -4586,7 +4636,14 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
   const today = localDateStr();
   const todaySessions = useMemo(()=>sessions.filter(x=>sessionDay(x)===today),[sessions,today]);
   const dailyFills = useMemo(()=>Object.fromEntries((classState?.chosenClasses||[]).map(c=>[c,classDailyFill(c,classState,todaySessions,today)])),
-    [classState?.chosenClasses, classState?.dailies, classState?.dailyChecks, todaySessions, today]);
+    [classState?.chosenClasses, classState?.dailies, classState?.dailyChecks, classState?.dailyAmounts, todaySessions, today]);
+  /* Bands for the centre (Presence, or My Path as a whole) and each My Path value. */
+  const centreFills = useMemo(()=>{
+    const ds=classState?.dailies||[], f=list=>dailySetFill(list, classState, todaySessions, today);
+    const out={ presence:f(ds.filter(d=>d.cid==="presence")), mine:f(ds.filter(d=>d.cid==="mine")) };
+    storyValues.forEach(v=>{ out["v:"+v]=f(ds.filter(d=>d.cid==="mine" && d.value===v)); });
+    return out;
+  },[classState?.dailies, classState?.dailyChecks, classState?.dailyAmounts, todaySessions, today, storyValues.join("|")]); // eslint-disable-line
   const cMode = st&&st.chosen&&trialDone ? CLASS_MODE[selNode.id] : null;
   const [openFund,setOpenFund]=useState(null);
   const [addingTo,setAddingTo]=useState(null);
@@ -4760,22 +4817,25 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
             return <div key={n.id} style={{position:"absolute",left:X(n.pos.x),top:Y(n.pos.y),width:0,height:0}}><MasteryStars level={b.level} color={AC(n.accent)} r0={24} seed={n.id}/></div>; })}
         </div>
         <button type="button" aria-label={mine?story.name:"Presence"} aria-pressed={centerOn} onClick={()=>{ onSelect("center"); glide(0,0); }}
-          style={{position:"absolute",zIndex:2,left:tx-(mine?38:32),top:ty-(mine?38:32),width:mine?76:64,height:mine?76:64,borderRadius:"50%",padding:0,cursor:"pointer",border:`1.5px solid ${C.gold}`,
+          style={{position:"absolute",zIndex:2,left:tx-(mine?38:32),top:ty-(mine?38:32),width:mine?76:64,height:mine?76:64,borderRadius:"50%",padding:0,cursor:"pointer",border:`${(centreFills[mine?"mine":"presence"]??0)>=1?2.5:1.5}px solid ${C.gold}`,
             background:`linear-gradient(${centerOn?`rgba(${C.goldRGB},0.16)`:`rgba(${C.goldRGB},0.06)`},${centerOn?`rgba(${C.goldRGB},0.16)`:`rgba(${C.goldRGB},0.06)`}), ${C.bg}`,boxShadow:centerOn?`0 0 14px rgba(${C.goldRGB},0.45)`:"none",display:"flex",alignItems:"center",justifyContent:"center"}}>
           {mine ? (()=>{ const longest=Math.max(...story.name.split(/\s+/).map(w=>w.length)); const fs=Math.max(6.5,Math.min(11,62/(Math.max(1,longest)*0.8)));
             return <span style={{...dsp(`${fs}px`,C.gold,400,"0.06em"),textAlign:"center",lineHeight:1.2,padding:"0 5px",overflow:"hidden",maxHeight:"44px"}}>{story.name.toUpperCase()}</span>; })()
             : <span style={{...dsp("7.5px",C.gold,400,"0.14em")}}>PRESENCE</span>}
+          <DailyBand fill={centreFills[mine?"mine":"presence"]} color={C.gold} r={mine?39.5:33.5}/>
         </button>
         {mine && shown.map(n=>{
           const on=sel===n.id || (selNode?.kind==="practice" && selNode.value===n.value), val=n.kind==="value";
           const nPr=story.practices.filter(p=>p.value===n.value).length;
           const ac = val ? C.gold : practiceAccent(n.practice);
           const D = val ? 46 : 34;
+          const vFill = val ? (centreFills["v:"+n.value] ?? null) : null;
           return (
             <button key={n.id} type="button" aria-pressed={on} onClick={()=>{ onSelect(n.id); glide(n.pos.x,n.pos.y); }}
               style={{position:"absolute",left:X(n.pos.x)-44,top:Y(n.pos.y)-D/2,width:88,padding:0,background:"none",border:0,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
-              <div style={{width:D,height:D,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",
-                border:`${val?1.5:1.2}px solid ${ac}`,background:on?`${ac}2e`:C.surf,boxShadow:on?`0 0 0 5px ${ac}33`:"none"}}>
+              <div style={{position:"relative",width:D,height:D,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",
+                border:`${val?(vFill!=null&&vFill>=1?2.5:1.5):1.2}px solid ${ac}`,background:on?`${ac}2e`:C.surf,boxShadow:on?`0 0 0 5px ${ac}33`:"none"}}>
+                {val && <DailyBand fill={vFill} color={ac} r={D/2+2}/>}
                 <span style={{...dsp(val?"17px":"13px",ac)}}>{n.name[0].toUpperCase()}</span>
               </div>
               <span style={{...body(val?"12.5px":"11.5px",on?C.cream:C.muted),lineHeight:"13px",textShadow:`0 0 6px ${C.bg}`,maxWidth:88,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.name}</span>
@@ -4893,25 +4953,13 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
                 activities={activities} jEnt={jEnt} ascents={classState.ascents||{}}
                 onOpenQuest={qid=>onOpenClassQuest(selNode.id, qid)} onOpenLib={onOpenLib}/>
             ) : (<>
-            {st.chosen && (()=>{
-              const day=localDateStr();
-              const ds=(classState.dailies||[]).filter(d=>d.cid===selNode.id);
-              return (<>
-                <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"6px 0 4px"}}>DAILY</div>
-                {ds.length===0 && <div style={{...body("12.5px",C.dim),fontStyle:"italic",padding:"4px 0 8px"}}>No dailies set.</div>}
-                {ds.map(d=>{ const pr=dailyProgress(d,todaySessions,classState.dailyChecks,day); const pc=Math.min(1,pr/(d.target||1));
-                  return (<div key={d.id} style={{padding:"8px 0",borderBottom:`0.5px solid ${C.bord}`}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"8px"}}>
-                      <span style={{...body("14.5px",C.cream),flex:1}}>{d.kind==="vow"?"Do not: ":""}{d.label}</span>
-                      {d.kind!=="vow" && <span style={{...body("12px",pc>=1?accent:C.muted)}}>{pc>=1?"done":`${Math.round(pr)} / ${d.target} XP`}</span>}
-                      {d.kind==="vow" && (()=>{ const kept=(classState.dailyChecks?.[d.id]||[]).includes(day); return (
-                        <button aria-label={kept?"Unmark kept today":"Mark kept today"} aria-pressed={kept} onClick={()=>onToggleVow(d.id)}
-                          style={{width:"24px",height:"24px",borderRadius:"50%",flexShrink:0,cursor:"pointer",background:kept?accent:"none",border:`1px solid ${accent}`,color:kept?C.bg:accent,fontSize:"12px",lineHeight:1,padding:0}}>{kept?"✓":""}</button>); })()}
-                    </div>
-                    {d.kind!=="vow" && <div style={{height:"3px",background:INK(0.08),borderRadius:"2px",marginTop:"6px"}}><div style={{height:"100%",width:`${pc*100}%`,background:accent,borderRadius:"2px"}}/></div>}
-                  </div>); })}
-                <button onClick={()=>onGoDaily(selNode.id)} style={{margin:"8px 0 6px",background:"none",border:"none",cursor:"pointer",padding:"4px 0",...body("13px",C.sageB)}}>{ds.length?"Edit dailies ›":"Add a daily ›"}</button>
-              </>); })()}
+            {st.chosen && (<>
+              <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"6px 0 6px"}}>DAILY</div>
+              <DailyList classState={classState} setClassState={onClassState} sessions={sessions} activities={activities}
+                values={storyValues} forged={!!story?.name} scope={selNode.id} showHeader={false}
+                onQuickLog={onQuickLog} onUndoLog={onUndoLog} onStart={onStartDaily}/>
+              <button onClick={()=>onGoDaily(selNode.id)} style={{margin:"6px 0 6px",background:"none",border:"none",cursor:"pointer",padding:"4px 0",...body("13px",C.sageB)}}>All dailies ›</button>
+            </>)}
             <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"10px 0 2px"}}>FUNDAMENTALS</div>
             {funds.map(f=>{
               const d=st.chosen ? (fundDetails[f.id]||null) : null;
@@ -5765,108 +5813,266 @@ function ForgeStoryView({ way, onWayChange, onOpenMyPath=()=>{}, hasMineDaily=fa
   );
 }
 
-function DailySection({ cid, acc, classState, sessions=[], activities=[], setClassState=()=>{}, values=[] }){
+/* ── TODAY LIST ─────────────────────────────────────────────────────────────
+   One flat list of today's dailies: a thin bar in the colour of what each is
+   tied to, its name, its target in plain units, and one round button to finish
+   it. Practice dailies can also be timed (▶) or logged in steps; finished rows
+   sink to the bottom. Used in the Quest tab's Daily line (all dailies, with a
+   header count and suggestions) and on a class's sheet (scope = that class). */
+const MYPATH_DAILY_COLOR = "#d8783c";
+function dailyTies(classState, values=[], forged=false){
+  const t=[];
+  if(forged){ t.push({key:"mine", cid:"mine", value:null, name:"My Path", color:MYPATH_DAILY_COLOR});
+    values.forEach(v=>t.push({key:"mine:"+v, cid:"mine", value:v, name:v, color:MYPATH_DAILY_COLOR})); }
+  t.push({key:"presence", cid:"presence", value:null, name:"Presence", color:C.gold});
+  (classState?.chosenClasses||[]).filter(c=>classTrialDone(classState,c)).forEach(c=>t.push({key:c, cid:c, value:null, name:CLASS_BY_ID[c]?.name||c, color:AC(CLASS_BY_ID[c]?.accent)||C.sageB}));
+  return t;
+}
+const tieKeyOf = d => !d.cid ? "none" : d.cid==="mine" && d.value ? "mine:"+d.value : d.cid;
+function tieInfo(d, ties){
+  const k=tieKeyOf(d);
+  return ties.find(t=>t.key===k) || (d.cid==="mine" ? ties.find(t=>t.key==="mine") : null)
+    || (CLASS_BY_ID[d.cid] ? {key:d.cid, name:CLASS_BY_ID[d.cid].name, color:AC(CLASS_BY_ID[d.cid].accent)} : null)
+    || {key:"none", name:"", color:C.dim};
+}
+const SUGGEST_TARGET = { minutes:10, reps:20, movements:20, km:3, rounds:5 };
+
+function RoundBtn({ label, on=false, color, onClick, children, disabled=false }){
+  return (
+    <button aria-label={label} aria-pressed={on} disabled={disabled} onClick={e=>{ e.stopPropagation(); onClick&&onClick(); }}
+      style={{width:"30px",height:"30px",borderRadius:"50%",flexShrink:0,cursor:disabled?"default":"pointer",padding:0,
+        background:on?color:"none",border:`1px solid ${on?color:C.bord}`,color:on?C.bg:color,
+        display:"flex",alignItems:"center",justifyContent:"center",fontSize:"13px",lineHeight:1}}>{children}</button>
+  );
+}
+/* The daily band around a map node: 0..1 of today's dailies; hidden at 100%
+   (the node's own border marks it done instead). r = band radius in px,
+   centred on the node it sits in (the node must be positioned). */
+function DailyBand({ fill, color, r, sw=4 }){
+  if(fill==null || fill>=1) return null;
+  const S=2*(r+sw), Cc=2*Math.PI*r;
+  return (
+    <svg aria-hidden="true" width={S} height={S} viewBox={`0 0 ${S} ${S}`} style={{position:"absolute",left:"50%",top:"50%",marginLeft:-S/2,marginTop:-S/2,pointerEvents:"none",transform:"rotate(-90deg)",overflow:"visible"}}>
+      <circle cx={S/2} cy={S/2} r={r} fill="none" stroke={C.bord} strokeWidth={sw} opacity="0.7"/>
+      {fill>0 && <circle cx={S/2} cy={S/2} r={r} fill="none" stroke={color} strokeWidth={sw} strokeDasharray={`${Cc*fill} ${Cc}`}/>}
+    </svg>
+  );
+}
+const PlayGlyph = ({c}) => (<svg aria-hidden="true" width="11" height="11" viewBox="0 0 12 12"><path d="M3 1.8 L10.2 6 L3 10.2 Z" fill={c}/></svg>);
+
+function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[], values=[], forged=false, scope=null,
+  showHeader=true, showSuggestions=true, onQuickLog=()=>null, onUndoLog=()=>{}, onStart=()=>{} }){
   const day=localDateStr();
-  const dailies=(classState?.dailies||[]).filter(d=>d.cid===cid);
-  const checks=classState?.dailyChecks||{};
+  const cs=classState||{};
   const todaySessions=useMemo(()=>sessions.filter(x=>sessionDay(x)===day),[sessions,day]);
-  const [openId,setOpenId]=useState(null);
-  const [adding,setAdding]=useState(false);
-  const [kind,setKind]=useState("class");
-  const [match,setMatch]=useState("");
-  const [label,setLabel]=useState("");
-  const [value,setValue]=useState("");
-  const mine = cid==="mine";
-  const cname = cid==="presence" ? "Presence" : mine ? "Any practice" : (CLASS_BY_ID[cid]?.name||cid);
-  const pool = [...new Set((activities||[]).filter(a=>cid==="presence" || mine || PATH_SKILL_NAMES[cid]?.has(a.name) || FUND_OWNER[a.category]===cid).map(a=>a.name))];
-  const upd = fn => setClassState(cs=>({...cs, dailies:fn(cs.dailies||[])}));
-  const add = () => {
-    const d = kind==="class" ? {kind,label:`${cname} XP`}
-      : kind==="practice" ? (match?{kind,match,label:match}:null)
-      : (label.trim()?{kind,label:label.trim()}:null);
-    if(!d) return;
-    upd(ds=>[...ds,{id:"d"+Date.now().toString(36),cid,target:DAILY_DEFAULT_XP,...d,...(mine&&value?{value}:{})}]);
-    setAdding(false); setLabel(""); setMatch(""); setValue("");
+  const ties=useMemo(()=>dailyTies(cs, values, forged),[cs.chosenClasses, cs.trialProgress, values, forged]); // eslint-disable-line
+  const all=(cs.dailies||[]).filter(d=>!scope || d.cid===scope);
+  const [openId,setOpenId]=useState(null);   // row showing its stepper / actions
+  const [editId,setEditId]=useState(null);   // row showing its settings
+  const [pending,setPending]=useState(0);    // stepper amount waiting to be logged
+  const [lastLog,setLastLog]=useState(null); // {id, text, undo}
+  const [newLabel,setNewLabel]=useState("");
+  useEffect(()=>{ if(!lastLog) return; const t=setTimeout(()=>setLastLog(null),7000); return ()=>clearTimeout(t); },[lastLog]);
+  useEffect(()=>{ setPending(0); },[openId]);
+
+  const upd = fn => setClassState(c=>({...c, dailies:fn(c.dailies||[])}));
+  const patch = (id, ch) => upd(ds=>ds.map(x=>x.id===id?{...x,...ch}:x));
+  const prog = d => dailyProgress(d, todaySessions, cs, day);
+  const isDone = d => prog(d) >= (d.target||1);
+  const tieOrder = d => { const i=ties.findIndex(t=>t.key===tieKeyOf(d)); return i<0 ? (d.cid==="mine"?0:ties.length) : i; };
+  const rows=[...all].sort((a,b)=>(isDone(a)-isDone(b)) || (tieOrder(a)-tieOrder(b)));
+  const doneN=all.filter(isDone).length;
+
+  /* finishing actions */
+  const logPractice = (d, n) => {
+    if(!(n>0)) return;
+    const s=onQuickLog(d, n);
+    if(s) setLastLog({id:d.id, text:`Logged ${fmtDailyAmt(n)} ${practiceUnit(d)}`, undo:()=>onUndoLog(s)});
   };
-  const toggleVow = id => setClassState(cs=>toggleVowCheck(cs, id));
-  const chip=(on)=>({padding:"6px 10px",borderRadius:"6px",cursor:"pointer",background:"none",border:`0.5px solid ${on?acc:C.bord}`,...dsp("9px",on?C.cream:C.muted,400,"0.1em")});
+  const addAmount = (d, n) => {
+    const before=prog(d);
+    setClassState(c=>setDailyAmount(c, d.id, before+n, day));
+    setLastLog({id:d.id, text:`Logged ${fmtDailyAmt(n)} ${dailyUnit(d)}`, undo:()=>setClassState(c=>setDailyAmount(c, d.id, before, day))});
+  };
+  const finish = d => {
+    const p=prog(d), left=Math.max(0,(d.target||1)-p);
+    if(d.kind==="check"||d.kind==="vow") return setClassState(c=>toggleVowCheck(c, d.id, day));
+    if(d.kind==="amount") return isDone(d) ? setClassState(c=>setDailyAmount(c, d.id, 0, day)) : addAmount(d, left);
+    if(d.kind==="practice"){ if(lastLog?.id===d.id && isDone(d)){ lastLog.undo(); setLastLog(null); return; } if(!isDone(d)) logPractice(d, d.measure==="xp" ? unitsForXP(d.unit, left) : left); }
+  };
+
+  const start = d => { setOpenId(null); setEditId(null); onStart(d); };
+  const addNew = () => {
+    const label=newLabel.trim(); if(!label) return;
+    upd(ds=>[...ds, {id:newDailyId(), kind:"check", label, target:1, cid:scope||null}]);
+    setNewLabel("");
+  };
+
+  /* suggestions: practices the tied classes already have, plus an XP goal */
+  const suggestions = !showSuggestions ? [] : ties.filter(t=>CLASS_BY_ID[t.cid] && (!scope || t.cid===scope)).flatMap(t=>{
+    const have=(cs.dailies||[]).filter(d=>d.cid===t.cid);
+    const out=[];
+    if(!have.some(d=>d.kind==="class")) out.push({key:t.cid+":xp", text:`${t.name} XP · ${DAILY_DEFAULT_XP}`, color:t.color,
+      make:()=>({kind:"class", cid:t.cid, label:`${t.name} XP`, target:DAILY_DEFAULT_XP})});
+    const owned=activities.filter(a=>PATH_SKILL_NAMES[t.cid]?.has(a.name) || FUND_OWNER[a.category]===t.cid || (FUNDAMENTALS[t.cid]||[]).some(f=>(f.sources||[]).includes(a.name)));
+    [...new Map(owned.map(a=>[a.name,a])).values()].filter(a=>!have.some(d=>d.match===a.name)).slice(0,3).forEach(a=>{
+      const unit=a.unit||"reps", target=SUGGEST_TARGET[unit]??10;
+      out.push({key:t.cid+":"+a.name, text:`${a.name} · ${target} ${DAILY_UNIT_SHORT[unit]||unit}`, color:t.color,
+        make:()=>({kind:"practice", cid:t.cid, match:a.name, label:a.name, unit, target})});
+    });
+    return out;
+  }).slice(0,4);
+
+  const inp = {background:C.bg,color:C.cream,border:`0.5px solid ${C.bord}`,borderRadius:"5px",padding:"7px 9px",...body("13px",C.cream),boxSizing:"border-box"};
+  const chip = (on,col=C.gold) => ({padding:"6px 10px",borderRadius:"6px",cursor:"pointer",background:on?`${col}22`:"none",border:`0.5px solid ${on?col:C.bord}`,...dsp("8.5px",on?C.cream:C.muted,400,"0.1em")});
+  const kindKey = d => d.kind==="check"?"check" : d.kind==="vow"?"vow" : d.kind==="class"?"xp" : (d.unit==="minutes"?"minutes":"count");
+  const setKind = (d, k) => {
+    const base={match:undefined, measure:undefined};
+    if(k==="check") patch(d.id,{...base,kind:"check",target:1,unit:undefined});
+    else if(k==="vow") patch(d.id,{...base,kind:"vow",target:1,unit:undefined});
+    else if(k==="xp") patch(d.id,{...base,kind:"class",target:DAILY_DEFAULT_XP,unit:undefined});
+    else if(k==="minutes") patch(d.id,{...base,kind:"amount",unit:"minutes",target:10});
+    else patch(d.id,{...base,kind:"amount",unit:"reps",target:20});
+  };
+
   return (
     <div>
-      {dailies.map(d=>{
-        const prog=dailyProgress(d,todaySessions,checks,day);
-        const pct=Math.min(1,prog/(d.target||1));
-        const open=openId===d.id;
-        return (
-          <div key={d.id} style={{marginBottom:"8px",border:`0.5px solid ${open?acc:C.bord}`,borderRadius:"6px",padding:"10px 12px",background:INK(0.02)}}>
-            {d.kind==="vow" ? (()=>{ const kept=(checks[d.id]||[]).includes(day); return (
-              <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
-                <div onClick={()=>setOpenId(open?null:d.id)} style={{flex:1,cursor:"pointer",minWidth:0}}>
-                  <span style={{...body("14px",C.cream)}}>Do not: {d.label}</span>
-                  {d.value && <span style={{...dsp("8px",C.dim,400,"0.12em"),marginLeft:"8px"}}>{String(d.value).toUpperCase()}</span>}
+      {showHeader && (
+        <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",padding:"2px 2px 8px"}}>
+          <span style={{...dsp("9px",C.muted,400,"0.2em")}}>TODAY</span>
+          {all.length>0 && <span style={{...body("12px",doneN===all.length?C.gold:C.dim)}}>{doneN} of {all.length}</span>}
+        </div>
+      )}
+      <div style={{borderTop:`0.5px solid ${C.bord}`}}>
+        {rows.map(d=>{
+          const t=tieInfo(d, ties), col=t.color, p=prog(d), done=p>=(d.target||1), frac=Math.min(1,p/(d.target||1));
+          const numeric = d.kind==="class"||d.kind==="practice"||d.kind==="amount";
+          const loggable = d.kind==="practice"||d.kind==="amount";
+          const open=openId===d.id, editing=editId===d.id;
+          const showLog = lastLog?.id===d.id;
+          const sub = showLog ? null : [scope?null:t.name, dailyTargetText(d)].filter(Boolean).join(" · ");
+          const k=kindKey(d);
+          return (
+            <div key={d.id} style={{borderBottom:`0.5px solid ${C.bord}`,position:"relative"}}>
+              <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"10px 2px"}}>
+                <button onClick={()=>{ setOpenId(open?null:d.id); if(open) setEditId(null); }} aria-expanded={open}
+                  style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:"11px",background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left"}}>
+                  <span style={{width:"2px",height:"26px",background:col,borderRadius:"1px",flexShrink:0,opacity:done?0.5:1}}/>
+                  <span style={{flex:1,minWidth:0}}>
+                    <span style={{display:"block",...body("14px",done?C.muted:C.cream),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.kind==="vow"?"Do not: ":""}{d.label}</span>
+                    {showLog
+                      ? <span style={{display:"block",...body("11px",col),marginTop:"1px"}}>{lastLog.text} · <span role="button" tabIndex={0} onClick={e=>{ e.stopPropagation(); lastLog.undo(); setLastLog(null); }} style={{textDecoration:"underline",cursor:"pointer"}}>Undo</span></span>
+                      : sub && <span style={{display:"block",...body("11px",C.dim),marginTop:"1px"}}>{sub}</span>}
+                  </span>
+                </button>
+                {numeric && !done && p>0 && <span style={{...body("12px",C.muted),flexShrink:0}}>{fmtDailyAmt(p)}<span style={{color:C.dim}}> / {d.target}</span></span>}
+                {d.kind==="class" && !done && <RoundBtn label={`Start a session for ${d.label}`} color={col} onClick={()=>start(d)}><PlayGlyph c={col}/></RoundBtn>}
+                {d.kind==="practice" && d.unit==="minutes" && !done && <RoundBtn label={`Time ${d.label}`} color={col} onClick={()=>start(d)}><PlayGlyph c={col}/></RoundBtn>}
+                {d.kind!=="class"
+                  ? <RoundBtn label={done?`${d.label}: done today`:`Mark ${d.label} done`} on={done} color={col} onClick={()=>finish(d)}>{done?"✓":""}</RoundBtn>
+                  : done && <RoundBtn label={`${d.label}: done today`} on color={col} disabled>✓</RoundBtn>}
+              </div>
+              {numeric && !done && p>0 && <div style={{position:"absolute",left:"15px",right:0,bottom:"-0.5px",height:"2px",background:"transparent"}}><div style={{height:"100%",width:`${frac*100}%`,background:col,opacity:0.7}}/></div>}
+              {open && (
+                <div style={{padding:"0 2px 12px 15px"}}>
+                  {loggable && (
+                    <div style={{display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap",marginBottom:"10px"}}>
+                      {[1,5,10].map(n=>(
+                        <button key={n} onClick={()=>setPending(v=>v+n)} style={{...chip(false,col),minWidth:"40px"}}>+{n}</button>
+                      ))}
+                      <span style={{...body("15px",pending?C.cream:C.dim),minWidth:"52px",textAlign:"center"}}>{fmtDailyAmt(pending)} <span style={{...body("11px",C.dim)}}>{d.kind==="practice"?practiceUnit(d):dailyUnit(d)}</span></span>
+                      {pending>0 && <button onClick={()=>setPending(0)} style={{...chip(false,col)}}>CLEAR</button>}
+                      <button disabled={!pending} onClick={()=>{ if(d.kind==="practice") logPractice(d,pending); else addAmount(d,pending); setPending(0); setOpenId(null); }}
+                        style={{...chip(!!pending,col),marginLeft:"auto",opacity:pending?1:0.5}}>LOG</button>
+                    </div>
+                  )}
+                  <div style={{display:"flex",gap:"14px",alignItems:"center"}}>
+                    {d.kind==="practice" && d.unit!=="minutes" && <button onClick={()=>start(d)} style={{background:"none",border:"none",padding:0,cursor:"pointer",...body("12.5px",C.sageB)}}>Start a session ›</button>}
+                    <button onClick={()=>setEditId(editing?null:d.id)} style={{background:"none",border:"none",padding:0,cursor:"pointer",...body("12.5px",C.muted)}}>{editing?"Done editing":"Edit"}</button>
+                  </div>
+                  {editing && (
+                    <div style={{marginTop:"12px",display:"flex",flexDirection:"column",gap:"10px"}}>
+                      <input value={d.label} onChange={e=>patch(d.id,{label:e.target.value})} aria-label="Name" style={{...inp,width:"100%"}}/>
+                      <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+                        {[["check","CHECK"],["vow","DO NOT"],["minutes","MINUTES"],["count","COUNT"],["xp","XP"]].map(([kk,l])=>(
+                          <button key={kk} onClick={()=>setKind(d,kk)} style={chip(k===kk,col)}>{l}</button>
+                        ))}
+                      </div>
+                      {(k==="minutes"||k==="count") && (
+                        <select value={d.kind==="practice"?d.match:""} aria-label="Practice"
+                          onChange={e=>{ const a=activities.find(x=>x.name===e.target.value);
+                            if(!a) patch(d.id,{kind:"amount",match:undefined,unit:k==="minutes"?"minutes":"reps"});
+                            else patch(d.id,{kind:"practice",match:a.name,unit:a.unit||"reps",measure:undefined,label:(!d.label||d.label===d.match)?a.name:d.label}); }}
+                          style={{...inp,width:"100%"}}>
+                          <option value="">Your own (no practice, no XP)</option>
+                          {[...new Map(activities.filter(a=>k==="minutes"?a.unit==="minutes":a.unit!=="minutes").map(a=>[a.name,a])).values()].map(a=><option key={a.name} value={a.name}>{a.name}</option>)}
+                        </select>
+                      )}
+                      {d.kind==="practice" && (
+                        <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
+                          <span style={{...body("12px",C.dim),marginRight:"2px"}}>Count in</span>
+                          {[[false,practiceUnit(d).toUpperCase()],[true,"XP"]].map(([xpOn,l])=>{
+                            const on=(d.measure==="xp")===xpOn;
+                            return <button key={l} onClick={()=>{ if(on) return;
+                              const t = xpOn ? logXP(d.unit||"reps", d.target) : unitsForXP(d.unit, d.target);
+                              patch(d.id,{measure:xpOn?"xp":undefined, target:Math.max(1,t)}); }} style={chip(on,col)}>{l}</button>;
+                          })}
+                        </div>
+                      )}
+                      {numeric && (
+                        <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                          <span style={{...body("12px",C.dim)}}>Target</span>
+                          <input type="number" min="1" value={d.target} aria-label="Target"
+                            onChange={e=>patch(d.id,{target:Math.max(1,Math.round(+e.target.value||0))})} style={{...inp,width:"74px"}}/>
+                          <span style={{...body("12px",C.dim)}}>{dailyUnit(d)}{d.kind==="class"?` · about ${Math.max(1,Math.round(d.target/6))} min`:d.kind==="practice"&&d.measure==="xp"?` · about ${unitsForXP(d.unit,d.target)} ${practiceUnit(d)}`:""}</span>
+                        </div>
+                      )}
+                      <div>
+                        <div style={{...dsp("8px",C.dim,400,"0.16em"),marginBottom:"6px"}}>TIED TO</div>
+                        <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+                          <button onClick={()=>patch(d.id,{cid:null,value:undefined})} style={chip(!d.cid)}>NONE</button>
+                          {ties.filter(tt=>tt.cid!=="mine").map(tt=>(
+                            <button key={tt.key} onClick={()=>patch(d.id,{cid:tt.cid,value:undefined})} style={chip(tieKeyOf(d)===tt.key,tt.color)}>{tt.name.toUpperCase()}</button>
+                          ))}
+                        </div>
+                        {ties.some(tt=>tt.cid==="mine") && (<>
+                          <div style={{...dsp("8px",C.dim,400,"0.16em"),margin:"10px 0 6px"}}>MY PATH</div>
+                          <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+                            {ties.filter(tt=>tt.cid==="mine").map(tt=>(
+                              <button key={tt.key} onClick={()=>patch(d.id,{cid:"mine",value:tt.value||undefined})} style={chip(tieKeyOf(d)===tt.key,tt.color)}>{tt.value?tt.name.toUpperCase():"ALL"}</button>
+                            ))}
+                          </div>
+                        </>)}
+                      </div>
+                      <button onClick={()=>{ upd(ds=>ds.filter(x=>x.id!==d.id)); setOpenId(null); setEditId(null); }} style={{...chip(false),alignSelf:"flex-start"}}>REMOVE</button>
+                    </div>
+                  )}
                 </div>
-                <button aria-label={kept?"Unmark kept today":"Mark kept today"} aria-pressed={kept} onClick={()=>toggleVow(d.id)}
-                  style={{width:"26px",height:"26px",borderRadius:"50%",flexShrink:0,cursor:"pointer",background:kept?acc:"none",border:`1px solid ${acc}`,color:kept?C.bg:acc,fontSize:"13px",lineHeight:1,padding:0}}>{kept?"✓":""}</button>
-              </div>); })() : (
-            <div onClick={()=>setOpenId(open?null:d.id)} style={{cursor:"pointer"}}>
-              <div style={{display:"flex",justifyContent:"space-between",gap:"8px"}}>
-                <span style={{...body("14px",C.cream)}}>{d.label}{d.value && <span style={{...dsp("8px",C.dim,400,"0.12em"),marginLeft:"8px"}}>{String(d.value).toUpperCase()}</span>}</span>
-                <span style={{...body("11px",pct>=1?acc:C.dim)}}>{pct>=1?"done":`${Math.round(prog)} / ${d.target} XP`}</span>
-              </div>
-              <div style={{height:"3px",background:INK(0.08),borderRadius:"2px",marginTop:"7px"}}>
-                <div style={{height:"100%",width:`${pct*100}%`,background:acc,borderRadius:"2px"}}/>
-              </div>
-            </div>)}
-            {open && (
-              <div style={{marginTop:"12px"}}>
-                <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"10px"}}>
-                  <span style={{...body("12px",C.dim)}}>Target</span>
-                  <input type="number" min="5" step="5" value={d.target}
-                    onChange={e=>{ const v=Math.max(1,Math.round(+e.target.value||0)); upd(ds=>ds.map(x=>x.id===d.id?{...x,target:v}:x)); }}
-                    style={{width:"64px",background:C.bg,color:C.cream,border:`0.5px solid ${C.bord}`,borderRadius:"4px",padding:"5px 7px",...body("13px",C.cream)}}/>
-                  <span style={{...body("12px",C.dim)}}>XP · about {Math.max(1,Math.round(d.target/6))} min</span>
-                </div>
-                {d.kind==="vow" && (
-                  <input value={d.label} onChange={e=>upd(ds=>ds.map(x=>x.id===d.id?{...x,label:e.target.value}:x))}
-                    style={{width:"100%",boxSizing:"border-box",background:C.bg,border:`0.5px solid ${C.bord}`,borderRadius:"4px",padding:"6px 8px",marginBottom:"10px",...body("13px",C.cream)}}/>
-                )}
-                <button onClick={()=>{ upd(ds=>ds.filter(x=>x.id!==d.id)); setOpenId(null); }} style={{...chip(false)}}>REMOVE</button>
-              </div>
-            )}
-          </div>
-        );
-      })}
-      {adding ? (
-        <div style={{border:`0.5px solid ${C.bord}`,borderRadius:"6px",padding:"10px 12px"}}>
-          <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"10px"}}>
-            <button onClick={()=>setKind("class")} style={chip(kind==="class")}>{cname.toUpperCase()} XP</button>
-            <button onClick={()=>setKind("practice")} style={chip(kind==="practice")}>PRACTICE</button>
-            <button onClick={()=>setKind("vow")} style={chip(kind==="vow")}>DO NOT</button>
-          </div>
-          {kind==="practice" && (
-            <select value={match} onChange={e=>setMatch(e.target.value)}
-              style={{width:"100%",background:C.bg,color:C.cream,border:`0.5px solid ${C.bord}`,borderRadius:"4px",padding:"7px",marginBottom:"10px",...body("13px",C.cream)}}>
-              <option value="">Choose a practice…</option>
-              {pool.map(n=><option key={n} value={n}>{n}</option>)}
-            </select>
-          )}
-          {kind==="vow" && (
-            <input value={label} onChange={e=>setLabel(e.target.value)} placeholder="e.g. skip the sugar"
-              style={{width:"100%",boxSizing:"border-box",background:C.bg,border:`0.5px solid ${C.bord}`,borderRadius:"4px",padding:"7px 8px",marginBottom:"10px",...body("13px",C.cream)}}/>
-          )}
-          {mine && values.length>0 && (
-            <div style={{display:"flex",gap:"6px",flexWrap:"wrap",alignItems:"center",marginBottom:"10px"}}>
-              <span style={{...body("11px",C.dim)}}>For</span>
-              {values.map(v=><button key={v} onClick={()=>setValue(value===v?"":v)} style={chip(value===v)}>{String(v).toUpperCase()}</button>)}
+              )}
             </div>
-          )}
-          {kind!=="vow" && <div style={{...body("11px",C.dim),marginBottom:"10px"}}>Starts at {DAILY_DEFAULT_XP} XP (about 5 min). Change it after.</div>}
-          <div style={{display:"flex",gap:"6px"}}>
-            <button onClick={add} style={chip(true)}>ADD</button>
-            <button onClick={()=>setAdding(false)} style={chip(false)}>CANCEL</button>
+          );
+        })}
+        {/* add anything */}
+        <div style={{display:"flex",alignItems:"center",gap:"8px",padding:"9px 2px"}}>
+          <span style={{width:"2px",height:"22px",background:C.bord,flexShrink:0}}/>
+          <input value={newLabel} onChange={e=>setNewLabel(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") addNew(); }}
+            placeholder={scope?"Add a daily…":"Add a daily: anything you want to do today…"} aria-label="Add a daily"
+            style={{flex:1,minWidth:0,background:"none",border:"none",outline:"none",padding:"6px 0",...body("14px",C.cream)}}/>
+          {newLabel.trim() && <button onClick={addNew} style={{...chip(true),flexShrink:0}}>ADD</button>}
+        </div>
+      </div>
+      {suggestions.length>0 && (
+        <div style={{marginTop:"12px"}}>
+          <div style={{...dsp("8px",C.dim,400,"0.18em"),marginBottom:"7px"}}>SUGGESTED</div>
+          <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+            {suggestions.map(sg=>(
+              <button key={sg.key} onClick={()=>upd(ds=>[...ds,{id:newDailyId(),...sg.make()}])}
+                style={{padding:"6px 10px",borderRadius:"14px",cursor:"pointer",background:"none",border:`0.5px solid ${sg.color}88`,...body("12px",C.muted)}}>
+                {sg.text} <span style={{color:sg.color}}>＋</span>
+              </button>
+            ))}
           </div>
         </div>
-      ) : (
-        <button onClick={()=>setAdding(true)} style={{width:"100%",padding:"9px",background:"none",border:`0.5px dashed ${acc}`,borderRadius:"6px",cursor:"pointer",...dsp("10px",acc,400,"0.14em")}}>+ ADD DAILY</button>
       )}
     </div>
   );
@@ -5877,8 +6083,11 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
   actCollapsed={}, setActCollapsed=()=>{}, classCollapsed=false, setClassCollapsed=()=>{},
   chantGateOpen=false, chantUnlocked=false, setOpenChantQuest=()=>{}, activities=[], jEnt=[], onAcknowledgeTrial=()=>{},
   showActComplete=false, setShowActComplete=()=>{},
-  way=null, onWayChange=()=>{}, onOpenReflection=()=>{}, onAwardWayXP=()=>{}, onOpenMyPath=()=>{}, lineReq=null, setClassState=()=>{} }){
+  way=null, onWayChange=()=>{}, onOpenReflection=()=>{}, onAwardWayXP=()=>{}, onOpenMyPath=()=>{}, lineReq=null, setClassState=()=>{},
+  onQuickLog=()=>null, onUndoLog=()=>{}, onStartDaily=()=>{} }){
   const [view,setView]               = useState("overview");
+  /* Act I reads only real, timed sessions; quick logs from Daily don't count. */
+  const realSessions = useMemo(()=>sessions.filter(s=>!s.logged),[sessions]);
   const [questLine,setQuestLine]     = useState(()=>(storyForged(way) || !completedChapters.includes(FORGE_AFTER_CHAPTER))?"path":"forge"); // "forge" | "chant" | "path" (Presence + the classes)
   const [openClasses,setOpenClasses] = useState(()=>classState?.activeClass ? {[classState.activeClass]:true} : {}); // class accordions in the Class tab; the active class starts open
   /* A newly active class opens, so its next step is in view */
@@ -5961,7 +6170,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
     if(!req || req.autoComplete) return true;
     if(!req.practice) return true;
     if(req.libRequired && !req.libRequired.every(id=>libReadAt[id]!==undefined)) return false;
-    return req.practice.check(sessions, libReadAt, pins, chStats, jEnt, way);
+    return req.practice.check(realSessions, libReadAt, pins, chStats, jEnt, way);
   };
   const questComplete = n => {
     const req = CHAPTER_REQUIREMENTS[n];
@@ -6059,7 +6268,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                 const req=CHAPTER_REQUIREMENTS[readingN];
                 if(!req||req.autoComplete) return null;
                 const rDone=readDone(readingN);
-                const qualSessions=sessions.filter(s=>s.xp>0).length;
+                const qualSessions=realSessions.filter(s=>s.xp>0).length;
 
                 /* Chapter 2: show anchor sub-quests */
                 if(req.subQuests && readingN===2){
@@ -6176,10 +6385,10 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                         const done = sc.key
                           ? (chStats[sc.key]||0)>=sc.xpTarget
                           : sc.centers
-                          ? sessions.some(s=>hasLand(s,sc.centers)&&(s.elapsed||0)>=300)
+                          ? realSessions.some(s=>hasLand(s,sc.centers)&&(s.elapsed||0)>=300)
                           : sc.center
-                          ? sessions.some(s=>hasLand(s,[sc.center])&&(s.elapsed||0)>=300)
-                          : sessions.some(s=>s.typeId===sc.typeId&&(s.elapsed||0)>=300);
+                          ? realSessions.some(s=>hasLand(s,[sc.center])&&(s.elapsed||0)>=300)
+                          : realSessions.some(s=>s.typeId===sc.typeId&&(s.elapsed||0)>=300);
                         const statColor = sc.key ? (STAT_COLORS[sc.key]||SC.sageB) : SC.sageB;
                         const xp = sc.key ? Math.min(chStats[sc.key]||0, sc.xpTarget) : 0;
                         return (
@@ -6517,27 +6726,11 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
         {/* ── CLASS — every active class, each minimized until opened ── */}
         {/* ── DAILY — every daily in one place: your own, Presence, each class ── */}
         {questLine==="daily" && (()=>{
-          const groups=[
-            { cid:"mine", name:"MY PATH", sub:storyForged(way)?way.story.name:"Your own dailies", acc:"#d8783c" },
-            { cid:"presence", name:"PRESENCE", sub:"Sit, stand, walk", acc:C.gold },
-            ...(classState?.chosenClasses||[]).filter(c=>trialComplete(c)).map(c=>({ cid:c, name:(CLASS_BY_ID[c]?.name||c).toUpperCase(), sub:null, acc:AC(CLASS_BY_ID[c]?.accent)||C.sageB })),
-          ];
           const vals=(storyForged(way) ? (way.story.values||[]) : []).map(v=>typeof v==="string"?v:(v?.name||v?.label||"")).filter(Boolean);
           return (
             <div style={{paddingTop:"4px"}}>
-              {groups.map(g=>{
-                const n=(classState?.dailies||[]).filter(d=>d.cid===g.cid).length;
-                return (
-                  <div key={g.cid} id={"daily-sec-"+g.cid} style={{marginBottom:"12px",border:`0.5px solid ${C.bord}`,borderRadius:"8px",background:C.surf,padding:"12px 14px 14px"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"10px"}}>
-                      <span style={{width:"9px",height:"9px",borderRadius:"50%",background:g.acc,flexShrink:0}}/>
-                      <span style={{...dsp("12px",C.cream,400,"0.1em")}}>{g.name}</span>
-                      {g.sub && n===0 && <span style={{...body("11px",C.dim)}}>{g.sub}</span>}
-                    </div>
-                    <DailySection cid={g.cid} acc={g.acc} classState={classState} sessions={sessions} activities={activities} setClassState={setClassState} values={vals}/>
-                  </div>
-                );
-              })}
+              <DailyList classState={classState} setClassState={setClassState} sessions={sessions} activities={activities}
+                values={vals} forged={storyForged(way)} onQuickLog={onQuickLog} onUndoLog={onUndoLog} onStart={onStartDaily}/>
             </div>
           );
         })()}
@@ -7746,6 +7939,20 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
 
   const [openId,setOpenId]=useState(null);
   const rowRefs = useRef({});
+  /* One section open at a time, like the entries. Starts on the first section
+     with something unread, else the first section. */
+  const [openGroup,setOpenGroup]=useState(()=>{
+    const live=groups.filter(g=>g.open.length);
+    return (live.find(g=>g.open.some(e=>!isRead(e)))||live[0])?.key||null;
+  });
+  const groupRefs = useRef({});
+  const toggleGroup = (g) => {
+    if(openGroup===g.key){ setOpenGroup(null); return; }
+    setOpenGroup(g.key);
+    if(openId && !g.open.some(e=>e.id===openId)) setOpenId(null);
+    const el=groupRefs.current[g.key];
+    if(el?.scrollIntoView) requestAnimationFrame(()=>el.scrollIntoView({block:"start",behavior:"smooth"}));
+  };
   /* Bring a newly opened entry's title to the top (closing the previous one
      above it would otherwise shift it out of view). */
   useEffect(()=>{
@@ -7777,7 +7984,7 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
     const entry = LIBRARY_ENTRIES.find(e=>e.id===openEntryId);
     if(entry && entryUnlocked(entry)){
       const g = groups.find(x=>x.open.some(e=>e.id===entry.id));
-      if(g && collapsed[g.key]) setCollapsed(p=>({...p,[g.key]:false}));
+      if(g) setOpenGroup(g.key);
       openEntry(entry);
     }
     onClearOpenEntry();
@@ -7850,11 +8057,11 @@ function LibraryTab({ libReadAt={}, qualSessions=0, onLibRead, completedChapters
       {groups.map(g=>{
         const hasOpen = g.open.length>0;
         if(!hasOpen && !g.locked.length) return null;
-        const isCollapsed = hasOpen && !!collapsed[g.key];
+        const isCollapsed = hasOpen && openGroup!==g.key;
         const unread = g.open.filter(e=>!isRead(e)).length;
         return (
-          <div key={g.key} style={{marginBottom:"24px",opacity:hasOpen?1:0.55}}>
-            <button onClick={()=>hasOpen && setCollapsed(p=>({...p,[g.key]:!p[g.key]}))} aria-expanded={hasOpen?!isCollapsed:undefined}
+          <div key={g.key} ref={el=>{ groupRefs.current[g.key]=el; }} style={{marginBottom:isCollapsed?"14px":"24px",opacity:hasOpen?1:0.55,scrollMarginTop:"8px"}}>
+            <button onClick={()=>hasOpen && toggleGroup(g)} aria-expanded={hasOpen?!isCollapsed:undefined}
               style={{display:"flex",alignItems:"center",gap:"7px",width:"100%",background:"none",border:"none",cursor:hasOpen?"pointer":"default",padding:"0 0 8px"}}>
               <span style={{...dsp("9px",g.accent||C.muted,400,"0.18em")}}>{g.label.toUpperCase()}</span>
               {hasOpen && <span style={{color:C.dim,fontSize:"9px",transform:isCollapsed?"rotate(-90deg)":"none",transition:"transform .2s"}}>▾</span>}
@@ -8638,7 +8845,7 @@ export default function AscendApp(){
   const [zonesMigrated,setZonesMigrated]=useState(P.zonesMigrated ?? false);
   const [libCollapsed,setLibCollapsed]=useState(P.libCollapsed ?? {});
   const [completedChapters,setCompletedChapters]=useState(P.completedChapters ?? []);
-  const [classState,setClassState]=useState(()=>migrateClassState(P.classState ?? freshClassState()));
+  const [classState,setClassState]=useState(()=>migrateClassState(P.classState ?? freshClassState(), P.activities??[]));
   const [way,setWay]=useState(()=>migrateWay(P.way));           // The Way — forged in Act II
   const [pendingReflection,setPendingReflection]=useState(null); // guided reflection routed to Journal
   const [chantUnlocked,setChantUnlocked]=useState(P.chantUnlocked ?? false);
@@ -8956,7 +9163,7 @@ export default function AscendApp(){
       }
       if(data.libCollapsed) setLibCollapsed(data.libCollapsed);
       if(data.activities) setActivities(migrateActivityMetadata(data.activities));
-      if(data.classState) setClassState(migrateClassState(data.classState));
+      if(data.classState) setClassState(migrateClassState(data.classState, data.activities??[]));
       if(data.way) setWay(migrateWay(data.way));
       if(data.chantUnlocked!==undefined) setChantUnlocked(data.chantUnlocked);
       if(data.chaptersRead) setChaptersRead(data.chaptersRead);
@@ -9075,7 +9282,7 @@ export default function AscendApp(){
         if(P2.zonesMigrated!==undefined) setZonesMigrated(P2.zonesMigrated);
         if(P2.libCollapsed) setLibCollapsed(P2.libCollapsed);
         if(P2.activities) setActivities(migrateActivityMetadata(P2.activities));
-        if(P2.classState) setClassState(migrateClassState(P2.classState));
+        if(P2.classState) setClassState(migrateClassState(P2.classState, P2.activities??[]));
         if(P2.chantUnlocked!==undefined) setChantUnlocked(P2.chantUnlocked);
         if(P2.chaptersRead) setChaptersRead(P2.chaptersRead);
         if(P2.libReadAt) setLibReadAt(P2.libReadAt);
@@ -9466,14 +9673,17 @@ export default function AscendApp(){
     });
   };
 
-  const handleDone=({type,typeId,duration,elapsed:elapsedSecs,weightedElapsed,activeActivities=[],tags,reflection,pinSession,pinTag,quickAnchor,awarenessLanding,loggedCounts={}})=>{
-    const wasFirstSession = !hasAnchored;
+  const handleDone=({type,typeId,duration,elapsed:elapsedSecs,weightedElapsed,activeActivities=[],tags,reflection,pinSession,pinTag,quickAnchor,awarenessLanding,loggedCounts={},logged=false,loggedXP=null})=>{
+    /* logged: an untimed record from the Daily list (✓ or the stepper). It earns
+       base XP and counts toward Fundamentals, quest totals, Mastery and stats,
+       but never toward a trial, an Act I chapter or a "max set" quest. */
+    const wasFirstSession = !hasAnchored && !logged;
     const isA=quickAnchor||!type;
     /* Every session saves and shows its review screen, regardless of
        duration — a sub-10s attempt is real and gets logged (at 0 XP, per
        the formula below). It just won't establish the anchor on its own;
        see setHasAnchored below and the review screen's own message. */
-    if(!isA && typeId) setAnchInitType(typeId); // remember last used type
+    if(!isA && typeId && !logged) setAnchInitType(typeId); // remember last used type
     /* XP is based on multiplier-weighted seconds (Run 2x, Horse Stance 3x, etc.,
        time-segmented) when available, falling back to raw elapsed for quick
        anchors/legacy paths that don't compute a weighted value. Plus a small
@@ -9482,14 +9692,19 @@ export default function AscendApp(){
     const activitiesById = Object.fromEntries((activeActivities||[]).map(a=>[a.id,a]));
     const bonusXP = countBonusXP(loggedCounts||{}, activitiesById);
     const baseSecs = isA ? 0 : (weightedElapsed!=null ? weightedElapsed : (elapsedSecs??0));
-    const xpE = isA ? 0 : Math.floor(baseSecs/10) + Math.round(bonusXP);
+    /* Counted reps/km saved from a short session (under a minute, i.e. just
+       logging what was done) earn the same base XP as a quick log from Daily. */
+    const countXP = Object.entries(loggedCounts||{}).reduce((t,[id,v])=>{ const a=activitiesById[id]; return t + (a && a.unit!=="minutes" ? logXP(a.unit||"reps", v) : 0); },0);
+    const xpE = isA ? 0 : logged ? Math.max(0,Math.round(loggedXP||0))
+      : ((elapsedSecs||0)<60 && countXP>0) ? countXP
+      : Math.floor(baseSecs/10) + Math.round(bonusXP);
     const {sg:sgRaw}=isA?{sg:{}}:rewards(typeId||"sitting",xpE,activeActivities);
     // backward compat: old sessions stored a string, new ones store an array
     const lands = Array.isArray(awarenessLanding) ? awarenessLanding : (awarenessLanding ? [awarenessLanding] : []);
     const sg = applyAwarenessSiphon(sgRaw, lands);
-    const s={type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),day:localDateStr(),activities:activeActivities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg,awarenessLanding:lands,loggedCounts:loggedCounts||{}};
+    const s={...(logged?{id:"lg"+Date.now().toString(36),logged:true}:{}),type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),day:localDateStr(),activities:activeActivities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg,awarenessLanding:lands,loggedCounts:loggedCounts||{}};
     setSessions(p=>[s,...p]);
-    if(isA || (elapsedSecs??0) >= 10) setHasAnchored(true);
+    if(!logged && (isA || (elapsedSecs??0) >= 10)) setHasAnchored(true);
 
     /* Accumulate any logged reps/minutes onto each activity's running count,
        and auto-complete the owning quest once every target is met. This runs
@@ -9558,8 +9773,8 @@ export default function AscendApp(){
     try {
       /* "groups" quests — The Measure (each Fundamental tested since the
          quest began) and The Proving (all four in one session). */
-      const allSessions=[s, ...sessions];
-      Object.keys(QUEST_CHAINS).forEach(cid=>{
+      const allSessions=[s, ...sessions].filter(x=>!x.logged); // a max set is tested in a real session
+      if(!logged) Object.keys(QUEST_CHAINS).forEach(cid=>{
         QUEST_CHAINS[cid].forEach(q=>{
           if(classState.questProgress?.[q.id]) return;
           const gu=(q.unlocks||[]).find(u=>u.kind==="groups"); if(!gu) return;
@@ -9578,7 +9793,7 @@ export default function AscendApp(){
     /* Trial steps also require choosing the center you focused on (once the
        center selector is available), as the trial text asks. */
     const centersOn = controlUnlocked("centers", completedChapters);
-    if(!isA && trialFor && ["sitting","standing","walking"].includes(typeId)){
+    if(!isA && !logged && trialFor && ["sitting","standing","walking"].includes(typeId)){
       const ac=trialFor;
       if(!trialComplete(ac)){
         const cls=CLASS_BY_ID[ac];
@@ -9625,7 +9840,51 @@ export default function AscendApp(){
     });
     if(wasFirstSession) setTab("quest");      // first session → land on Quest tab (what next)
     else if(pinSession) setTab("map");
-    setAnch(false);
+    if(!logged) setAnch(false);
+    return s;
+  };
+
+  /* ── Daily quick log ── ✓ or the stepper on a practice daily saves an untimed
+     record of `amount` (in the practice's unit) through the normal session path. */
+  const quickLog = (d, amount) => {
+    const act = activities.find(a=>a.name===d.match);
+    if(!act || !(amount>0)) return null;
+    const isMin = (act.unit||d.unit)==="minutes";
+    const secs = isMin ? Math.round(amount*60) : 0;
+    const typeId = ["sitting","standing","walking","train","restore"].includes(act.practiceType) ? act.practiceType
+      : (CLASS_DEFAULT_BASE[d.cid] || (isMin ? "sitting" : "train"));
+    return handleDone({ type:act.name, typeId, duration:isMin?Math.max(1,Math.round(secs/60)):0, elapsed:secs, weightedElapsed:secs,
+      activeActivities:[act], tags:[], reflection:"", awarenessLanding:[], loggedCounts:{[act.id]:amount},
+      logged:true, loggedXP:logXP(isMin?"minutes":(act.unit||"reps"), amount) });
+  };
+  /* Undo a quick log: take back the record, its XP, stats, count and Mastery XP.
+     (A quest it completed stays complete.) */
+  const undoQuickLog = (s) => {
+    if(!s?.id) return;
+    setSessions(p=>p.filter(x=>x.id!==s.id));
+    setActivities(p=>p.map(a=>s.loggedCounts?.[a.id]!=null ? {...a, count:Math.max(0,(a.count||0)-s.loggedCounts[a.id])} : a));
+    setCh(p=>{ const st={...p.stats}; Object.entries(s.sg||{}).forEach(([k,v])=>{ st[k]=Math.max(0,(st[k]||0)-v); }); return {...p, stats:st, totalXP:Math.max(0,(p.totalXP||0)-(s.xp||0))}; });
+    const q=masteryPathsForSession(s);
+    if(q.length && s.xp>0) setClassState(cs=>({...cs, mastery:Object.fromEntries(Object.entries(cs.mastery||{}).map(([k,v])=>[k, q.includes(k)&&chainComplete(k, cs.questProgress||{}) ? {...v, xp:Math.max(0,(v?.xp||0)-s.xp)} : v]))}));
+  };
+  /* ▶ on a daily: open a session ready for it. */
+  const startDaily = (d) => {
+    const cls = CLASS_BY_ID[d.cid] && (classState?.chosenClasses||[]).includes(d.cid) && trialComplete(d.cid) ? d.cid : null;
+    const act = d.kind==="practice" ? activities.find(a=>a.name===d.match) : null;
+    let base=null, entry=null;
+    if(act){
+      const list = cls ? classPracticeList(cls, classState, unlockedClassPracticeTypes) : null;
+      entry = list ? (list.find(e=>e.fund && fundMatches(e.fund, act)) || list.find(e=>!e.fund && e.base===act.practiceType) || null) : null;
+      base = entry ? entry.base : (act.practiceType && act.practiceType!=="any" ? act.practiceType : (cls ? CLASS_DEFAULT_BASE[cls] : null));
+    } else if(cls) base = CLASS_MODE[cls];
+    setAnchStartType(base);
+    setSessionPath(cls ? CLASS_BY_ID[cls].name : null);
+    setSessionClass(cls);
+    setAnchPracticeId(entry?.id||null);
+    setAnchPractice(act ? act.id : null);
+    setAnchFull(!cls);
+    setScr(null);
+    setAnch(true);
   };
 
   // Fade in first scene when intro loads
@@ -9905,8 +10164,8 @@ export default function AscendApp(){
           <TabPane active={tab==="character"}><CharacterTab active={tab==="character"} ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities} classState={classState} classGateOpen={classGateOpen} onOpenPath={cid=>{setPathView(cid);setScr("path");}}/></TabPane>
           <TabPane active={tab==="quest"}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnchFull(true);setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
             classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid,cid)=>setOpenClassQuest({classId:cid||classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}
-            onOpenMyPath={()=>{ setCultMode("mine"); setMySel("center"); setTab("cultivate"); }} lineReq={questLineReq} setClassState={setClassState}/></TabPane>
-          <TabPane active={tab==="cultivate"} style={{height:"100%"}}><CultivateTab classState={classState} next={nextStep} presenceLevel={presenceLevel} onToggleVow={toggleVowToday} onGoDaily={(cid)=>{ setTab("quest"); setQuestLineReq({line:"daily", classId:cid, n:Date.now()}); }} onGoQuests={(cid)=>{ setTab("quest"); setQuestLineReq(cid==="forge" ? {line:"forge", n:Date.now()} : {line:"path", classId:cid, n:Date.now()}); }} onDevSetPresence={L=>setCh(p=>({...p,totalXP:presenceXPForLevel(L)}))} onDevSetMastery={(cid,L)=>setClassState(cs=>{
+            onOpenMyPath={()=>{ setCultMode("mine"); setMySel("center"); setTab("cultivate"); }} lineReq={questLineReq} setClassState={setClassState} onQuickLog={quickLog} onUndoLog={undoQuickLog} onStartDaily={startDaily}/></TabPane>
+          <TabPane active={tab==="cultivate"} style={{height:"100%"}}><CultivateTab classState={classState} next={nextStep} onQuickLog={quickLog} onUndoLog={undoQuickLog} onStartDaily={startDaily} presenceLevel={presenceLevel} onToggleVow={toggleVowToday} onGoDaily={(cid)=>{ setTab("quest"); setQuestLineReq({line:"daily", classId:cid, n:Date.now()}); }} onGoQuests={(cid)=>{ setTab("quest"); setQuestLineReq(cid==="forge" ? {line:"forge", n:Date.now()} : {line:"path", classId:cid, n:Date.now()}); }} onDevSetPresence={L=>setCh(p=>({...p,totalXP:presenceXPForLevel(L)}))} onDevSetMastery={(cid,L)=>setClassState(cs=>{
               /* Dev only: choose the path, finish its trial and chain, then set the level. */
               const cls=CLASS_BY_ID[cid]; if(!cls) return cs;
               const prog={}; cls.trial.forEach(st=>{ prog[st.type]=true; });
@@ -9930,7 +10189,7 @@ export default function AscendApp(){
             onOpenForge={()=>{ setTab("quest"); setQuestLineReq({line:"forge", n:Date.now()}); }}/></TabPane>
           <div style={{display:tab==="map"?"block":"none"}}><MapTab pins={pins} revealZones={revealZones} savedPos={lastKnownPos} onLocationConfirmed={setLastKnownPos} active={tab==="map"}
             onZoneSeen={(id,r)=>setRevealZones(zs=>zs.map(z=>z.id===id&&!((z.seenR??0)>=r)?{...z,seenR:r}:z))}/></div>
-          <TabPane active={tab==="library"}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnchFull(true);setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)} collapsed={libCollapsed} setCollapsed={setLibCollapsed} classState={classState} chantUnlocked={chantUnlocked}/></TabPane>
+          <TabPane active={tab==="library"}><LibraryTab libReadAt={libReadAt} qualSessions={sessions.filter(s=>s.xp>0&&!s.logged).length} onLibRead={(id)=>setLibReadAt(p=>p[id]!==undefined?p:{...p,[id]:sessions.filter(s=>s.xp>0&&!s.logged).length})} completedChapters={completedChapters} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnchFull(true);setAnch(true);setScr(null);}} openEntryId={libOpenId} onClearOpenEntry={()=>setLibOpenId(null)} collapsed={libCollapsed} setCollapsed={setLibCollapsed} classState={classState} chantUnlocked={chantUnlocked}/></TabPane>
         </div>
 
         {/* floating anchor button */}
