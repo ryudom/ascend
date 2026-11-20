@@ -2480,6 +2480,75 @@ function Overlay({ title, onBack, right, devBadge, children }){
 const EXTRA_TYPES = [];
 
 /* ─── Synthesised gong — no download needed, Web Audio API ─── */
+/* ─── Daily check feedback: a short synthesized sound and a light vibration.
+   Per-device choices in localStorage. Vibration works on Android; iPhones
+   don't allow it for web apps. Sounds are made here, no audio files. ─── */
+const CHECK_SOUNDS = [
+  { id:"bell",  name:"Bell"  },
+  { id:"chime", name:"Chime" },
+  { id:"bowl",  name:"Bowl"  },
+  { id:"wood",  name:"Wood"  },
+  { id:"off",   name:"Off"   },
+];
+const prefGet = (k,d) => { try{ return localStorage.getItem(k)||d; }catch(e){ return d; } };
+const prefSet = (k,v) => { try{ localStorage.setItem(k,v); }catch(e){} };
+let _fbCtx = null;
+function fbCtx(){
+  try{
+    if(!_fbCtx || _fbCtx.state==="closed"){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; _fbCtx=new AC(); }
+    if(_fbCtx.state==="suspended") _fbCtx.resume();
+    return _fbCtx;
+  }catch(e){ return null; }
+}
+function playCheckSound(id){
+  if(!id || id==="off") return;
+  const ctx=fbCtx(); if(!ctx) return;
+  try{
+    const now=ctx.currentTime+0.01;
+    const tone=(f,a,dec,t0=0,type="sine")=>{
+      const o=ctx.createOscillator(), g=ctx.createGain();
+      o.type=type; o.frequency.value=f; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.0001,now+t0);
+      g.gain.exponentialRampToValueAtTime(a,now+t0+0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001,now+t0+dec);
+      o.start(now+t0); o.stop(now+t0+dec+0.05);
+    };
+    if(id==="bell"){ tone(1318,0.18,1.1); tone(2637,0.06,0.6); tone(3951,0.025,0.35); }
+    else if(id==="chime"){ tone(1047,0.11,0.7,0); tone(1319,0.11,0.7,0.09); tone(1568,0.12,1.1,0.18); }
+    else if(id==="bowl"){ tone(432,0.2,2.6); tone(436,0.12,2.6); tone(1180,0.05,1.6); tone(2290,0.02,0.9); }
+    else if(id==="wood"){ tone(1100,0.22,0.07,0,"triangle"); tone(620,0.14,0.09); }
+  }catch(e){}
+}
+function checkFeedback(){
+  playCheckSound(prefGet("ascend_check_sound","bell"));
+  if(prefGet("ascend_check_vibrate","on")!=="off"){ try{ navigator.vibrate && navigator.vibrate(18); }catch(e){} }
+}
+function CheckFeedbackSetting(){
+  const [snd,setSnd]=useState(()=>prefGet("ascend_check_sound","bell"));
+  const [vib,setVib]=useState(()=>prefGet("ascend_check_vibrate","on"));
+  const canVibrate = typeof navigator!=="undefined" && typeof navigator.vibrate==="function";
+  const pill=on=>({flex:1,padding:"8px 4px",borderRadius:"6px",cursor:"pointer",textAlign:"center",
+    background:on?`rgba(${C.sageRGB},0.12)`:"transparent",border:`0.5px solid ${on?C.sageB:C.bord}`,...body("11px",on?C.sageB:C.muted)});
+  return (
+    <div style={{padding:"12px 0",borderBottom:`0.5px solid ${C.bord}`}}>
+      <div style={{...body("14px",C.cream),marginBottom:"2px"}}>Daily check</div>
+      <div style={{...body("11px",C.dim),fontStyle:"italic",marginBottom:"10px"}}>What you hear when a daily is checked. Tap one to hear it.</div>
+      <div style={{display:"flex",gap:"6px",marginBottom:"10px"}}>
+        {CHECK_SOUNDS.map(x=>(
+          <button key={x.id} aria-pressed={snd===x.id} onClick={()=>{ setSnd(x.id); prefSet("ascend_check_sound",x.id); playCheckSound(x.id); }} style={pill(snd===x.id)}>{x.name}</button>
+        ))}
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+        <span style={{...body("12px",C.muted),flex:1}}>Vibrate{canVibrate?"":" (not supported on this device)"}</span>
+        {[["on","On"],["off","Off"]].map(([id,l])=>(
+          <button key={id} aria-pressed={vib===id} onClick={()=>{ setVib(id); prefSet("ascend_check_vibrate",id); if(id==="on"){ try{ navigator.vibrate && navigator.vibrate(18); }catch(e){} } }}
+            style={{...pill(vib===id),flex:"0 0 56px"}}>{l}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ─── getAudioCtx: create once per anchor session, call on user gesture ─── */
 function getAudioCtx(ref){
   try{
@@ -7321,17 +7390,18 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
   const logPractice = (d, n) => {
     if(!(n>0)) return;
     const s=onQuickLog(d, n);
-    if(s) setLastLog({id:d.id, text:`Logged ${fmtDailyAmt(n)} ${practiceUnit(d)}`, undo:()=>onUndoLog(s)});
+    if(s){ checkFeedback(); setLastLog({id:d.id, text:`Logged ${fmtDailyAmt(n)} ${practiceUnit(d)}`, undo:()=>onUndoLog(s)}); }
   };
   const addAmount = (d, n) => {
     const before=prog(d);
+    if(n>0) checkFeedback();
     setClassState(c=>setDailyAmount(c, d.id, before+n, day));
     setLastLog({id:d.id, text: dailyUnit(d)==="times" ? (n===1?"Logged once":`Logged ${fmtDailyAmt(n)} times`) : `Logged ${fmtDailyAmt(n)} ${dailyUnit(d)}`, undo:()=>setClassState(c=>setDailyAmount(c, d.id, before, day))});
   };
   /* ✓ finishes the current round; once done it logs another (20 pushups, five
      times in a day = ×5). Check and Do not are once a day, so ✓ toggles them. */
   const finish = d => {
-    if(d.kind==="check"||d.kind==="vow") return setClassState(c=>toggleVowCheck(c, d.id, day));
+    if(d.kind==="check"||d.kind==="vow"){ if(prog(d)<(d.target||1)) checkFeedback(); return setClassState(c=>toggleVowCheck(c, d.id, day)); }
     const tgt=d.target||1, amt=tgt-(prog(d)%tgt);
     if(d.kind==="amount") return addAmount(d, amt);
     if(d.kind==="practice") logPractice(d, d.measure==="xp" ? unitsForXP(d.unit, amt) : amt);
@@ -7781,7 +7851,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                             {threeDone&&!done&&(
                               <div style={{paddingLeft:"14px"}}>
                                 <div style={{...body("12px",SC.muted),lineHeight:1.55,marginBottom:"8px"}}>The anchors are not only for practice. In an ordinary moment, walking, waiting, working: align, relax, breathe. Then mark it.</div>
-                                <button onClick={()=>setClassState(cs=>markAnchorReturn(cs))} style={{display:"flex",alignItems:"center",gap:"5px",background:"transparent",border:`0.5px solid ${SC.bord}`,borderRadius:"4px",padding:"5px 10px",cursor:"pointer"}}>
+                                <button onClick={()=>{ checkFeedback(); setClassState(cs=>markAnchorReturn(cs)); }} style={{display:"flex",alignItems:"center",gap:"5px",background:"transparent",border:`0.5px solid ${SC.bord}`,borderRadius:"4px",padding:"5px 10px",cursor:"pointer"}}>
                                   <span style={{fontSize:"9px",color:SC.dim}}>○</span>
                                   <span style={{...body("10px",SC.muted)}}>I came back to them</span>
                                 </button>
@@ -9941,6 +10011,7 @@ function SettingsScreen({ onBack, name, setName, theme, setTheme,
       <AskGuide/>
       <div style={{height:"18px"}}/>
       <SL title="Preferences"/>
+      <CheckFeedbackSetting/>
       <div style={{padding:"12px 0",borderBottom:`0.5px solid ${C.bord}`}}>
         <div style={{...body("14px",C.cream),marginBottom:"2px"}}>Display Anchor Time</div>
         <div style={{...body("11px",C.dim),fontStyle:"italic",marginBottom:"10px"}}>How much you see while the session is running</div>
