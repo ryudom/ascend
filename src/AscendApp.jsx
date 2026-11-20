@@ -7459,6 +7459,18 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
   const [period,setPeriod]=useState("day");  // day | week | month | all (main list only)
   const [drag,setDrag]=useState(null);       // {id, startY, dy, to}
   const rowRefs=useRef({});
+  const listRef=useRef(null);
+  const press=useRef(null);          // {id, x, y, timer, active}: a held row about to be dragged
+  const justDragged=useRef(false);   // swallow the tap that ends a drag
+  /* While dragging, stop the page from scrolling under the finger (needs a
+     non-passive listener; React's touch handlers are passive). */
+  useEffect(()=>{
+    if(!drag) return;
+    const el=listRef.current; if(!el) return;
+    const stop=e=>{ e.preventDefault(); };
+    el.addEventListener("touchmove", stop, {passive:false});
+    return ()=>el.removeEventListener("touchmove", stop);
+  },[!!drag]); // eslint-disable-line
   useEffect(()=>{ if(!lastLog) return; const t=setTimeout(()=>setLastLog(null),7000); return ()=>clearTimeout(t); },[lastLog]);
   const byDay=useMemo(()=>{ const m={}; (sessions||[]).forEach(x=>{ const k=sessionDay(x); (m[k]=m[k]||[]).push(x); }); return m; },[sessions]);
   useEffect(()=>{ setPending(0); },[openId]);
@@ -7493,6 +7505,32 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
     setDrag(dr=>dr && {...dr, dy:y-dr.startY, to:to||dr.to});
   };
   const gripUp = () => { if(!drag) return; const {id,to}=drag; setDrag(null); moveDaily(id,to); };
+  /* Press and hold anywhere on a row (not its buttons) to pick it up. A quick
+     tap still opens the row; moving before the hold ends is a scroll. */
+  const HOLD_MS=200, SLOP=8;
+  const pressDown = (e, d) => {
+    if(e.button!=null && e.button!==0) return;
+    const pid=e.pointerId, target=e.currentTarget, y=e.clientY;
+    const timer=setTimeout(()=>{
+      if(!press.current || press.current.id!==d.id) return;
+      press.current.active=true;
+      try{ target.setPointerCapture(pid); }catch(_){}
+      try{ navigator.vibrate && navigator.vibrate(12); }catch(_){}
+      setOpenId(null); setEditId(null);
+      setDrag({id:d.id, startY:press.current.y, dy:0, to:null});
+    }, HOLD_MS);
+    press.current={id:d.id, x:e.clientX, y, timer, active:false};
+  };
+  const pressMove = e => {
+    const pr=press.current; if(!pr) return;
+    if(pr.active) return gripMove(e);
+    if(Math.abs(e.clientX-pr.x)>SLOP || Math.abs(e.clientY-pr.y)>SLOP){ clearTimeout(pr.timer); press.current=null; }
+  };
+  const pressEnd = () => {
+    const pr=press.current; press.current=null; if(!pr) return;
+    clearTimeout(pr.timer);
+    if(pr.active){ justDragged.current=true; setTimeout(()=>{ justDragged.current=false; }, 60); gripUp(); }
+  };
   const gripKey = (e, d) => {
     const i=rows.findIndex(r=>r.id===d.id);
     if(e.key==="ArrowUp" && i>0){ e.preventDefault(); moveDaily(d.id, rows[i-1].id); }
@@ -7607,7 +7645,7 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
           </div>
         );
       })() : (<>
-      <div style={{borderTop:`0.5px solid ${C.bord}`}}>
+      <div ref={listRef} style={{borderTop:`0.5px solid ${C.bord}`}}>
         {rows.map(d=>{
           const t=tieInfo(d, ties), col=t.color, p=prog(d), tgt=d.target||1;
           /* rounds completed today: grey at 0, bright at 1, brighter and glowing with each round after */
@@ -7634,8 +7672,11 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
                   onPointerDown={e=>gripDown(e,d)} onPointerMove={gripMove} onPointerUp={gripUp} onPointerCancel={()=>setDrag(null)}
                   onKeyDown={e=>gripKey(e,d)}
                   style={{touchAction:"none",cursor:"grab",padding:"6px 0 6px 2px",marginRight:"-6px",color:C.dim,opacity:0.55,fontSize:"12px",lineHeight:1,userSelect:"none",flexShrink:0}}>⋮⋮</span>
-                <button onClick={()=>{ setOpenId(open?null:d.id); if(open) setEditId(null); }} aria-expanded={open}
-                  style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:"11px",background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left"}}>
+                <button onClick={()=>{ if(justDragged.current) return; setOpenId(open?null:d.id); if(open) setEditId(null); }} aria-expanded={open}
+                  onPointerDown={e=>pressDown(e,d)} onPointerMove={pressMove} onPointerUp={pressEnd} onPointerCancel={()=>{ pressEnd(); setDrag(null); }}
+                  onContextMenu={e=>e.preventDefault()}
+                  style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:"11px",background:"none",border:"none",padding:0,cursor:drag?.id===d.id?"grabbing":"pointer",textAlign:"left",
+                    userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none"}}>
                   <span style={{width:lvl>=4?"4px":lvl>=2?"3px":"2px",height:"26px",borderRadius:"2px",flexShrink:0,
                     background:done?col:C.dim, opacity:done?[0,0.75,0.88,0.96,1,1][lvl]:0.45,
                     boxShadow:lvl>=2?`0 0 ${3*lvl}px ${col}`:"none",transition:"all .4s"}}/>
