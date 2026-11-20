@@ -1418,7 +1418,14 @@ const QUEST_CREDIT_MIGRATIONS = [
 ];
 function migrateClassState(cs, activities){
   if(!cs || typeof cs!=="object") return cs;
-  let out = cs;
+  let out = splitAnchorDaily(cs);
+  /* Nov 2026: check dailies count (×N) in dailyAmounts; move old once-a-day marks over. */
+  const chk=(out.dailies||[]).filter(d=>d.kind==="check" && (out.dailyChecks?.[d.id]||[]).length);
+  if(chk.length){
+    const amts={...(out.dailyAmounts||{})}, checks={...(out.dailyChecks||{})};
+    chk.forEach(d=>{ const m={...(amts[d.id]||{})}; checks[d.id].forEach(day=>{ m[day]=Math.max(m[day]||0,1); }); amts[d.id]=m; delete checks[d.id]; });
+    out={...out, dailyAmounts:amts, dailyChecks:checks};
+  }
   const qp = out.questProgress;
   if(qp && qp.h_communion!==undefined && qp.h_commune===undefined){
     const { h_communion, ...rest } = qp;
@@ -1810,25 +1817,45 @@ const practiceUnit = d => DAILY_UNIT_SHORT[d.unit]||d.unit||"reps";          // 
 const dailyUnit = d => (d.kind==="class" || (d.kind==="practice" && d.measure==="xp")) ? "XP" : (d.kind==="practice"||d.kind==="amount") ? practiceUnit(d) : "";
 /* How much of a practice's own unit makes up `xp` (for ✓ on an XP-measured practice daily). */
 const unitsForXP = (unit, xp) => unit==="minutes" ? Math.max(1,Math.ceil(xp/6)) : Math.max(1,Math.ceil(xp/(LOG_XP_PER_UNIT[unit]??1)));
-/* Everyone's first daily: the three anchors, off the cushion. It is the last
-   step of Act I chapter 2 ("Into the Day"): marking it once adds it to the
-   Daily list. Players already past chapter 2 get it added once. Each ✓ is one
-   return; repeat it as often as you like and the row brightens. */
+/* Everyone's first dailies: the three anchors, off the cushion, one daily
+   each. They are the last step of Act I chapter 2 ("Into the Day"): marking it
+   once adds them to the Daily list. Players already past chapter 2 get them
+   added once. Each ✓ is one return; repeat as often as you like and the row
+   brightens. */
 const ANCHOR_DAILY_AFTER_CHAPTER = 2;
-const makeAnchorDaily = () => ({ id:newDailyId(), cid:"presence", kind:"amount", unit:"times", target:1, anchor:true,
-  label:"Align · Relax · Breathe", sub:"Anywhere, as often as you like" });
+const ANCHOR_DAILIES = [
+  { key:"align",  label:"Align",   sub:"Crown to ground, anywhere" },
+  { key:"relax",  label:"Relax",   sub:"Surrender your tension to the ground" },
+  { key:"breath", label:"Breathe", sub:"Let it move on its own" },
+];
+const makeAnchorDaily = (a, id) => ({ id:id||newDailyId()+a.key[0], cid:"presence", kind:"amount", unit:"times", target:1,
+  anchor:true, anchorKey:a.key, label:a.label, sub:a.sub });
+const makeAnchorDailies = () => ANCHOR_DAILIES.map(a=>makeAnchorDaily(a));
+/* Older saves had one combined anchor daily: split it into three, each
+   keeping its counts, in the same place in the list. */
+function splitAnchorDaily(cs){
+  const ds=cs?.dailies||[];
+  const old=ds.find(d=>d.anchor && !d.anchorKey);
+  if(!old) return cs;
+  const three=ANCHOR_DAILIES.map(a=>makeAnchorDaily(a, old.id+"_"+a.key));
+  const i=ds.indexOf(old);
+  const amts={...(cs.dailyAmounts||{})};
+  if(amts[old.id]){ three.forEach(n=>{ amts[n.id]={...amts[old.id]}; }); delete amts[old.id]; }
+  return {...cs, dailies:[...ds.slice(0,i), ...three, ...ds.slice(i+1)], dailyAmounts:amts};
+}
 /* Chapter 2's last step: the anchors carried into an ordinary moment once. */
 const anchorStepDone = cs => !!cs?.anchorReturned
   || (cs?.dailies||[]).some(d=>d.anchor && Object.values(cs?.dailyAmounts?.[d.id]||{}).some(v=>v>0));
-/* Mark one return on the anchor daily, adding the daily first if needed. */
+/* Chapter 2's "I came back to them": add the three anchor dailies if needed
+   and mark one return on each (align, relax, breathe were all done). */
 function markAnchorReturn(cs, day=localDateStr()){
-  let c = cs||{};
-  let d = (c.dailies||[]).find(x=>x.anchor);
-  if(!d){ d = makeAnchorDaily(); c = {...c, dailies:[...(c.dailies||[]), d]}; }
-  c = setDailyAmount(c, d.id, (c.dailyAmounts?.[d.id]?.[day]||0)+1, day);
+  let c = splitAnchorDaily(cs||{});
+  if(!(c.dailies||[]).some(x=>x.anchor)) c = {...c, dailies:[...(c.dailies||[]), ...makeAnchorDailies()]};
+  (c.dailies||[]).filter(x=>x.anchor).forEach(d=>{ c = setDailyAmount(c, d.id, (c.dailyAmounts?.[d.id]?.[day]||0)+1, day); });
   return {...c, anchorDailyAdded:true, anchorReturned:true};
 }
-const dailyTargetText = d => d.sub ? d.sub : d.kind==="vow" ? "Do not" : d.kind==="check" ? "" : `${d.target} ${dailyUnit(d)}`;
+/* Anchor dailies read their line from ANCHOR_DAILIES, so wording changes reach saved dailies too. */
+const dailyTargetText = d => d.anchorKey ? (ANCHOR_DAILIES.find(a=>a.key===d.anchorKey)?.sub || d.sub || "") : d.sub ? d.sub : d.kind==="vow" ? "Do not" : d.kind==="check" ? "" : `${d.target} ${dailyUnit(d)}`;
 const fmtDailyAmt = n => { const r=Math.round((n||0)*10)/10; return Number.isInteger(r) ? String(r) : r.toFixed(1); };
 const newDailyId = () => "d"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 /* A daily can be tied to several places: d.cid/d.value is the first tie (its
@@ -1866,11 +1893,12 @@ function toggleVowCheck(cs, id, day=localDateStr()){
   const cur=cs.dailyChecks?.[id]||[];
   return {...cs, dailyChecks:{...(cs.dailyChecks||{}), [id]: cur.includes(day)?cur.filter(x=>x!==day):[...cur,day]}};
 }
-/* Set today's hand-logged amount on an "amount" daily (keeps two weeks). */
+/* Set a day's hand-logged amount on an "amount" or "check" daily. History is
+   kept (Week / Month / All time read it); a zero day is dropped. */
 function setDailyAmount(cs, id, n, day=localDateStr()){
-  const cur={...(cs.dailyAmounts?.[id]||{}), [day]:Math.max(0,n)};
-  const keep=Object.fromEntries(Object.entries(cur).sort((a,b)=>a[0]<b[0]?1:-1).slice(0,14));
-  return {...cs, dailyAmounts:{...(cs.dailyAmounts||{}), [id]:keep}};
+  const cur={...(cs.dailyAmounts?.[id]||{})};
+  if(n>0) cur[day]=n; else delete cur[day];
+  return {...cs, dailyAmounts:{...(cs.dailyAmounts||{}), [id]:cur}};
 }
 /* Distinct days a class's Do nots were kept. */
 function vowDaysOf(classState, cid){
@@ -1880,7 +1908,9 @@ function vowDaysOf(classState, cid){
 }
 /* Today's progress, in the daily's own unit (XP, minutes, reps…; 0/1 for check and Do not). */
 function dailyProgress(d, sessions, cs, day=localDateStr()){
-  if(d.kind==="vow" || d.kind==="check") return (cs?.dailyChecks?.[d.id]||[]).includes(day) ? (d.target||1) : 0;
+  if(d.kind==="vow") return (cs?.dailyChecks?.[d.id]||[]).includes(day) ? (d.target||1) : 0;
+  /* checks count: each ✓ is one more (×N); older saves kept a once-a-day mark */
+  if(d.kind==="check") return Math.max(cs?.dailyAmounts?.[d.id]?.[day] || 0, (cs?.dailyChecks?.[d.id]||[]).includes(day) ? 1 : 0);
   if(d.kind==="amount") return cs?.dailyAmounts?.[d.id]?.[day] || 0;
   let sum=0;
   (sessions||[]).forEach(s=>{
@@ -5921,6 +5951,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
   const sel = mine ? (mySel==="center"||myNodes.some(n=>n.id===mySel) ? mySel : "center") : pathSel;
   const onSelect = mine ? onMySel : onPathSelect;
   const [tplOpen,setTplOpen]=useState(false);
+  const [mapMenu,setMapMenu]=useState(false);   // the map switcher dropdown
   const [tplEdit,setTplEdit]=useState(null);     // id of the custom template being edited
   const [tplNewVal,setTplNewVal]=useState("");
   const tplNodes = customTpl?.kind==="classes" ? (customTpl.nodes||[]) : null;
@@ -6182,11 +6213,39 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
             </div>
           );
         })()}
-        {/* Template switcher: names the map in use; opens the Templates screen. */}
-        <button onPointerDown={e=>e.stopPropagation()} onClick={()=>setTplOpen(true)} aria-label="Map templates"
+        {/* Map switcher: names the map in use (the last one chosen is remembered);
+            the dropdown lists the maps, and "Manage maps" opens the Templates screen. */}
+        <button onPointerDown={e=>e.stopPropagation()} onClick={()=>setMapMenu(m=>!m)} aria-label="Switch map" aria-expanded={mapMenu} aria-haspopup="menu"
           style={{position:"absolute",right:"14px",top:"14px",zIndex:4,padding:"6px 13px",borderRadius:"16px",cursor:"pointer",border:`0.5px solid ${C.bord}`,background:`linear-gradient(${C.surf},${C.surf}), ${C.bg}`,maxWidth:"170px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",...dsp("8.5px",C.gold,400,"0.14em")}}>
           {(customTpl ? tplName(customTpl) : mine ? "My Path" : "Classes").toUpperCase()} ▾
         </button>
+        {mapMenu && (()=>{
+          const forged=!!(forgedStory && forgedStory.name && forgedStory.values?.length);
+          const own=classState?.mapTemplates||[];
+          const activeId = customTpl ? customTpl.id : (mine && forged ? "mine" : "classes");
+          const items=[{id:"classes",name:"Classes"}, ...(forged?[{id:"mine",name:"My Path"}]:[]), ...own.map(t=>({id:t.id,name:tplName(t)}))];
+          const pick=id=>{ setMapMenu(false); if(id===activeId) return; onPickTemplate(id); onPathSelect("center"); setView(null); };
+          const row={display:"flex",alignItems:"center",gap:"8px",width:"100%",padding:"10px 14px",background:"none",border:"none",cursor:"pointer",textAlign:"left"};
+          return (<>
+            <button aria-label="Close map menu" onPointerDown={e=>e.stopPropagation()} onClick={()=>setMapMenu(false)}
+              style={{position:"absolute",inset:0,zIndex:5,background:"transparent",border:"none",cursor:"default"}}/>
+            <div role="menu" onPointerDown={e=>e.stopPropagation()}
+              style={{position:"absolute",right:"14px",top:"48px",zIndex:6,minWidth:"190px",maxWidth:"240px",borderRadius:"10px",overflow:"hidden",
+                background:`linear-gradient(${C.surf},${C.surf}), ${C.bg}`,border:`0.5px solid ${C.bord}`,boxShadow:"0 8px 24px rgba(0,0,0,0.28)"}}>
+              {items.map(it=>{ const on=it.id===activeId; return (
+                <button key={it.id} role="menuitemradio" aria-checked={on} onClick={()=>pick(it.id)} style={row}>
+                  <span style={{width:"14px",...body("12px",C.gold)}}>{on?"✓":""}</span>
+                  <span style={{...body("14px",on?C.cream:C.muted),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.name}</span>
+                </button>
+              ); })}
+              <div style={{borderTop:`0.5px solid ${C.bord}`}}/>
+              <button role="menuitem" onClick={()=>{ setMapMenu(false); setTplOpen(true); }} style={row}>
+                <span style={{width:"14px"}}/>
+                <span style={{...dsp("8.5px",C.muted,400,"0.14em")}}>MANAGE MAPS</span>
+              </button>
+            </div>
+          </>);
+        })()}
         <svg aria-hidden="true" width={vw} height={mapH} viewBox={`0 0 ${vw} ${mapH}`} style={{position:"absolute",left:0,top:0,fill:"none",strokeLinecap:"round",pointerEvents:"none"}}>
           <path d={rings} stroke={INK(0.14)} strokeWidth="1" strokeDasharray="2 6"/>
           <path d={solid} stroke={INK(0.3)} strokeWidth="1.4"/>
@@ -7357,6 +7416,34 @@ function DailyBand({ fill, color, r, sw=4 }){
 }
 const PlayGlyph = ({c}) => (<svg aria-hidden="true" width="11" height="11" viewBox="0 0 12 12"><path d="M3 1.8 L10.2 6 L3 10.2 Z" fill={c}/></svg>);
 
+/* Days and totals for a daily over a period (Week = last 7 days, Month = last
+   30, All = everything kept). */
+const DAILY_PERIODS = [["day","Day"],["week","Week"],["month","Month"],["all","All time"]];
+const shiftDay = (day, n) => { const d=new Date(day+"T00:00:00"); d.setDate(d.getDate()+n); return localDateStr(d); };
+function dailyPeriodStats(d, byDay, cs, from, to){
+  const days=new Set();
+  const inP = x => (!from || x>=from) && x<=to;
+  if(d.kind==="class"||d.kind==="practice") Object.keys(byDay).forEach(x=>{ if(inP(x)) days.add(x); });
+  Object.keys(cs?.dailyAmounts?.[d.id]||{}).forEach(x=>{ if(inP(x)) days.add(x); });
+  (cs?.dailyChecks?.[d.id]||[]).forEach(x=>{ if(inP(x)) days.add(x); });
+  const tgt=d.target||1;
+  let doneDays=0, total=0, rounds=0;
+  days.forEach(x=>{
+    const p=dailyProgress(d, byDay[x]||[], cs, x);
+    if(!(p>0)) return;
+    total+=p;
+    rounds += d.kind==="vow" ? (p>=tgt?1:0) : Math.floor(p/tgt+1e-9);
+    if(p>=tgt) doneDays++;
+  });
+  return { doneDays, total, rounds };
+}
+/* The practices a daily's tied classes own (the same list the suggestions use). */
+function classPracticesFor(d, activities){
+  const cids=dailyTieKeys(d).filter(k=>CLASS_BY_ID[k]);
+  const owned=activities.filter(a=>cids.some(cid=>PATH_SKILL_NAMES[cid]?.has(a.name) || FUND_OWNER[a.category]===cid || (FUNDAMENTALS[cid]||[]).some(f=>(f.sources||[]).includes(a.name))));
+  return [...new Map(owned.map(a=>[a.name,a])).values()];
+}
+
 function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[], values=[], forged=false, scope=null,
   showHeader=true, showSuggestions=true, onQuickLog=()=>null, onUndoLog=()=>{}, onStart=()=>{} }){
   const day=localDateStr();
@@ -7369,7 +7456,11 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
   const [pending,setPending]=useState(0);    // stepper amount waiting to be logged
   const [lastLog,setLastLog]=useState(null); // {id, text, undo}
   const [newLabel,setNewLabel]=useState("");
+  const [period,setPeriod]=useState("day");  // day | week | month | all (main list only)
+  const [drag,setDrag]=useState(null);       // {id, startY, dy, to}
+  const rowRefs=useRef({});
   useEffect(()=>{ if(!lastLog) return; const t=setTimeout(()=>setLastLog(null),7000); return ()=>clearTimeout(t); },[lastLog]);
+  const byDay=useMemo(()=>{ const m={}; (sessions||[]).forEach(x=>{ const k=sessionDay(x); (m[k]=m[k]||[]).push(x); }); return m; },[sessions]);
   useEffect(()=>{ setPending(0); },[openId]);
 
   const upd = fn => setClassState(c=>({...c, dailies:fn(c.dailies||[])}));
@@ -7382,8 +7473,31 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
   };
   const toggleTie = (d, k) => { const ks=dailyTieKeys(d); setTies(d, ks.includes(k) ? ks.filter(x=>x!==k) : [...ks, k]); };
   const isDone = d => prog(d) >= (d.target||1);
-  const tieOrder = d => { const i=ties.findIndex(t=>t.key===tieKeyOf(d)); return i<0 ? (d.cid==="mine"?0:ties.length) : i; };
-  const rows=[...all].sort((a,b)=>(isDone(a)-isDone(b)) || (tieOrder(a)-tieOrder(b)));
+  /* Your order: rows stay where you put them (drag the grip to move one). */
+  const rows=all;
+  const moveDaily = (id, toId) => {
+    if(!toId || toId===id) return;
+    upd(ds=>{ const from=ds.findIndex(x=>x.id===id), ti=ds.findIndex(x=>x.id===toId); if(from<0||ti<0) return ds;
+      const arr=[...ds]; const [m]=arr.splice(from,1); arr.splice(ti,0,m); return arr; });
+  };
+  const gripDown = (e, d) => {
+    e.preventDefault(); e.stopPropagation();
+    try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){}
+    setOpenId(null); setEditId(null);
+    setDrag({id:d.id, startY:e.clientY, dy:0, to:null});
+  };
+  const gripMove = e => {
+    if(!drag) return;
+    const y=e.clientY; let to=null;
+    for(const r of rows){ const el=rowRefs.current[r.id]; if(!el) continue; const b=el.getBoundingClientRect(); if(y>=b.top && y<b.bottom){ to=r.id; break; } }
+    setDrag(dr=>dr && {...dr, dy:y-dr.startY, to:to||dr.to});
+  };
+  const gripUp = () => { if(!drag) return; const {id,to}=drag; setDrag(null); moveDaily(id,to); };
+  const gripKey = (e, d) => {
+    const i=rows.findIndex(r=>r.id===d.id);
+    if(e.key==="ArrowUp" && i>0){ e.preventDefault(); moveDaily(d.id, rows[i-1].id); }
+    if(e.key==="ArrowDown" && i<rows.length-1){ e.preventDefault(); moveDaily(d.id, rows[i+1].id); }
+  };
   const doneN=all.filter(isDone).length;
 
   /* finishing actions */
@@ -7396,12 +7510,14 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
     const before=prog(d);
     if(n>0) checkFeedback();
     setClassState(c=>setDailyAmount(c, d.id, before+n, day));
-    setLastLog({id:d.id, text: dailyUnit(d)==="times" ? (n===1?"Logged once":`Logged ${fmtDailyAmt(n)} times`) : `Logged ${fmtDailyAmt(n)} ${dailyUnit(d)}`, undo:()=>setClassState(c=>setDailyAmount(c, d.id, before, day))});
+    setLastLog({id:d.id, text: d.kind==="check" ? `Done ×${before+n}` : dailyUnit(d)==="times" ? (n===1?"Logged once":`Logged ${fmtDailyAmt(n)} times`) : `Logged ${fmtDailyAmt(n)} ${dailyUnit(d)}`, undo:()=>setClassState(c=>setDailyAmount(c, d.id, before, day))});
   };
   /* ✓ finishes the current round; once done it logs another (20 pushups, five
-     times in a day = ×5). Check and Do not are once a day, so ✓ toggles them. */
+     times in a day = ×5). A check counts each ✓ (×N); Undo takes one back.
+     Do not is kept or not, once a day, so ✓ toggles it. */
   const finish = d => {
-    if(d.kind==="check"||d.kind==="vow"){ if(prog(d)<(d.target||1)) checkFeedback(); return setClassState(c=>toggleVowCheck(c, d.id, day)); }
+    if(d.kind==="vow"){ if(prog(d)<(d.target||1)) checkFeedback(); return setClassState(c=>toggleVowCheck(c, d.id, day)); }
+    if(d.kind==="check") return addAmount(d, 1);
     const tgt=d.target||1, amt=tgt-(prog(d)%tgt);
     if(d.kind==="amount") return addAmount(d, amt);
     if(d.kind==="practice") logPractice(d, d.measure==="xp" ? unitsForXP(d.unit, amt) : amt);
@@ -7451,16 +7567,51 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
   return (
     <div>
       {showHeader && (
-        <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",padding:"2px 2px 8px"}}>
-          <span style={{...dsp("9px",C.muted,400,"0.2em")}}>TODAY</span>
-          {all.length>0 && <span style={{...body("12px",doneN===all.length?C.gold:C.dim)}}>{doneN} of {all.length}</span>}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px",padding:"2px 2px 8px"}}>
+          <div role="tablist" aria-label="Period" style={{display:"flex",gap:"2px"}}>
+            {DAILY_PERIODS.map(([id,l])=>(
+              <button key={id} role="tab" aria-selected={period===id} onClick={()=>{ setPeriod(id); setOpenId(null); setEditId(null); }}
+                style={{padding:"4px 8px",borderRadius:"5px",cursor:"pointer",background:period===id?`rgba(${C.sageRGB},0.12)`:"none",
+                  border:`0.5px solid ${period===id?C.sageB:"transparent"}`,...dsp("8.5px",period===id?C.cream:C.muted,400,"0.12em")}}>{(id==="day"?"TODAY":l).toUpperCase()}</button>
+            ))}
+          </div>
+          {period==="day" && all.length>0 && <span style={{...body("12px",doneN===all.length?C.gold:C.dim)}}>{doneN} of {all.length}</span>}
         </div>
       )}
+      {period!=="day" ? (()=>{
+        const from = period==="week" ? shiftDay(day,-6) : period==="month" ? shiftDay(day,-29) : null;
+        const plen = period==="week" ? 7 : period==="month" ? 30 : null;
+        return (
+          <div style={{borderTop:`0.5px solid ${C.bord}`}}>
+            {rows.length===0 && <div style={{...body("12px",C.dim),fontStyle:"italic",padding:"12px 2px"}}>No dailies yet.</div>}
+            {rows.map(d=>{
+              const t=tieInfo(d, ties), col=t.color;
+              const st=dailyPeriodStats(d, byDay, cs, from, day);
+              const tieNames = dailyTieKeys(d).filter(k=>k!==scope).map(k=>(ties.find(tt=>tt.key===k)||tieInfo(keyCV(k),ties)).name).filter(Boolean);
+              const amt = d.kind==="vow" ? (st.doneDays ? `kept ${st.doneDays} ${st.doneDays===1?"day":"days"}` : "")
+                : d.kind==="check" ? (st.total ? `${st.total} ${st.total===1?"time":"times"}` : "")
+                : st.total ? `${fmtDailyAmt(Math.round(st.total*10)/10)} ${dailyUnit(d)}` : "";
+              const extra = d.kind!=="vow" && d.kind!=="check" && st.rounds>st.doneDays ? ` · ×${st.rounds}` : "";
+              const frac = plen ? st.doneDays/plen : Math.min(1, st.doneDays/30);
+              return (
+                <div key={d.id} style={{display:"flex",alignItems:"center",gap:"11px",padding:"10px 2px",borderBottom:`0.5px solid ${C.bord}`}}>
+                  <span style={{width:"3px",height:"26px",borderRadius:"2px",flexShrink:0,background:st.doneDays?col:C.dim,opacity:st.doneDays?0.35+0.65*frac:0.4}}/>
+                  <span style={{flex:1,minWidth:0}}>
+                    <span style={{display:"block",...body("14px",st.doneDays?C.cream:C.muted),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.kind==="vow"?"Do not: ":""}{d.label}</span>
+                    <span style={{display:"block",...body("11px",C.dim),marginTop:"1px"}}>{[tieNames.join(" + ")||null, (amt+extra)||"Nothing yet"].filter(Boolean).join(" · ")}</span>
+                  </span>
+                  <span style={{...body("13px",st.doneDays?col:C.dim),flexShrink:0}}>{st.doneDays}{plen?<span style={{color:C.dim}}>/{plen}</span>:""} <span style={{...body("11px",C.dim)}}>{st.doneDays===1&&!plen?"day":"days"}</span></span>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })() : (<>
       <div style={{borderTop:`0.5px solid ${C.bord}`}}>
         {rows.map(d=>{
           const t=tieInfo(d, ties), col=t.color, p=prog(d), tgt=d.target||1;
           /* rounds completed today: grey at 0, bright at 1, brighter and glowing with each round after */
-          const times = (d.kind==="check"||d.kind==="vow") ? (p>=tgt?1:0) : Math.floor(p/tgt+1e-9);
+          const times = d.kind==="vow" ? (p>=tgt?1:0) : Math.floor(p/tgt+1e-9);
           const done = times>=1, lvl=Math.min(times,5);
           const into = done ? (p-times*tgt)/tgt : p/tgt;   // progress into the next round
           const numeric = d.kind==="class"||d.kind==="practice"||d.kind==="amount";
@@ -7471,8 +7622,18 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
           const sub = showLog ? null : [tieNames.join(" + ")||null, dailyTargetText(d)].filter(Boolean).join(" · ");
           const k=kindKey(d);
           return (
-            <div key={d.id} style={{borderBottom:`0.5px solid ${C.bord}`,position:"relative",background:lvl>=2?`${col}${["","","0b","13","1b","24"][lvl]}`:"transparent",transition:"background .4s"}}>
-              <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"10px 2px"}}>
+            <div key={d.id} ref={el=>{ rowRefs.current[d.id]=el; }}
+              style={{borderBottom:`0.5px solid ${C.bord}`,position:"relative",
+                background:drag?.id===d.id?C.surf:lvl>=2?`${col}${["","","0b","13","1b","24"][lvl]}`:"transparent",
+                transition:drag?.id===d.id?"none":"background .4s",
+                transform:drag?.id===d.id?`translateY(${drag.dy}px)`:"none", zIndex:drag?.id===d.id?5:"auto",
+                boxShadow:drag?.id===d.id?"0 6px 18px rgba(0,0,0,0.25)":"none",
+                borderTop:drag && drag.to===d.id && drag.id!==d.id ? `1.5px solid ${C.gold}` : undefined}}>
+              <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"10px 2px 10px 0"}}>
+                <span role="button" tabIndex={0} aria-label={`Move ${d.label}`} title="Drag to reorder"
+                  onPointerDown={e=>gripDown(e,d)} onPointerMove={gripMove} onPointerUp={gripUp} onPointerCancel={()=>setDrag(null)}
+                  onKeyDown={e=>gripKey(e,d)}
+                  style={{touchAction:"none",cursor:"grab",padding:"6px 0 6px 2px",marginRight:"-6px",color:C.dim,opacity:0.55,fontSize:"12px",lineHeight:1,userSelect:"none",flexShrink:0}}>⋮⋮</span>
                 <button onClick={()=>{ setOpenId(open?null:d.id); if(open) setEditId(null); }} aria-expanded={open}
                   style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:"11px",background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left"}}>
                   <span style={{width:lvl>=4?"4px":lvl>=2?"3px":"2px",height:"26px",borderRadius:"2px",flexShrink:0,
@@ -7490,7 +7651,7 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
                 {d.kind==="class" && <RoundBtn label={`Start a session for ${d.label}`} color={col} onClick={()=>start(d)}><PlayGlyph c={col}/></RoundBtn>}
                 {d.kind==="practice" && d.unit==="minutes" && <RoundBtn label={`Time ${d.label}`} color={col} onClick={()=>start(d)}><PlayGlyph c={col}/></RoundBtn>}
                 {d.kind!=="class"
-                  ? <RoundBtn label={(d.kind==="check"||d.kind==="vow") ? (done?`${d.label}: done today`:`Mark ${d.label} done`) : (done?`Do ${d.label} again`:`Mark ${d.label} done`)} on={done} color={col} onClick={()=>finish(d)}>{done?"✓":""}</RoundBtn>
+                  ? <RoundBtn label={d.kind==="vow" ? (done?`${d.label}: kept today`:`Mark ${d.label} kept`) : (done?`Do ${d.label} again`:`Mark ${d.label} done`)} on={done} color={col} onClick={()=>finish(d)}>{done?"✓":""}</RoundBtn>
                   : done && <RoundBtn label={`${d.label}: done today`} on color={col} disabled>✓</RoundBtn>}
               </div>
               {numeric && into>0 && <div style={{position:"absolute",left:"15px",right:0,bottom:"-0.5px",height:"2px",background:"transparent"}}><div style={{height:"100%",width:`${Math.min(1,into)*100}%`,background:col,opacity:done?0.45:0.7}}/></div>}
@@ -7508,6 +7669,8 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
                     </div>
                   )}
                   <div style={{display:"flex",gap:"14px",alignItems:"center"}}>
+                    {(d.kind==="check"||d.kind==="amount") && p>0 && <button onClick={()=>setClassState(c=>setDailyAmount(c, d.id, Math.max(0,p-(d.kind==="check"?1:Math.min(p,d.target||1))), day))}
+                      style={{background:"none",border:"none",padding:0,cursor:"pointer",...body("12.5px",C.muted)}}>{d.kind==="check"?"Take one back":"Take a round back"}</button>}
                     {d.kind==="practice" && d.unit!=="minutes" && <button onClick={()=>start(d)} style={{background:"none",border:"none",padding:0,cursor:"pointer",...body("12.5px",C.sageB)}}>Start a session ›</button>}
                     <button onClick={()=>setEditId(editing?null:d.id)} style={{background:"none",border:"none",padding:0,cursor:"pointer",...body("12.5px",C.muted)}}>{editing?"Done editing":"Edit"}</button>
                   </div>
@@ -7519,16 +7682,35 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
                           <button key={kk} onClick={()=>setKind(d,kk)} style={chip(k===kk,col)}>{l}</button>
                         ))}
                       </div>
-                      {(k==="minutes"||k==="count") && (
-                        <select value={d.kind==="practice"?d.match:""} aria-label="Practice"
-                          onChange={e=>{ const a=activities.find(x=>x.name===e.target.value);
-                            if(!a) patch(d.id,{kind:"amount",match:undefined,unit:k==="minutes"?"minutes":"reps"});
-                            else patch(d.id,{kind:"practice",match:a.name,unit:a.unit||"reps",measure:undefined,label:(!d.label||d.label===d.match)?a.name:d.label}); }}
-                          style={{...inp,width:"100%"}}>
-                          <option value="">Your own (no practice, no XP)</option>
-                          {[...new Map(activities.filter(a=>k==="minutes"?a.unit==="minutes":a.unit!=="minutes").map(a=>[a.name,a])).values()].map(a=><option key={a.name} value={a.name}>{a.name}</option>)}
-                        </select>
-                      )}
+                      {d.kind!=="vow" && (()=>{
+                        const cp=classPracticesFor(d, activities);
+                        const others=[...new Map(activities.filter(a=>!cp.some(c=>c.name===a.name)).map(a=>[a.name,a])).values()];
+                        const pick=a=>{ const unit=a.unit||"reps";
+                          const keepT = d.kind==="practice" && (d.unit||"reps")===unit;
+                          patch(d.id,{kind:"practice", match:a.name, unit, measure:keepT?d.measure:undefined,
+                            target: keepT ? d.target : (SUGGEST_TARGET[unit]??10),
+                            label: (!d.label || d.label===d.match || d.kind==="class") ? a.name : d.label}); };
+                        const none=()=>{ if(d.kind==="practice") patch(d.id,{kind:"amount", match:undefined, measure:undefined}); };
+                        return (
+                          <div>
+                            <div style={{...dsp("8px",C.dim,400,"0.16em"),marginBottom:"6px"}}>PRACTICE <span style={{...body("10px",C.dim),letterSpacing:0,fontStyle:"italic",textTransform:"none"}}>· counts its sessions and logs</span></div>
+                            <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:others.length?"8px":0}}>
+                              <button onClick={none} style={chip(d.kind!=="practice",col)}>NONE</button>
+                              {cp.map(a=>(
+                                <button key={a.name} aria-pressed={d.kind==="practice"&&d.match===a.name} onClick={()=>pick(a)} style={chip(d.kind==="practice"&&d.match===a.name,col)}>{a.name.toUpperCase()}</button>
+                              ))}
+                            </div>
+                            {others.length>0 && (
+                              <select value={d.kind==="practice" && !cp.some(c=>c.name===d.match) ? d.match : ""} aria-label="Another practice"
+                                onChange={e=>{ const a=activities.find(x=>x.name===e.target.value); if(a) pick(a); }}
+                                style={{...inp,width:"100%"}}>
+                                <option value="">{cp.length?"Another practice…":"Choose a practice…"}</option>
+                                {others.map(a=><option key={a.name} value={a.name}>{a.name}</option>)}
+                              </select>
+                            )}
+                          </div>
+                        );
+                      })()}
                       {d.kind==="practice" && (
                         <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
                           <span style={{...body("12px",C.dim),marginRight:"2px"}}>Count in</span>
@@ -7581,7 +7763,8 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
           {newLabel.trim() && <button onClick={addNew} style={{...chip(true),flexShrink:0}}>ADD</button>}
         </div>
       </div>
-      {suggestions.length>0 && (
+      </>)}
+      {period==="day" && suggestions.length>0 && (
         <div style={{marginTop:"12px"}}>
           <div style={{...dsp("8px",C.dim,400,"0.18em"),marginBottom:"7px"}}>SUGGESTED</div>
           <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
@@ -7857,7 +8040,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
                                 </button>
                               </div>
                             )}
-                            {done&&<div style={{...body("10px",SC.dim),fontStyle:"italic",paddingLeft:"14px",marginTop:"4px"}}>It's on your Daily now: Align · Relax · Breathe, as often as you like.</div>}
+                            {done&&<div style={{...body("10px",SC.dim),fontStyle:"italic",paddingLeft:"14px",marginTop:"4px"}}>They're on your Daily now: Align, Relax and Breathe, as often as you like.</div>}
                           </div>
                         );
                       })()}
@@ -10929,7 +11112,7 @@ export default function AscendApp(){
   useEffect(()=>{
     if(!classState || classState.anchorDailyAdded) return;
     if(!(completedChapters||[]).includes(ANCHOR_DAILY_AFTER_CHAPTER)) return;
-    setClassState(cs=>cs?.anchorDailyAdded ? cs : {...cs, anchorDailyAdded:true, dailies:[...(cs?.dailies||[]), makeAnchorDaily()]});
+    setClassState(cs=>cs?.anchorDailyAdded ? cs : {...cs, anchorDailyAdded:true, dailies:[...(cs?.dailies||[]), ...makeAnchorDailies()]});
   },[completedChapters, classState?.anchorDailyAdded]);
   /* The Ledger: completes once enough intentions are open (outcomes never gate it). */
   useEffect(()=>{
