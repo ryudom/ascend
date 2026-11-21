@@ -5887,7 +5887,7 @@ function presenceBreakdown(sessions){
   });
   return out;
 }
-function PresenceSheetBody({ classState, onClassState, sessions=[], activities=[], storyValues=[], forged=false, gateOpen=false,
+function PresenceSheetBody({ onAddCategoryItem=()=>{}, classState, onClassState, sessions=[], activities=[], storyValues=[], forged=false, gateOpen=false,
   onQuickLog, onUndoLog, onStartDaily, onGoDaily=()=>{}, onGoQuests=()=>{}, onOpenLib=()=>{} }){
   const [openRow,setOpenRow]=useState(null);
   const br=useMemo(()=>presenceBreakdown(sessions),[sessions]);
@@ -5899,7 +5899,7 @@ function PresenceSheetBody({ classState, onClassState, sessions=[], activities=[
     <div>
       {(gateOpen || hasPresenceDaily) && (<>
         {head("DAILY")}
-        <DailyList classState={classState} setClassState={onClassState} sessions={sessions} activities={activities}
+        <DailyList classState={classState} setClassState={onClassState} sessions={sessions} activities={activities} onAddCategoryItem={onAddCategoryItem}
           values={storyValues} forged={forged} scope="presence" showHeader={false}
           onQuickLog={onQuickLog} onUndoLog={onUndoLog} onStart={onStartDaily}/>
         <button onClick={()=>onGoDaily("presence")} style={{margin:"6px 0 6px",background:"none",border:"none",cursor:"pointer",padding:"4px 0",...body("13px",C.sageB)}}>All dailies ›</button>
@@ -6362,7 +6362,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
               onPick={id=>{ onSelect(id); const nd=myNodes.find(m=>m.id===id); if(nd) glide(nd.pos.x,nd.pos.y); }}
               onStoryChange={onStoryChange} onOpenForge={customMine ? ()=>{ setTplEdit(customTpl.id); setTplOpen(true); } : onOpenForge} forgeLabel={customMine?"EDIT MAP ›":"THE FORGE ›"}/>
           ) : centerOn ? (
-            <PresenceSheetBody classState={classState} onClassState={onClassState} sessions={sessions} activities={activities}
+            <PresenceSheetBody onAddCategoryItem={onAddCategoryItem} classState={classState} onClassState={onClassState} sessions={sessions} activities={activities}
               storyValues={storyValues} forged={!!story?.name} gateOpen={gateOpen}
               onQuickLog={onQuickLog} onUndoLog={onUndoLog} onStartDaily={onStartDaily}
               onGoDaily={onGoDaily} onGoQuests={onGoQuests} onOpenLib={onOpenLib}/>
@@ -6395,7 +6395,7 @@ function CultivateTab({ classState, sessions=[], jEnt=[], gateOpen=false, sel:pa
             ) : (<>
             {st.chosen && (<>
               <div style={{...dsp("8px",C.muted,400,"0.2em"),margin:"6px 0 6px"}}>DAILY</div>
-              <DailyList classState={classState} setClassState={onClassState} sessions={sessions} activities={activities}
+              <DailyList classState={classState} setClassState={onClassState} sessions={sessions} activities={activities} onAddCategoryItem={onAddCategoryItem}
                 values={storyValues} forged={!!story?.name} scope={selNode.id} showHeader={false}
                 onQuickLog={onQuickLog} onUndoLog={onUndoLog} onStart={onStartDaily}/>
               <button onClick={()=>onGoDaily(selNode.id)} style={{margin:"6px 0 6px",background:"none",border:"none",cursor:"pointer",padding:"4px 0",...body("13px",C.sageB)}}>All dailies ›</button>
@@ -7444,7 +7444,7 @@ function classPracticesFor(d, activities){
   return [...new Map(owned.map(a=>[a.name,a])).values()];
 }
 
-function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[], values=[], forged=false, scope=null,
+function DailyList({ onAddCategoryItem=()=>{}, classState, setClassState=()=>{}, sessions=[], activities=[], values=[], forged=false, scope=null,
   showHeader=true, showSuggestions=true, onQuickLog=()=>null, onUndoLog=()=>{}, onStart=()=>{} }){
   const day=localDateStr();
   const cs=classState||{};
@@ -7732,9 +7732,30 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
                             target: keepT ? d.target : (SUGGEST_TARGET[unit]??10),
                             label: (!d.label || d.label===d.match || d.kind==="class") ? a.name : d.label}); };
                         const none=()=>{ if(d.kind==="practice") patch(d.id,{kind:"amount", match:undefined, measure:undefined}); };
+                        /* Make the daily itself a practice inside one of its classes' Fundamentals (Strengthen, Gather…):
+                           it then logs real XP, counts in that Fundamental and Mastery, and can be timed in a session. */
+                        const cats=dailyTieKeys(d).filter(k=>CLASS_BY_ID[k]).flatMap(cid=>(FUNDAMENTALS[cid]||[]).filter(f=>f.category && fundamentalUnlocked(f,cid,cs)).map(f=>({f,cid})));
+                        const curAct = d.kind==="practice" ? activities.find(a=>a.name===d.match) : null;
+                        const addTo=f=>{
+                          const name=(d.label||"").trim().replace(/\s+/g," ").slice(0,32); if(!name) return;
+                          const existing=activities.find(a=>a.name.toLowerCase()===name.toLowerCase());
+                          if(existing) return pick(existing);
+                          const unit = d.unit && d.unit!=="times" ? d.unit : (f.unit==="minutes" ? "minutes" : (f.unit||"reps"));
+                          onAddCategoryItem(f,{name, unit});
+                          const keepT = (d.kind==="amount"||d.kind==="practice") && (d.unit||"reps")===unit;
+                          patch(d.id,{kind:"practice", match:name, unit, measure:undefined, target: keepT ? d.target : (SUGGEST_TARGET[unit]??10)});
+                        };
                         return (
                           <div>
-                            <div style={{...dsp("8px",C.dim,400,"0.16em"),marginBottom:"6px"}}>PRACTICE <span style={{...body("10px",C.dim),letterSpacing:0,fontStyle:"italic",textTransform:"none"}}>· counts its sessions and logs</span></div>
+                            {cats.length>0 && d.label?.trim() && (<>
+                              <div style={{...dsp("8px",C.dim,400,"0.16em"),marginBottom:"6px"}}>ADD AS AN ACTIVITY IN <span style={{...body("10px",C.dim),letterSpacing:0,fontStyle:"italic",textTransform:"none"}}>· XP, Fundamentals, Mastery</span></div>
+                              <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"12px"}}>
+                                {cats.map(({f,cid})=>{ const on=!!curAct && curAct.category===f.id && curAct.name===d.match; const fc=AC(CLASS_BY_ID[cid].accent); return (
+                                  <button key={f.id} aria-pressed={on} onClick={()=>!on && addTo(f)} style={chip(on,fc)}>{f.name.toUpperCase()}</button>
+                                ); })}
+                              </div>
+                            </>)}
+                            <div style={{...dsp("8px",C.dim,400,"0.16em"),marginBottom:"6px"}}>{cats.length&&d.label?.trim()?"OR FOLLOW AN ACTIVITY":"ACTIVITY"} <span style={{...body("10px",C.dim),letterSpacing:0,fontStyle:"italic",textTransform:"none"}}>· counts its sessions and logs</span></div>
                             <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:others.length?"8px":0}}>
                               <button onClick={none} style={chip(d.kind!=="practice",col)}>NONE</button>
                               {cp.map(a=>(
@@ -7742,10 +7763,10 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
                               ))}
                             </div>
                             {others.length>0 && (
-                              <select value={d.kind==="practice" && !cp.some(c=>c.name===d.match) ? d.match : ""} aria-label="Another practice"
+                              <select value={d.kind==="practice" && !cp.some(c=>c.name===d.match) ? d.match : ""} aria-label="Another activity"
                                 onChange={e=>{ const a=activities.find(x=>x.name===e.target.value); if(a) pick(a); }}
                                 style={{...inp,width:"100%"}}>
-                                <option value="">{cp.length?"Another practice…":"Choose a practice…"}</option>
+                                <option value="">{cp.length?"Another activity…":"Choose an activity…"}</option>
                                 {others.map(a=><option key={a.name} value={a.name}>{a.name}</option>)}
                               </select>
                             )}
@@ -7822,7 +7843,7 @@ function DailyList({ classState, setClassState=()=>{}, sessions=[], activities=[
   );
 }
 
-function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}, hasAnchored, sessions=[], chaptersRead=[], onMarkRead, libReadAt={}, pins=[], chStats={}, onOpenAnchor=()=>{}, onGoToLib=()=>{},
+function QuestTab({ onAddCategoryItem=()=>{}, completedChapters, onCompleteChapter, onToggleChapter=()=>{}, hasAnchored, sessions=[], chaptersRead=[], onMarkRead, libReadAt={}, pins=[], chStats={}, onOpenAnchor=()=>{}, onGoToLib=()=>{},
   classGateOpen=false, classState=null, onChooseClass=()=>{}, trialComplete=()=>false, onOpenClassQuest=()=>{}, devMode=false, onDevSkipTrial=()=>{},
   actCollapsed={}, setActCollapsed=()=>{}, classCollapsed=false, setClassCollapsed=()=>{},
   chantGateOpen=false, chantUnlocked=false, setOpenChantQuest=()=>{}, activities=[], jEnt=[], onAcknowledgeTrial=()=>{},
@@ -8500,7 +8521,7 @@ function QuestTab({ completedChapters, onCompleteChapter, onToggleChapter=()=>{}
           const vals=(storyForged(way) ? (way.story.values||[]) : []).map(v=>typeof v==="string"?v:(v?.name||v?.label||"")).filter(Boolean);
           return (
             <div style={{paddingTop:"4px"}}>
-              <DailyList classState={classState} setClassState={setClassState} sessions={sessions} activities={activities}
+              <DailyList classState={classState} setClassState={setClassState} sessions={sessions} activities={activities} onAddCategoryItem={onAddCategoryItem}
                 values={vals} forged={storyForged(way)} onQuickLog={onQuickLog} onUndoLog={onUndoLog} onStart={onStartDaily}/>
             </div>
           );
@@ -10598,6 +10619,9 @@ export default function AscendApp(){
   const [activities,setActivities]=useState(()=>migrateActivityMetadata(P.activities??[]));
   const addActivity=(name,stat,practiceType,category)=>setActivities(p=>[...p,{id:`act_${Date.now()}_${Math.random().toString(36).substr(2,4)}`,name,stat,practiceType,...(category?{category}:{})}]);
   const deleteActivity=id=>setActivities(p=>p.filter(a=>a.id!==id));
+  /* Add a practice inside a class Fundamental (a category like Strengthen). */
+  const addCategoryItem=(f,{name,unit})=>setActivities(p=>p.some(a=>a.name.toLowerCase()===name.toLowerCase()) ? p
+    : [...p,{id:`act_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, name, stat:f.stat, practiceType:f.practiceType||"train", unit, category:f.id, count:0}]);
   // onboarding: "brand" | "intro" | "done"
   const [onboarding,setOnboarding]=useState(P.onboardingDone ? "done" : "brand");
   const [nameInput,setNameInput]=useState("");
@@ -11954,7 +11978,7 @@ export default function AscendApp(){
         {/* content — all tabs stay mounted so internal state (quest screen, library entry) persists */}
         <div style={{flex:1,overflowY:"auto",paddingBottom:"calc(118px + env(safe-area-inset-bottom))"}}>
           <TabPane active={tab==="character"}><CharacterTab active={tab==="character"} ch={ch} sessions={sessions} onJournal={()=>setScr("journal")} onLogs={()=>setScr("logs")} devMode={devMode} setCh={setCh} capacities={capacities} setCapacities={setCapacities} classState={classState} classGateOpen={classGateOpen} onOpenPath={cid=>{setPathView(cid);setScr("path");}}/></TabPane>
-          <TabPane active={tab==="quest"}><QuestTab completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnchFull(true);setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
+          <TabPane active={tab==="quest"}><QuestTab onAddCategoryItem={addCategoryItem} completedChapters={completedChapters} onCompleteChapter={n=>{setCompletedChapters(p=>p.includes(n)?p:[...p,n]); if(n===2) setGuidedSession(false);}} onToggleChapter={n=>setCompletedChapters(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n])} hasAnchored={hasAnchored} sessions={sessions} chaptersRead={chaptersRead} onMarkRead={n=>setChaptersRead(p=>p.includes(n)?p:[...p,n])} libReadAt={libReadAt} pins={pins} chStats={ch.stats??{}} onOpenAnchor={(type)=>{setAnchInitType(type||"sitting");setAnchFull(true);setAnch(true);setScr(null);}} onGoToLib={(id)=>{setTab("library");setLibOpenId(id);}}
             classGateOpen={classGateOpen} classState={classState} onChooseClass={chooseClass} trialComplete={trialComplete} onOpenClassQuest={(qid,cid)=>setOpenClassQuest({classId:cid||classState.activeClass,questId:qid})} devMode={devMode} onDevSkipTrial={onDevSkipTrial} actCollapsed={actCollapsed} setActCollapsed={setActCollapsed} classCollapsed={classCollapsed} setClassCollapsed={setClassCollapsed} chantGateOpen={chantGateOpen} chantUnlocked={chantUnlocked} setOpenChantQuest={setOpenChantQuest} activities={activities} jEnt={jEnt} onAcknowledgeTrial={acknowledgeTrialComplete} showActComplete={showActComplete} setShowActComplete={setShowActComplete} way={way} onWayChange={updateWay} onOpenReflection={openReflection} onAwardWayXP={awardWayXP}
             onOpenMyPath={()=>{ setCultMode("mine"); setMySel("center"); setTab("cultivate"); }} lineReq={questLineReq} setClassState={setClassState} onQuickLog={quickLog} onUndoLog={undoQuickLog} onStartDaily={startDaily}/></TabPane>
           <TabPane active={tab==="cultivate"} style={{height:"100%"}}><CultivateTab classState={classState} next={nextStep} onQuickLog={quickLog} onUndoLog={undoQuickLog} onStartDaily={startDaily} presenceLevel={presenceLevel} onToggleVow={toggleVowToday} onGoDaily={(cid)=>{ setTab("quest"); setQuestLineReq({line:"daily", classId:cid, n:Date.now()}); }} onGoQuests={(cid)=>{ setTab("quest"); setQuestLineReq(cid==="forge" ? {line:"forge", n:Date.now()} : {line:"path", classId:cid, n:Date.now()}); }} onDevSetPresence={L=>setCh(p=>({...p,totalXP:presenceXPForLevel(L)}))} onDevSetMastery={(cid,L)=>setClassState(cs=>{
@@ -11974,8 +11998,7 @@ export default function AscendApp(){
             onOpenClassQuest={(cid,qid)=>setOpenClassQuest({classId:cid,questId:qid})} onOpenLib={(id)=>{setTab("library");setLibOpenId(id);}}
             onAcknowledgeTrial={acknowledgeTrialComplete} devMode={devMode} onDevSkipTrial={onDevSkipTrial}
             activities={activities} onRemoveActivity={deleteActivity}
-            onAddCategoryItem={(f,{name,unit})=>setActivities(p=>p.some(a=>a.name.toLowerCase()===name.toLowerCase()) ? p
-              : [...p,{id:`act_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, name, stat:f.stat, practiceType:f.practiceType||"train", unit, category:f.id, count:0}])}
+            onAddCategoryItem={addCategoryItem}
             story={mapStory} forgedStory={story} customTpl={customTpl} onPickTemplate={pickTemplate} onClassState={setClassState} mode={cultMode} onMode={setCultMode} mySel={mySel} onMySel={setMySel} onStoryChange={updateMapStory}
             practiceModes={["sitting","standing","walking",...unlockedClassPracticeTypes.filter(t=>t==="train"||t==="restore")]}
             onOpenForge={()=>{ setTab("quest"); setQuestLineReq({line:"forge", n:Date.now()}); }}/></TabPane>
