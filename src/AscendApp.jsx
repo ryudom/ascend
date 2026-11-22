@@ -1426,6 +1426,8 @@ function migrateClassState(cs, activities){
     chk.forEach(d=>{ const m={...(amts[d.id]||{})}; checks[d.id].forEach(day=>{ m[day]=Math.max(m[day]||0,1); }); amts[d.id]=m; delete checks[d.id]; });
     out={...out, dailyAmounts:amts, dailyChecks:checks};
   }
+  /* Nov 2026: a check is a count of times (target 1); one kind instead of two. */
+  if((out.dailies||[]).some(d=>d.kind==="check")) out={...out, dailies:out.dailies.map(d=>d.kind==="check" ? {...d, kind:"amount", unit:"times", target:d.target||1} : d)};
   const qp = out.questProgress;
   if(qp && qp.h_communion!==undefined && qp.h_commune===undefined){
     const { h_communion, ...rest } = qp;
@@ -1749,6 +1751,7 @@ function masteryPathsForSession(s){
     if(names.some(n=>set.has(n))) paths.add(cid);
   });
   (s.activities||[]).forEach(a=>{ if(a.category && FUND_OWNER[a.category]) paths.add(FUND_OWNER[a.category]); });
+  (s.classIds||[]).forEach(c=>{ if(CLASS_BY_ID[c]) paths.add(c); });   // a daily of your own, tied to a class
   if(s.typeId==="standing") paths.add("warrior");
   if(s.typeId==="sitting") paths.add("sage");
   const lands = Array.isArray(s.awarenessLanding) ? s.awarenessLanding : [];
@@ -1810,7 +1813,7 @@ const DAILY_DEFAULT_XP = 30;
 /* Base XP for an untimed log: 1 XP per 10 s for minutes; counted units at a
    rate that reads as real effort (1 rep = 1 XP, about 10 s of a real set with
    rest; a km run ≈ 6 min). Also what counts earn inside a timed session. */
-const LOG_XP_PER_UNIT = { reps:1, movements:1, rounds:3, km:36, sits:6, plants:18, preparations:30, actions:18 };
+const LOG_XP_PER_UNIT = { times:10, reps:1, movements:1, rounds:3, km:36, sits:6, plants:18, preparations:30, actions:18 };
 const logXP = (unit, n) => unit==="minutes" ? Math.floor((n||0)*6) : Math.round((n||0)*(LOG_XP_PER_UNIT[unit]??1));
 const DAILY_UNIT_SHORT = { minutes:"min" };
 const practiceUnit = d => DAILY_UNIT_SHORT[d.unit]||d.unit||"reps";          // the practice's own unit (min, reps, km…)
@@ -1854,8 +1857,19 @@ function markAnchorReturn(cs, day=localDateStr()){
   (c.dailies||[]).filter(x=>x.anchor).forEach(d=>{ c = setDailyAmount(c, d.id, (c.dailyAmounts?.[d.id]?.[day]||0)+1, day); });
   return {...c, anchorDailyAdded:true, anchorReturned:true};
 }
+/* XP for a count or minutes of your own (no activity behind it): only once it
+   is tied to something. Minutes at 1 XP per 10 s; counts at their unit rate
+   (1 per rep, 10 per time) or the daily's own "XP each". */
+function ownDailyXP(d, amount){
+  if(!dailyTieKeys(d).length || !(amount>0)) return 0;
+  if(d.unit==="minutes") return Math.floor(amount*6);
+  /* the anchors are moments, not tasks: a few XP each (about half a minute) */
+  const each = d.xpEach ?? (d.anchorKey ? 3 : LOG_XP_PER_UNIT[d.unit||"times"] ?? 1);
+  return Math.round(amount*each);
+}
 /* Anchor dailies read their line from ANCHOR_DAILIES, so wording changes reach saved dailies too. */
-const dailyTargetText = d => d.anchorKey ? (ANCHOR_DAILIES.find(a=>a.key===d.anchorKey)?.sub || d.sub || "") : d.sub ? d.sub : d.kind==="vow" ? "Do not" : d.kind==="check" ? "" : `${d.target} ${dailyUnit(d)}`;
+const dailyTargetText = d => d.anchorKey ? (ANCHOR_DAILIES.find(a=>a.key===d.anchorKey)?.sub || d.sub || "") : d.sub ? d.sub :
+  (d.kind==="amount" && d.unit==="times") ? ((d.target||1)>1 ? `${d.target} times` : "") : d.kind==="vow" ? "Do not" : d.kind==="check" ? "" : `${d.target} ${dailyUnit(d)}`;
 const fmtDailyAmt = n => { const r=Math.round((n||0)*10)/10; return Number.isInteger(r) ? String(r) : r.toFixed(1); };
 const newDailyId = () => "d"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 /* A daily can be tied to several places: d.cid/d.value is the first tie (its
@@ -7487,24 +7501,47 @@ function DailyList({ onAddCategoryItem=()=>{}, classState, setClassState=()=>{},
   const isDone = d => prog(d) >= (d.target||1);
   /* Your order: rows stay where you put them (drag the grip to move one). */
   const rows=all;
-  const moveDaily = (id, toId) => {
-    if(!toId || toId===id) return;
-    upd(ds=>{ const from=ds.findIndex(x=>x.id===id), ti=ds.findIndex(x=>x.id===toId); if(from<0||ti<0) return ds;
-      const arr=[...ds]; const [m]=arr.splice(from,1); arr.splice(ti,0,m); return arr; });
+  /* Put the row with this id at visible position `to` (0-based, among the rows
+     shown here). Rows from other sheets keep their places in the full list. */
+  const placeDaily = (id, to) => {
+    const vis=rows.map(r=>r.id), from=vis.indexOf(id);
+    if(from<0 || to==null || to===from) return;
+    const order=[...vis]; order.splice(from,1); order.splice(to,0,id);
+    upd(ds=>{ const slots=ds.map((x,i)=>vis.includes(x.id)?i:-1).filter(i=>i>=0); const out=[...ds];
+      slots.forEach((slot,k)=>{ out[slot]=ds.find(x=>x.id===order[k]); }); return out; });
+  };
+  const moveDaily = (id, toId) => placeDaily(id, rows.findIndex(r=>r.id===toId));
+  /* Dragging: the picked-up row follows the finger, and the rows it passes
+     slide out of the way to open a space where it will land. */
+  const startDrag = (d, y) => {
+    const from=rows.findIndex(r=>r.id===d.id);
+    const rects=rows.map(r=>{ const el=rowRefs.current[r.id]; const b=el?el.getBoundingClientRect():{top:0,height:0}; return {top:b.top, h:b.height}; });
+    setOpenId(null); setEditId(null);
+    setDrag({id:d.id, startY:y, dy:0, from, to:from, h:rects[from]?.h||48, mids:rects.map(r=>r.top+r.h/2), center:(rects[from]?.top||y)+(rects[from]?.h||48)/2});
   };
   const gripDown = (e, d) => {
     e.preventDefault(); e.stopPropagation();
     try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){}
-    setOpenId(null); setEditId(null);
-    setDrag({id:d.id, startY:e.clientY, dy:0, to:null});
+    startDrag(d, e.clientY);
   };
   const gripMove = e => {
     if(!drag) return;
-    const y=e.clientY; let to=null;
-    for(const r of rows){ const el=rowRefs.current[r.id]; if(!el) continue; const b=el.getBoundingClientRect(); if(y>=b.top && y<b.bottom){ to=r.id; break; } }
-    setDrag(dr=>dr && {...dr, dy:y-dr.startY, to:to||dr.to});
+    const y=e.clientY;
+    setDrag(dr=>{
+      if(!dr) return dr;
+      const c=dr.center+(y-dr.startY);
+      let to=0; dr.mids.forEach((m,i)=>{ if(i!==dr.from && c>m) to++; });
+      return {...dr, dy:y-dr.startY, to};
+    });
   };
-  const gripUp = () => { if(!drag) return; const {id,to}=drag; setDrag(null); moveDaily(id,to); };
+  const gripUp = () => { if(!drag) return; const {id,to}=drag; setDrag(null); placeDaily(id,to); };
+  /* How far a row slides while another is dragged past it. */
+  const dragShift = i => {
+    if(!drag || i===drag.from) return 0;
+    if(drag.from<drag.to && i>drag.from && i<=drag.to) return -drag.h;
+    if(drag.from>drag.to && i>=drag.to && i<drag.from) return drag.h;
+    return 0;
+  };
   /* Press and hold anywhere on a row (not its buttons) to pick it up. A quick
      tap still opens the row; moving before the hold ends is a scroll. */
   const HOLD_MS=200, SLOP=8;
@@ -7517,7 +7554,7 @@ function DailyList({ onAddCategoryItem=()=>{}, classState, setClassState=()=>{},
       try{ target.setPointerCapture(pid); }catch(_){}
       try{ navigator.vibrate && navigator.vibrate(12); }catch(_){}
       setOpenId(null); setEditId(null);
-      setDrag({id:d.id, startY:press.current.y, dy:0, to:null});
+      startDrag(d, press.current.y);
     }, HOLD_MS);
     press.current={id:d.id, x:e.clientX, y, timer, active:false};
   };
@@ -7548,7 +7585,20 @@ function DailyList({ onAddCategoryItem=()=>{}, classState, setClassState=()=>{},
     const before=prog(d);
     if(n>0) checkFeedback();
     setClassState(c=>setDailyAmount(c, d.id, before+n, day));
-    setLastLog({id:d.id, text: d.kind==="check" ? `Done ×${before+n}` : dailyUnit(d)==="times" ? (n===1?"Logged once":`Logged ${fmtDailyAmt(n)} times`) : `Logged ${fmtDailyAmt(n)} ${dailyUnit(d)}`, undo:()=>setClassState(c=>setDailyAmount(c, d.id, before, day))});
+    /* tied to something: also a real log, with XP (see ownDailyXP) */
+    const s = n>0 ? onQuickLog(d, n) : null;
+    const xp = s?.xp ? ` · +${s.xp} XP` : "";
+    const times = dailyUnit(d)==="times";
+    setLastLog({id:d.id, text:(times ? ((d.target||1)===1 ? `Done ×${Math.floor(before+n)}` : (n===1?"Logged once":`Logged ${fmtDailyAmt(n)} times`)) : `Logged ${fmtDailyAmt(n)} ${dailyUnit(d)}`)+xp,
+      undo:()=>{ setClassState(c=>setDailyAmount(c, d.id, before, day)); if(s) onUndoLog(s); }});
+  };
+  /* Take back the last one logged today (its XP too, when it earned some). */
+  const takeBack = d => {
+    const p=prog(d); if(!(p>0)) return;
+    const s=(sessions||[]).find(x=>x.dailyId===d.id && sessionDay(x)===day);
+    const n = s?.dailyAmount || (d.kind==="check" ? 1 : Math.min(p, d.target||1));
+    setClassState(c=>setDailyAmount(c, d.id, Math.max(0,p-n), day));
+    if(s) onUndoLog(s);
   };
   /* ✓ finishes the current round; once done it logs another (20 pushups, five
      times in a day = ×5). A check counts each ✓ (×N); Undo takes one back.
@@ -7564,7 +7614,7 @@ function DailyList({ onAddCategoryItem=()=>{}, classState, setClassState=()=>{},
   const start = d => { setOpenId(null); setEditId(null); onStart(d); };
   const addNew = () => {
     const label=newLabel.trim(); if(!label) return;
-    upd(ds=>[...ds, {id:newDailyId(), kind:"check", label, target:1, cid:scope||null}]);
+    upd(ds=>[...ds, {id:newDailyId(), kind:"amount", unit:"times", label, target:1, cid:scope||null}]);
     setNewLabel("");
   };
 
@@ -7592,14 +7642,15 @@ function DailyList({ onAddCategoryItem=()=>{}, classState, setClassState=()=>{},
 
   const inp = {background:C.bg,color:C.cream,border:`0.5px solid ${C.bord}`,borderRadius:"5px",padding:"7px 9px",...body("13px",C.cream),boxSizing:"border-box"};
   const chip = (on,col=C.gold) => ({padding:"6px 10px",borderRadius:"6px",cursor:"pointer",background:on?`${col}22`:"none",border:`0.5px solid ${on?col:C.bord}`,...dsp("8.5px",on?C.cream:C.muted,400,"0.1em")});
-  const kindKey = d => d.kind==="check"?"check" : d.kind==="vow"?"vow" : d.kind==="class"?"xp" : (d.unit==="minutes"?"minutes":"count");
+  const kindKey = d => d.kind==="vow"?"vow" : d.kind==="class"?"xp" : (d.unit==="minutes"?"minutes":"count");
   const setKind = (d, k) => {
     const base={match:undefined, measure:undefined};
     if(k==="check") patch(d.id,{...base,kind:"check",target:1,unit:undefined});
     else if(k==="vow") patch(d.id,{...base,kind:"vow",target:1,unit:undefined});
     else if(k==="xp") patch(d.id,{...base,kind:"class",target:DAILY_DEFAULT_XP,unit:undefined});
     else if(k==="minutes") patch(d.id,{...base,kind:"amount",unit:"minutes",target:10});
-    else patch(d.id,{...base,kind:"amount",unit:"reps",target:20});
+    else if(d.kind==="amount" && d.unit!=="minutes") return;
+    else patch(d.id,{...base,kind:"amount",unit:"times",target:1});
   };
 
   return (
@@ -7663,10 +7714,10 @@ function DailyList({ onAddCategoryItem=()=>{}, classState, setClassState=()=>{},
             <div key={d.id} ref={el=>{ rowRefs.current[d.id]=el; }}
               style={{borderBottom:`0.5px solid ${C.bord}`,position:"relative",
                 background:drag?.id===d.id?C.surf:lvl>=2?`${col}${["","","0b","13","1b","24"][lvl]}`:"transparent",
-                transition:drag?.id===d.id?"none":"background .4s",
-                transform:drag?.id===d.id?`translateY(${drag.dy}px)`:"none", zIndex:drag?.id===d.id?5:"auto",
-                boxShadow:drag?.id===d.id?"0 6px 18px rgba(0,0,0,0.25)":"none",
-                borderTop:drag && drag.to===d.id && drag.id!==d.id ? `1.5px solid ${C.gold}` : undefined}}>
+                transition:drag?.id===d.id?"none":drag?"background .4s, transform .16s ease":"background .4s",
+                transform:drag?.id===d.id?`translateY(${drag.dy}px)`:drag?`translateY(${dragShift(rows.indexOf(d))}px)`:"none",
+                zIndex:drag?.id===d.id?5:"auto",
+                boxShadow:drag?.id===d.id?"0 6px 18px rgba(0,0,0,0.25)":"none"}}>
               <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"10px 2px 10px 0"}}>
                 <span role="button" tabIndex={0} aria-label={`Move ${d.label}`} title="Drag to reorder"
                   onPointerDown={e=>gripDown(e,d)} onPointerMove={gripMove} onPointerUp={gripUp} onPointerCancel={()=>setDrag(null)}
@@ -7710,8 +7761,8 @@ function DailyList({ onAddCategoryItem=()=>{}, classState, setClassState=()=>{},
                     </div>
                   )}
                   <div style={{display:"flex",gap:"14px",alignItems:"center"}}>
-                    {(d.kind==="check"||d.kind==="amount") && p>0 && <button onClick={()=>setClassState(c=>setDailyAmount(c, d.id, Math.max(0,p-(d.kind==="check"?1:Math.min(p,d.target||1))), day))}
-                      style={{background:"none",border:"none",padding:0,cursor:"pointer",...body("12.5px",C.muted)}}>{d.kind==="check"?"Take one back":"Take a round back"}</button>}
+                    {(d.kind==="check"||d.kind==="amount") && p>0 && <button onClick={()=>takeBack(d)}
+                      style={{background:"none",border:"none",padding:0,cursor:"pointer",...body("12.5px",C.muted)}}>Take one back</button>}
                     {d.kind==="practice" && d.unit!=="minutes" && <button onClick={()=>start(d)} style={{background:"none",border:"none",padding:0,cursor:"pointer",...body("12.5px",C.sageB)}}>Start a session ›</button>}
                     <button onClick={()=>setEditId(editing?null:d.id)} style={{background:"none",border:"none",padding:0,cursor:"pointer",...body("12.5px",C.muted)}}>{editing?"Done editing":"Edit"}</button>
                   </div>
@@ -7719,10 +7770,26 @@ function DailyList({ onAddCategoryItem=()=>{}, classState, setClassState=()=>{},
                     <div style={{marginTop:"12px",display:"flex",flexDirection:"column",gap:"10px"}}>
                       <input value={d.label} onChange={e=>patch(d.id,{label:e.target.value})} aria-label="Name" style={{...inp,width:"100%"}}/>
                       <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
-                        {[["check","CHECK"],["vow","DO NOT"],["minutes","MINUTES"],["count","COUNT"],["xp","XP"]].map(([kk,l])=>(
+                        {[["count","COUNT"],["minutes","MINUTES"],["xp","XP"],["vow","DO NOT"]].map(([kk,l])=>(
                           <button key={kk} onClick={()=>setKind(d,kk)} style={chip(k===kk,col)}>{l}</button>
                         ))}
                       </div>
+                      {d.kind==="amount" && (
+                        <div style={{display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}>
+                          {d.unit!=="minutes" && (<>
+                            <span style={{...body("12px",C.dim),marginRight:"2px"}}>Count</span>
+                            {[["times","TIMES"],["reps","REPS"]].map(([u,l])=>(
+                              <button key={u} onClick={()=>{ if((d.unit||"reps")!==u) patch(d.id,{unit:u, target:u==="times"?1:20, xpEach:undefined}); }} style={chip((d.unit||"reps")===u,col)}>{l}</button>
+                            ))}
+                          </>)}
+                          {dailyTieKeys(d).length ? (d.unit!=="minutes" && (<>
+                              <span style={{...body("12px",C.dim),marginLeft:"8px"}}>Worth</span>
+                              <NumField value={d.xpEach ?? (d.anchorKey ? 3 : LOG_XP_PER_UNIT[d.unit||"times"] ?? 1)} min={1} label="XP each" onCommit={n=>patch(d.id,{xpEach:n})} style={{...inp,width:"58px"}}/>
+                              <span style={{...body("12px",C.dim)}}>XP each</span>
+                            </>))
+                            : <span style={{...body("11.5px",C.dim),fontStyle:"italic",flexBasis:"100%"}}>Tie it to a class, Presence or My Path below to earn XP.</span>}
+                        </div>
+                      )}
                       {d.kind!=="vow" && (()=>{
                         const cp=classPracticesFor(d, activities);
                         const others=[...new Map(activities.filter(a=>!cp.some(c=>c.name===a.name)).map(a=>[a.name,a])).values()];
@@ -11487,7 +11554,7 @@ export default function AscendApp(){
     });
   };
 
-  const handleDone=({type,typeId,duration,elapsed:elapsedSecs,weightedElapsed,activeActivities=[],tags,reflection,pinSession,pinTag,quickAnchor,awarenessLanding,loggedCounts={},logged=false,loggedXP=null})=>{
+  const handleDone=({type,typeId,duration,elapsed:elapsedSecs,weightedElapsed,activeActivities=[],tags,reflection,pinSession,pinTag,quickAnchor,awarenessLanding,loggedCounts={},logged=false,loggedXP=null,classIds=null,dailyId=null,dailyAmount=null})=>{
     /* logged: an untimed record from the Daily list (✓ or the stepper). It earns
        base XP and counts toward Fundamentals, quest totals, Mastery and stats,
        but never toward a trial, an Act I chapter or a "max set" quest. */
@@ -11519,6 +11586,8 @@ export default function AscendApp(){
     const lands = Array.isArray(awarenessLanding) ? awarenessLanding : (awarenessLanding ? [awarenessLanding] : []);
     const sg = applyAwarenessSiphon(sgRaw, lands);
     const s={...(logged?{id:"lg"+Date.now().toString(36),logged:true}:{}),type:isA?"Anchor":type,typeId:isA?"anchor":typeId,duration:isA?1:duration,elapsed:Math.floor(elapsedSecs||0),date:new Date().toISOString().slice(0,10),day:localDateStr(),activities:activeActivities||[],tags:tags||[],reflection:reflection||"",xp:xpE,sg,awarenessLanding:lands,loggedCounts:loggedCounts||{}};
+    if(classIds?.length) s.classIds=classIds;
+    if(dailyId){ s.dailyId=dailyId; s.dailyAmount=dailyAmount; }
     setSessions(p=>[s,...p]);
     if(!logged && (isA || (elapsedSecs??0) >= 10)) setHasAnchored(true);
 
@@ -11663,8 +11732,19 @@ export default function AscendApp(){
   /* ── Daily quick log ── ✓ or the stepper on a practice daily saves an untimed
      record of `amount` (in the practice's unit) through the normal session path. */
   const quickLog = (d, amount) => {
-    const act = activities.find(a=>a.name===d.match);
-    if(!act || !(amount>0)) return null;
+    if(!(amount>0)) return null;
+    const act = d.kind==="practice" ? activities.find(a=>a.name===d.match) : null;
+    if(!act){
+      /* A count or minutes of your own: earns XP once it is tied to something
+         (a class, Presence or My Path), credited to the tied classes. */
+      const xp = ownDailyXP(d, amount); if(!xp) return null;
+      const cids = dailyTieKeys(d).filter(k=>CLASS_BY_ID[k]);
+      const cb = cids.length ? CLASS_DEFAULT_BASE[cids[0]] : null;
+      const isMin = d.unit==="minutes";
+      return handleDone({ type:d.label, typeId:(cb==="train"||cb==="restore")?cb:"train", duration:isMin?Math.max(1,Math.round(amount)):0,
+        elapsed:isMin?Math.round(amount*60):0, weightedElapsed:isMin?Math.round(amount*60):0, activeActivities:[], tags:[], reflection:"",
+        awarenessLanding:[], loggedCounts:{}, logged:true, loggedXP:xp, classIds:cids, dailyId:d.id, dailyAmount:amount });
+    }
     const isMin = (act.unit||d.unit)==="minutes";
     const secs = isMin ? Math.round(amount*60) : 0;
     const typeId = ["sitting","standing","walking","train","restore"].includes(act.practiceType) ? act.practiceType
